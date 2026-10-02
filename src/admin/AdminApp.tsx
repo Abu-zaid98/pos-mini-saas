@@ -27,6 +27,12 @@ export function AdminApp() {
   const { user, isAdmin, loading, error, login, logout } = useAdminAuth()
   const [pwaOpen, setPwaOpen] = useState(false)
 
+  // لوحة التحكم تعمل دائماً بالحجم الطبيعي 100٪ (تصفير أي تكبير)
+  useEffect(() => {
+    const root = document.documentElement;
+    (root.style as CSSStyleDeclaration & { zoom?: string }).zoom = ''
+  }, [])
+
   // إشعار تثبيت اللوحة بعد الدخول بثوانٍ (مرة أسبوعياً ما لم تُثبّت)
   useEffect(() => {
     if (!user || isAdmin === false) return

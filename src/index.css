@@ -1197,6 +1197,7 @@ select.input option {
   @page { margin: 9mm; }
 
   body { background: #fff !important; }
+  html { zoom: 1 !important; }
   body * { visibility: hidden; }
 
   #invoice-print-root, #invoice-print-root *,

@@ -61,6 +61,12 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
   // Manual recheck state
   const [recheckLoading, setRecheckLoading] = useState(false);
 
+  // حجم العرض الثابت للتطبيق (تصغير بسيط عام) — يطبق على كل شاشات الكاشير
+  useEffect(() => {
+    const root = document.documentElement;
+    (root.style as CSSStyleDeclaration & { zoom?: string }).zoom = '0.86';
+  }, []);
+
   // PWA full guide fallback (when native install unavailable)
   const [pwaGuideOpen, setPwaGuideOpen] = useState(false);
 
