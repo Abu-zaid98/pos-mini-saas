@@ -1,0 +1,246 @@
+import { useEffect, useState } from 'react'
+import { Outlet, useLocation } from 'react-router-dom'
+import { BottomNav } from './BottomNav'
+import { Modal } from '../ui/Modal'
+import { getStoredTheme, toggleTheme, type Theme } from '../../utils/theme'
+import { useStoreName } from '../../hooks/useStoreName'
+import { CurrentDate } from './CurrentDate'
+import { InvoicePrintProvider } from '../invoice/InvoicePrint'
+import { PWAInstallSheet } from '../pwa/PWAInstallSheet'
+import { shouldShowPrompt } from '../../utils/pwa'
+
+// PAGE_TITLES is now built dynamically inside the component using the store name
+
+interface AppShellProps {
+  onLogout?: () => void
+}
+
+export function AppShell({ onLogout }: AppShellProps) {
+  const location = useLocation()
+  const storeName = useStoreName()
+
+  const pageTitles: Record<string, string> = {
+    '/': `${storeName} كاشير `,
+    '/products': 'المخزون والتوريد',
+    '/purchases': 'فواتير وسجل التوريد',
+    '/customers': 'العملاء والديون',
+    '/invoices': 'سجل فواتير البيع',
+    '/reports': 'التقارير والإحصائيات',
+    '/settings': 'الإعدادات العامة',
+  }
+
+  const title = pageTitles[location.pathname] ?? storeName
+  const [logoutModalOpen, setLogoutModalOpen] = useState(false)
+  const [theme, setTheme] = useState<Theme>(getStoredTheme)
+  const [pwaOpen, setPwaOpen] = useState(false)
+
+  // إشعار تثبيت التطبيق بعد بدء التشغيل بثانيتين (مرة أسبوعياً ما لم يُثبّت)
+  useEffect(() => {
+    if (!shouldShowPrompt('pos_pwa_prompt')) return
+    const t = setTimeout(() => {
+      if (shouldShowPrompt('pos_pwa_prompt')) setPwaOpen(true)
+    }, 2000)
+    return () => clearTimeout(t)
+  }, [])
+
+  const handleToggleTheme = () => {
+    const next = toggleTheme()
+    setTheme(next)
+  }
+
+  const handleQuickLogout = () => {
+    setLogoutModalOpen(true)
+  }
+
+  const confirmLogout = () => {
+    setLogoutModalOpen(false)
+    onLogout?.()
+  }
+
+  return (
+    <InvoicePrintProvider>
+    <div className="app-shell">
+      {/* Header */}
+      <header className="page-header">
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+        }}>
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{
+              fontSize: 16,
+              fontWeight: 800,
+              color: 'var(--color-text-primary)',
+              letterSpacing: '-0.3px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}>
+              {title}
+            </h1>
+            <CurrentDate />
+          </div>
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            {/* Store badge */}
+            <div style={{
+              background: 'var(--brand-gradient)',
+              borderRadius: 10,
+              padding: '5px 12px',
+              fontSize: 12,
+              fontWeight: 800,
+              color: 'white',
+              letterSpacing: '-0.2px',
+              boxShadow: '0 4px 14px rgba(124, 58, 237, 0.4), inset 0 1px 0 rgba(255,255,255,0.3)',
+              whiteSpace: 'nowrap',
+            }}>
+              🏪 {storeName}
+            </div>
+
+
+
+            {/* Theme Toggle Button */}
+            <button
+              type="button"
+              onClick={handleToggleTheme}
+              title={theme === 'dark' ? 'التحويل إلى الثيم الفاتح' : 'التحويل إلى الثيم الداكن'}
+              style={{
+                background: 'var(--color-input-bg)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 10,
+                padding: '4px 8px',
+                color: 'var(--color-text-primary)',
+                fontSize: 14,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 34,
+                height: 32,
+                boxShadow: 'var(--shadow-sm)',
+              }}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
+
+            {/* Quick Logout / Lock Button */}
+            {onLogout && (
+              <button
+                type="button"
+                onClick={handleQuickLogout}
+                title="تسجيل خروج وقفل التطبيق"
+                style={{
+                  background: 'rgba(244,63,94,0.12)',
+                  border: '1px solid rgba(244,63,94,0.35)',
+                  borderRadius: 10,
+                  padding: '4px 10px',
+                  color: 'var(--color-danger-light)',
+                  fontSize: 12,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontFamily: 'var(--font-main)',
+                  height: 32,
+                  boxShadow: 'var(--shadow-sm)',
+                }}
+              >
+                <span>🔒</span>
+                <span>خروج</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Page content */}
+      <main className="page-content">
+        <Outlet context={{ onLogout }} />
+      </main>
+
+      {/* Bottom navigation */}
+      <BottomNav />
+
+      {/* PWA install notice on startup */}
+      <PWAInstallSheet
+        open={pwaOpen}
+        onClose={() => setPwaOpen(false)}
+        storageKey="pos_pwa_prompt"
+        appName={storeName}
+      />
+
+      {/* Logout Confirmation Modal */}
+      <Modal
+        open={logoutModalOpen}
+        onClose={() => setLogoutModalOpen(false)}
+        title="🔒 تسجيل الخروج"
+        type="box"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div style={{
+            textAlign: 'center',
+            padding: '16px 0 8px',
+          }}>
+            <div style={{ fontSize: 52, marginBottom: 12 }}>🚪</div>
+            <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 6 }}>
+              هل تريد قفل التطبيق؟
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
+              سيتم إغلاق الجلسة الحالية وستحتاج إلى كلمة المرور للدخول مجدداً
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, flexDirection: 'row-reverse', alignItems: 'center', width: '100%' }}>
+            <button
+              type="button"
+              onClick={confirmLogout}
+              style={{
+                flex: 1,
+                minHeight: 46,
+                padding: '12px',
+                borderRadius: 12,
+                border: 'none',
+                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                color: 'white',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-main)',
+                boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
+              }}
+            >
+              🔒 تأكيد الخروج
+            </button>
+            <button
+              type="button"
+              onClick={() => setLogoutModalOpen(false)}
+              style={{
+                flex: 1,
+                minHeight: 46,
+                padding: '12px',
+                borderRadius: 12,
+                border: '1px solid var(--color-border)',
+                background: 'rgba(255,255,255,0.06)',
+                color: 'var(--color-text-secondary)',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-main)',
+              }}
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+    </InvoicePrintProvider>
+  )
+}

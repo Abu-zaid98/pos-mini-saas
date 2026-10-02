@@ -1,0 +1,102 @@
+rules_version = '2';
+
+// ═══════════════════════════════════════════════════════════════
+// قواعد أمان Firestore — نظام الاشتراكات (POS)
+// ═══════════════════════════════════════════════════════════════
+// الفكرة:
+//  • المشترك يقرأ مستند اشتراكه فقط (subs/{uid}_{appId}) — للتحقق من التوكن.
+//  • الكتابة (إنشاء/تجديد/حذف) للأدمن فقط.
+//  • مجموعة admins تُدار يدوياً من Firebase Console (لا يمكن لأحد ترقية نفسه).
+//
+// خطوات التفعيل (مرة واحدة):
+//  1) ثبّت Firebase CLI: npm i -g firebase-tools  ثم  firebase login
+//  2) اربط المشروع: firebase use my-system-admin
+//     (أو أضف "projectId" داخل firebase.json)
+//  3) أنشئ أول مدير يدوياً من الكونسول (البذرة الأولى فقط — بعده تُدار
+//     المدراء من اللوحة: /admin ← المدراء):
+//     Firestore ← مجموعة admins ← مستند بمعرّف = UID المدير من Authentication
+//     الحقول: { active: true, email: "admin@example.com" }
+//  4) انشر القواعد: firebase deploy --only firestore:rules
+// ═══════════════════════════════════════════════════════════════
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // مدير معتمد؟ (مستند admins/{uid} بحقل active=true)
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.active == true;
+    }
+
+    // ── الاشتراكات ──
+    match /subs/{subId} {
+      // قراءة مستند واحد: الأدمن أو صاحب المستند (حقل uid)
+      allow get: if isAdmin()
+        || (request.auth != null && resource.data.uid == request.auth.uid);
+      // سرد المجموعة كاملة (لوحة التحكم): الأدمن فقط
+      allow list: if isAdmin();
+      // أي كتابة: الأدمن فقط — المشترك لا يستطيع تمديد نفسه أبداً
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ── الجلسات والأجهزة (جهاز واحد نشط افتراضياً) ──
+    // المالك يدير نبضات أجهزته فقط — رفع الحد الأقصى للأدمن وحده.
+    // ملاحظة: فك الارتباط يحرر المقعد لحظياً؛ جهاز مفتوح قد يعيد التسجيل
+    // بنبضته التالية — للإساءة المتكررة استخدم تعليق الاشتراك.
+    match /sessions/{uid} {
+      allow get: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+      allow list: if isAdmin();
+      allow create: if isAdmin() || (
+        request.auth != null && request.auth.uid == uid
+        && request.resource.data.max == 1
+      );
+      allow update: if isAdmin() || (
+        request.auth != null && request.auth.uid == uid
+        && request.resource.data.max <= resource.data.max
+      );
+      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+    }
+
+    // ── المدراء (تُدار من اللوحة: /admin ← المدراء) ──
+    match /admins/{uid} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      // المدير لا يستطيع تعديل/حذف نفسه — حتى لا يقفل نفسه خارج اللوحة بالخطأ
+      // (القاعدة + زر معطّل في الواجهة = حماية مزدوجة)
+      allow update, delete: if isAdmin() && request.auth.uid != uid;
+    }
+
+    // ── سجل النشاط ──
+    match /activity/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // ── التطبيقات ──
+    match /apps/{appId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // ── الفوترة: خطط + مدفوعات + عدّادات + إعدادات (للأدمن فقط) ──
+    match /plans/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /payments/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /counters/{id} {
+      allow read, write: if isAdmin();
+    }
+    match /settings/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    // ── كل شيء آخر: مغلق تماماً ──
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

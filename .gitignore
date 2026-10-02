@@ -1,0 +1,23 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+
+# Env secrets — NEVER commit (Vite bakes VITE_* into the client bundle,
+# but the file itself must stay local; CI injects its own values)
+.env
+.env.*
+!.env.example
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Firebase local emulators / cache
+.firebase
+.firestore.*
+.firebaserc
