@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { lic, isPublicKeyConfigured, type LicenseResult, type LocalSubscriptionDetails } from "../lib/license";
+import { applyUiScale, getStoredScale } from "../utils/uiScale";
 
 interface LicenseGuardProps {
   children: React.ReactNode;
@@ -58,6 +59,11 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
 
   // Manual recheck state
   const [recheckLoading, setRecheckLoading] = useState(false);
+
+  // حجم العرض المحفوظ (تكبير/تصغير الخطوط والأيقونات) — يُطبق على كل شاشات الكاشير
+  useEffect(() => {
+    applyUiScale(getStoredScale());
+  }, []);
 
   // Check license — مزامنة فورية مع السيرفر ثم تقييم محلي
   const evaluateLicense = useCallback(async () => {

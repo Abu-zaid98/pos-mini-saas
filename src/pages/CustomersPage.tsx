@@ -225,7 +225,7 @@ export function CustomersPage() {
   }
 
   return (
-    <div style={{ padding: '16px', maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Top Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
         <div style={{

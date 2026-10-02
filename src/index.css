@@ -126,7 +126,9 @@
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --bottom-bar-total-height: calc(var(--nav-height) + var(--safe-bottom));
-  --page-bottom-padding: calc(var(--bottom-bar-total-height) + 36px);
+  /* الهامش السفلي = الشريط السفلي + extra (تُضبط من applyUiScale — تتقلص أكثر عند التصغير) */
+  --page-bottom-extra: 36px;
+  --page-bottom-padding: calc(var(--bottom-bar-total-height) + var(--page-bottom-extra));
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -312,6 +314,11 @@ p  { font-size: clamp(12.5px, 2.7vw, 13.5px); line-height: 1.5; }
   padding-bottom: max(var(--page-bottom-padding), calc(var(--safe-bottom) + 28px));
   box-sizing: border-box;
   -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  /* توسيط آمن: المحتوى الأقصر من الشاشة يتمركز عمودياً،
+     والأطول يلتصق بالأعلى ويُمرَّر كاملاً دون قصّ (safe) */
+  justify-content: safe center;
 }
 
 .page-frame {
@@ -1183,11 +1190,11 @@ select.input option {
 .invoice-footer .thanks { font-size: 14px; font-weight: 800; color: #4c3a8c; }
 .invoice-footer .keep { font-size: 11px; color: #8f8bb0; margin-top: 4px; }
 
-/* ── الطباعة: الفاتورة فقط ── */
+/* ── الطباعة: الفاتورة فقط وبحجم 100% دائماً ── */
 @media print {
   @page { margin: 9mm; }
 
-  body { background: #fff !important; }
+  body { background: #fff !important; zoom: 1 !important; }
   body * { visibility: hidden; }
 
   #invoice-print-root, #invoice-print-root * { visibility: visible; }

@@ -1,0 +1,11 @@
+{
+  "crv": "P-256",
+  "d": "y_KDNVmMxhdJnTsp1OJNIm28liwaZCjAl-9V3g2vF2E",
+  "ext": true,
+  "key_ops": [
+    "sign"
+  ],
+  "kty": "EC",
+  "x": "1jg49gbxB1uH5VNQayd4jMzFueLlfle5xDR-uq3K2hg",
+  "y": "eaasA0EA6wYgLjzybqo7xmxBRIJxEGELq1hpwiENEt4"
+}
