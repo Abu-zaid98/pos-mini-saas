@@ -443,14 +443,15 @@ export function SalePage() {
     <div
       style={{
         padding: '12px 14px',
-        paddingBottom: cart.length > 0 ? 'calc(var(--bottom-bar-total-height, 72px) + 150px)' : 'var(--page-bottom-padding, 110px)',
+        paddingBottom: cart.length > 0 ? '100px' : undefined,
         maxWidth: 640,
         margin: '0 auto',
+        width: '100%',
+        boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
         gap: 12,
         minHeight: '100%',
-        boxSizing: 'border-box',
       }}
     >
       {/* Toast scan message */}
@@ -470,13 +471,17 @@ export function SalePage() {
         </div>
       )}
 
-      {/* Top Search + Barcode & Switch Tabs */}
-      {/* Top Search + Barcode & Switch Tabs */}
+      {/* Top Search + Barcode & Switch Tabs — ريسبونزف: البحث أولاً والتنقل بعرض كامل تحته */}
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        width: '100%',
+      }}>
       <div style={{
         display: 'flex',
         gap: 6,
         alignItems: 'center',
-        flexWrap: 'wrap',
         width: '100%',
       }}>
 
@@ -551,29 +556,38 @@ export function SalePage() {
         >
           📷
         </button>
+      </div>
 
-        {/* Tab switch between Catalog and Cart */}
+        {/* Tab switch between Catalog and Cart — full width, never clipped */}
         <div style={{
-          display: 'flex',
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 4,
           background: 'rgba(255,255,255,0.06)',
-          borderRadius: 12,
-          padding: 3,
+          borderRadius: 14,
+          padding: 4,
           border: '1px solid var(--color-border)',
-          flexShrink: 0,
-          minHeight: 42,
+          width: '100%',
+          boxSizing: 'border-box',
+          minHeight: 48,
         }}>
 
           {/* Catalog Tab */}
           <button
             onClick={() => setActiveTab('catalog')}
             style={{
-              padding: '6px 10px',
-              borderRadius: 9,
+              width: '100%',
+              padding: '9px 10px',
+              borderRadius: 10,
               border: 'none',
               cursor: 'pointer',
-              fontWeight: 700,
-              fontSize: 12,
+              fontWeight: 800,
+              fontSize: 13,
               fontFamily: 'var(--font-main)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
               background:
                 activeTab === 'catalog'
                   ? 'var(--color-primary)'
@@ -593,12 +607,13 @@ export function SalePage() {
           <button
             onClick={() => setActiveTab('cart')}
             style={{
-              padding: '6px 10px',
-              borderRadius: 9,
+              width: '100%',
+              padding: '9px 10px',
+              borderRadius: 10,
               border: 'none',
               cursor: 'pointer',
-              fontWeight: 700,
-              fontSize: 12,
+              fontWeight: 800,
+              fontSize: 13,
               fontFamily: 'var(--font-main)',
               background:
                 activeTab === 'cart'
@@ -610,6 +625,7 @@ export function SalePage() {
                   : 'var(--color-text-muted)',
               display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               gap: 4,
               transition: 'all 0.15s ease',
               whiteSpace: 'nowrap',
@@ -1221,21 +1237,24 @@ export function SalePage() {
         </div>
       )}
 
-      {/* Docked Bottom Bar / Summary & Checkout (Always visible above BottomNav) */}
+      {/* Docked Bottom Bar / Summary & Checkout — fixed عائم فوق شريط التنقل، والمسافة محسوبة مرة واحدة في جذر الصفحة */}
       {cart.length > 0 && (
         <div
           style={{
             position: 'fixed',
-            bottom: 'var(--bottom-bar-total-height, 72px)',
-            left: 0,
-            right: 0,
+            bottom: 'calc(var(--bottom-bar-total-height, 72px) + 8px)',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 'min(640px, calc(100% - 20px))',
             zIndex: 45,
             background: 'var(--color-bg-elevated)',
             backdropFilter: 'blur(16px)',
             WebkitBackdropFilter: 'blur(16px)',
-            borderTop: '1.5px solid var(--color-border-active)',
+            border: '1.5px solid var(--color-border-active)',
+            borderRadius: 18,
             boxShadow: 'var(--shadow-lg)',
             padding: '10px 16px',
+            boxSizing: 'border-box',
           }}
         >
           <div

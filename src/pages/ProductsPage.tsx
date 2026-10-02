@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useProducts, deleteProduct } from '../hooks/useProducts'
 import { useCategories } from '../hooks/useCategories'
 import { ProductForm } from '../components/products/ProductForm'
@@ -29,6 +29,11 @@ export function ProductsPage() {
   const [productionModalOpen, setProductionModalOpen] = useState(false)
   const [productionToDelete, setProductionToDelete] = useState<number | null>(null)
   const productions = useProductions()
+
+  // التبديل بين التبويبات يبدأ دائماً من الأعلى — وإلا يقفز تبويب قصير (كالإنتاج) لمنتصف الفراغ
+  useEffect(() => {
+    document.querySelector('.page-content')?.scrollTo({ top: 0 })
+  }, [mainTab])
 
   const categoriesList = useCategories()
   const catIconMap = useMemo(() => {

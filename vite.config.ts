@@ -8,7 +8,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // وضع prompt: النسخة الجديدة تنتظر حتى يضغط المستخدم "تحديث"
+      // (يُعرض إشعار مدمج عبر PWAUpdateBanner بدل التحديث الصامت)
+      registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons/*.png'],
       manifest: {
         name: 'POS System',

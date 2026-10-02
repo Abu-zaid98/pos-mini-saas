@@ -12,6 +12,7 @@ import {
   type CustomerLedgerItem,
 } from '../hooks/useCustomers'
 import { Modal } from '../components/ui/Modal'
+import { StatementPrintHost, downloadStatementCSV } from '../components/customer/StatementPrint'
 import { formatCurrency } from '../utils/currency'
 import { type Customer, type PaymentMethod, getPaymentMethodName } from '../db/db'
 import { useStoreName } from '../hooks/useStoreName'
@@ -934,6 +935,54 @@ export function CustomersPage() {
               </div>
             </div>
 
+            {/* Export & Print row */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-primary)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-main)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>🖨️ طباعة الكشف</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => downloadStatementCSV(ledgerCustomer, ledgerItems)}
+                style={{
+                  flex: 1,
+                  padding: '10px 12px',
+                  borderRadius: 10,
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-primary)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-main)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                }}
+              >
+                <span>⬇️ تصدير CSV</span>
+              </button>
+            </div>
+
             {/* History List */}
             <div>
               <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: 'var(--color-text-secondary)' }}>
@@ -1007,6 +1056,9 @@ export function CustomersPage() {
           </div>
         )}
       </Modal>
+
+      {/* Hidden statement print root */}
+      <StatementPrintHost customer={ledgerModalOpen ? ledgerCustomer : null} items={ledgerItems} />
 
       {/* MODAL: DELETE CONFIRM */}
       {deleteConfirm && (

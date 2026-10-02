@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { lic, isPublicKeyConfigured, type LicenseResult, type LocalSubscriptionDetails } from "../lib/license";
 import { applyUiScale, getStoredScale } from "../utils/uiScale";
+import { PWAInstallBanner } from "./pwa/PWAInstallBanner";
+import { PWAInstallSheet } from "./pwa/PWAInstallSheet";
 
 interface LicenseGuardProps {
   children: React.ReactNode;
@@ -59,6 +61,9 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
 
   // Manual recheck state
   const [recheckLoading, setRecheckLoading] = useState(false);
+
+  // PWA full guide fallback (when native install unavailable)
+  const [pwaGuideOpen, setPwaGuideOpen] = useState(false);
 
   // حجم العرض المحفوظ (تكبير/تصغير الخطوط والأيقونات) — يُطبق على كل شاشات الكاشير
   useEffect(() => {
@@ -1025,6 +1030,19 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
           </a>
         </div>
       </div>
+
+      {/* PWA install banner on the activation screen + full guide fallback */}
+      <PWAInstallBanner
+        storageKey="pos_pwa_prompt"
+        bottom="calc(16px + env(safe-area-inset-bottom, 0px))"
+        onNeedGuide={() => setPwaGuideOpen(true)}
+      />
+      <PWAInstallSheet
+        open={pwaGuideOpen}
+        onClose={() => setPwaGuideOpen(false)}
+        storageKey="pos_pwa_prompt"
+        appName={lic.appName}
+      />
     </div>
   );
 }

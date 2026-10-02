@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import { Modal } from '../ui/Modal'
@@ -7,7 +7,8 @@ import { useStoreName } from '../../hooks/useStoreName'
 import { CurrentDate } from './CurrentDate'
 import { InvoicePrintProvider } from '../invoice/InvoicePrint'
 import { PWAInstallSheet } from '../pwa/PWAInstallSheet'
-import { shouldShowPrompt } from '../../utils/pwa'
+import { PWAInstallBanner } from '../pwa/PWAInstallBanner'
+import { PWAUpdateBanner } from '../pwa/PWAUpdateBanner'
 
 // PAGE_TITLES is now built dynamically inside the component using the store name
 
@@ -32,16 +33,7 @@ export function AppShell({ onLogout }: AppShellProps) {
   const title = pageTitles[location.pathname] ?? storeName
   const [logoutModalOpen, setLogoutModalOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
-  const [pwaOpen, setPwaOpen] = useState(false)
-
-  // إشعار تثبيت التطبيق بعد بدء التشغيل بثانيتين (مرة أسبوعياً ما لم يُثبّت)
-  useEffect(() => {
-    if (!shouldShowPrompt('pos_pwa_prompt')) return
-    const t = setTimeout(() => {
-      if (shouldShowPrompt('pos_pwa_prompt')) setPwaOpen(true)
-    }, 2000)
-    return () => clearTimeout(t)
-  }, [])
+  const [pwaGuideOpen, setPwaGuideOpen] = useState(false)
 
   const handleToggleTheme = () => {
     const next = toggleTheme()
@@ -168,10 +160,16 @@ export function AppShell({ onLogout }: AppShellProps) {
       {/* Bottom navigation */}
       <BottomNav />
 
-      {/* PWA install notice on startup */}
+      {/* PWA install banner + full guide fallback */}
+      <PWAInstallBanner
+        storageKey="pos_pwa_prompt"
+        onNeedGuide={() => setPwaGuideOpen(true)}
+      />
+      {/* PWA update notice */}
+      <PWAUpdateBanner />
       <PWAInstallSheet
-        open={pwaOpen}
-        onClose={() => setPwaOpen(false)}
+        open={pwaGuideOpen}
+        onClose={() => setPwaGuideOpen(false)}
         storageKey="pos_pwa_prompt"
         appName={storeName}
       />

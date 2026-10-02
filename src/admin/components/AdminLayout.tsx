@@ -8,6 +8,7 @@ import type { User } from 'firebase/auth'
 import { useConfirm } from './feedback'
 import { useNotifications } from '../hooks/useNotifications'
 import { BulkRemindModal } from './BulkRemindModal'
+import { PWAUpdateBanner } from '../../components/pwa/PWAUpdateBanner'
 
 interface Props {
   children: React.ReactNode
@@ -376,6 +377,9 @@ export function AdminLayout({ children, user, onLogout }: Props) {
       {showRemind && (
         <BulkRemindModal subs={expiring} onClose={() => setShowRemind(false)} />
       )}
+
+      {/* PWA update notice */}
+      <PWAUpdateBanner bottom="calc(16px + env(safe-area-inset-bottom, 0px))" />
     </div>
   )
 }

@@ -229,7 +229,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div style={{ padding: '16px', maxWidth: 640, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
+    <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
       <div style={{
         display: 'flex',
         alignItems: 'center',
@@ -798,7 +798,6 @@ export function SettingsPage() {
         <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
           كبّر الخطوط والأيقونات أو صغّرها — يُطبق فوراً على كل الشاشات
         </p>
-
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
           {UI_SCALE_PRESETS.map((p) => {
             const active = uiScale === p.value
@@ -844,6 +843,29 @@ export function SettingsPage() {
           <span style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>معاينة حية: </span>
           <strong>سعر الكنافة 25 ₪/كغ 🛒</strong>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setUiScale(0.86)
+            applyUiScale(0.86)
+          }}
+          style={{
+            marginTop: 10,
+            width: '100%',
+            padding: '9px',
+            borderRadius: 10,
+            background: 'none',
+            border: '1px dashed var(--color-border)',
+            color: 'var(--color-text-muted)',
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: 'var(--font-main)',
+          }}
+        >
+          🔄 إعادة تعيين للحجم القياسي (86٪)
+        </button>
       </div>
 
       {/* Security / Password */}      <div style={{

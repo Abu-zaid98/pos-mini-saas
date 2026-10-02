@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Modal } from '../ui/Modal'
+import { ConfirmModal } from '../ui/ConfirmModal'
 import {
   useCategories,
   addCategory,
@@ -14,7 +15,24 @@ interface CategoryManagerModalProps {
   onClose: () => void
 }
 
-const POPULAR_EMOJIS = ['🥤', '🍿', '🧹', '🧀', '🍞', '🥩', '🍏', '💊', '🍫', '☕', '🥚', '🧴', '👕', '📦', '🏷️', '🛒']
+const POPULAR_EMOJIS = [
+  // حلويات ومخبوزات
+  '🍬', '🍭', '🧁', '🍩', '🍪', '🥐', '🥖', '🍰', '🎂', '🍮', '🍨', '🍧', '🧋', '🍫', '🍯',
+  // ألبان وأجبان
+  '🧀', '🥛', '🧈', '🥚',
+  // عطارة وبهارات ومكسرات
+  '🌶️', '🧄', '🧅', '🥜', '🌰', '🍚', '🫘', '🥥', '🫒', '🫖',
+  // مشروبات
+  '🥤', '☕', '🧃',
+  // لحوم وخضار وفواكه
+  '🥩', '🍏', '🍎', '🍌', '🍊', '🍇',
+  // خدمات وتوصيل وإنتاج
+  '🛎️', '🚚', '🏭', '⚖️', '📦', '🎁',
+  // صيدلية وتنظيف وملابس
+  '💊', '🧴', '🧹', '👕',
+  // عام
+  '🏷️', '🛒', '✨', '🏪',
+]
 
 export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProps) {
   const categories = useCategories()
@@ -24,6 +42,8 @@ export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProp
   const [editName, setEditName] = useState('')
   const [editIcon, setEditIcon] = useState('📦')
   const [error, setError] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<CategoryItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,8 +80,19 @@ export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProp
   }
 
   const handleDelete = async (cat: CategoryItem) => {
-    if (confirm(`هل أنت متأكد من حذف قسم "${cat.name}"؟ (سيتم نقل منتجاته تلقائياً إلى قسم "أخرى")`)) {
-      await deleteCategory(cat.id)
+    setDeleteTarget(cat)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await deleteCategory(deleteTarget.id)
+      setDeleteTarget(null)
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -389,6 +420,20 @@ export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProp
           </div>
         </div>
       </div>
+
+      {/* Delete Category Confirmation Modal */}
+      <ConfirmModal
+        open={deleteTarget !== null}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleConfirmDelete}
+        loading={deleting}
+        title="حذف القسم"
+        icon="🏷️"
+        message={`هل أنت متأكد من حذف قسم "${deleteTarget?.name}"؟`}
+        subMessage="سيتم نقل منتجاته تلقائياً إلى قسم أخرى. لا يمكن التراجع عن هذا الإجراء."
+        confirmText="تأكيد الحذف"
+        cancelText="إلغاء"
+      />
     </Modal>
   )
 }
