@@ -4,6 +4,7 @@ import { exportBackup, importBackup, daysSinceBackup } from '../utils/backup'
 import { changePassword, hasPassword, setPassword } from '../utils/auth'
 import { getStoredTheme, applyTheme, type Theme } from '../utils/theme'
 import { usePWAInstall } from '../hooks/usePWAInstall'
+import { usePWAUpdate } from '../hooks/usePWAUpdate'
 import { db } from '../db/db'
 import { Modal } from '../components/ui/Modal'
 import { lic, type LicenseResult } from '../lib/license'
@@ -31,6 +32,10 @@ export function SettingsPage() {
     storageEstimate,
   } = usePWAInstall()
   const [persistLoading, setPersistLoading] = useState(false)
+
+  // PWA updates — فحص يدوي + تحديث قسري
+  const { updateAvailable, applyUpdate, checkNow, forceRefresh, checking } = usePWAUpdate()
+  const [updateMsg, setUpdateMsg] = useState('')
 
   const handleThemeChange = (t: Theme) => {
     applyTheme(t)
@@ -478,6 +483,91 @@ export function SettingsPage() {
             >
               📖 كيف يتم تثبيت التطبيق على آيفون أو أندرويد يدوياً؟
             </button>
+
+            {/* Manual update check + force refresh */}
+            <div style={{
+              borderTop: '1px dashed var(--color-border)',
+              paddingTop: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  disabled={checking}
+                  onClick={async () => {
+                    if (updateAvailable) {
+                      await applyUpdate()
+                      return
+                    }
+                    setUpdateMsg('')
+                    const found = await checkNow()
+                    setUpdateMsg(found ? '🚀 يوجد تحديث جديد — سيظهر زر التحديث أسفل الشاشة' : '✓ نسختك هي الأحدث')
+                    setTimeout(() => setUpdateMsg(''), 5000)
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    borderRadius: 10,
+                    background: 'rgba(16,185,129,0.12)',
+                    border: '1px solid rgba(16,185,129,0.35)',
+                    color: 'var(--color-success-light)',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: checking ? 'wait' : 'pointer',
+                    fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  {checking ? 'جارٍ الفحص...' : updateAvailable ? '🚀 تطبيق التحديث الآن' : '🔄 التحقق من وجود تحديث'}
+                </button>
+              </div>
+              {updateAvailable ? (
+                <button
+                  type="button"
+                  onClick={() => applyUpdate()}
+                  style={{
+                    padding: '10px',
+                    borderRadius: 10,
+                    background: 'var(--mint-gradient)',
+                    border: 'none',
+                    color: 'white',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  🚀 تطبيق التحديث الجديد الآن
+                </button>
+              ) : null}
+              {updateMsg && (
+                <p style={{ fontSize: 12, color: 'var(--color-text-secondary)', textAlign: 'center', margin: 0 }}>
+                  {updateMsg}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('سيتم مسح ذاكرة التخزين المؤقت وإعادة تحميل أحدث نسخة. متابعة؟')) {
+                    void forceRefresh()
+                  }
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-text-muted)',
+                  fontSize: 11.5,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  textDecoration: 'underline',
+                  fontFamily: 'var(--font-main)',
+                }}
+              >
+                التطبيق عالق على نسخة قديمة؟ تحديث قسري (يمسح الكاش)
+              </button>
+            </div>
           </div>
         )}
       </div>

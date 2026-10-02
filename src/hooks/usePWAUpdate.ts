@@ -33,12 +33,25 @@ function getWb(): Workbox | null {
 
 export function usePWAUpdate() {
   const [updateAvailable, setUpdateAvailable] = useState(sharedWaiting)
+  const [checking, setChecking] = useState(false)
 
   useEffect(() => {
     const wb = getWb()
     if (!wb) return
     const fn = (waiting: boolean) => setUpdateAvailable(waiting)
     listeners.add(fn)
+    // إن كانت نسخة بانتظار التفعيل من جلسة سابقة (فاتنا حدث waiting) — نكتشفها مباشرة
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker
+        .getRegistration()
+        .then((reg) => {
+          if (reg?.waiting) {
+            sharedWaiting = true
+            listeners.forEach((l) => l(true))
+          }
+        })
+        .catch(() => null)
+    }
     // فحص دوري + عند العودة للتطبيق — لالتقاط التحديث أثناء الاستخدام الطويل
     const interval = setInterval(() => {
       void wb.update().catch(() => null)
@@ -71,5 +84,41 @@ export function usePWAUpdate() {
     setTimeout(() => window.location.reload(), 2500)
   }, [])
 
-  return { updateAvailable, applyUpdate }
+  /** فحص يدوي فوري — يُرجع true إن وُجد تحديث */
+  const checkNow = useCallback(async (): Promise<boolean> => {
+    const wb = getWb()
+    if (!wb) return false
+    setChecking(true)
+    try {
+      await wb.update()
+      // مهلة قصيرة لوصول حدث waiting
+      await new Promise((r) => setTimeout(r, 2500))
+      return sharedWaiting
+    } catch {
+      return false
+    } finally {
+      setChecking(false)
+    }
+  }, [])
+
+  /**
+   * تحديث قسري — الحل الأخير المضمون: إلغاء Service Workers ومسح كل الكاش
+   * ثم إعادة التحميل من الشبكة. يعمل حتى لو تعطل نظام التحديث نفسه.
+   */
+  const forceRefresh = useCallback(async () => {
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(regs.map((r) => r.unregister().catch(() => false)))
+      }
+      if ('caches' in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map((k) => caches.delete(k).catch(() => false)))
+      }
+    } finally {
+      window.location.reload()
+    }
+  }, [])
+
+  return { updateAvailable, applyUpdate, checkNow, forceRefresh, checking }
 }
