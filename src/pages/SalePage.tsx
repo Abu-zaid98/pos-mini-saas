@@ -443,7 +443,7 @@ export function SalePage() {
     <div
       style={{
         padding: '12px 14px',
-        paddingBottom: cart.length > 0 ? '100px' : undefined,
+        paddingBottom: cart.length > 0 ? '100px' : 'calc(var(--bottom-bar-total-height, 72px) + 14px)',
         maxWidth: 640,
         margin: '0 auto',
         width: '100%',
@@ -452,6 +452,7 @@ export function SalePage() {
         flexDirection: 'column',
         gap: 12,
         minHeight: '100%',
+        flex: '1 0 auto',
       }}
     >
       {/* Toast scan message */}

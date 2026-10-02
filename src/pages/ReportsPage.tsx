@@ -206,7 +206,7 @@ export function ReportsPage() {
   )
 
   return (
-    <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div className="page-frame page-screen" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* TOP SEGMENTED REPORT TABS */}
       <div style={{
         display: 'grid',

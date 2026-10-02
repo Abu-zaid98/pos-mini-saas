@@ -311,9 +311,19 @@ p  { font-size: clamp(12.5px, 2.7vw, 13.5px); line-height: 1.5; }
   overflow-y: auto;
   overflow-x: hidden;
   padding-top: calc(var(--header-height) + env(safe-area-inset-top, 0px));
-  padding-bottom: max(var(--page-bottom-padding), calc(var(--safe-bottom) + 28px));
+  /* حد أدنى فقط (منطقة الأمان) — إخلاء شريط التنقل مسؤولية جذر كل صفحة */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
   box-sizing: border-box;
   -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+}
+
+/* جذر الشاشة: يملأ الحاوية القصيرة (فلا فراغ) وينمو مع الطويلة (فتمرير طبيعي).
+   الهامش السفلي = إخلاء شريط التنقل + 14px تنفس — محسوب مرة واحدة هنا فقط */
+.page-screen {
+  flex: 1 0 auto;
+  padding-bottom: calc(var(--bottom-bar-total-height, 72px) + 14px) !important;
 }
 
 .page-frame {
@@ -326,6 +336,10 @@ p  { font-size: clamp(12.5px, 2.7vw, 13.5px); line-height: 1.5; }
 .page-frame .page-frame {
   padding-top: 0;
   padding-bottom: 0;
+}
+
+.page-frame .page-frame.page-screen {
+  padding-bottom: 0 !important;
 }
 
 .page-header {

@@ -823,38 +823,38 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
         style={{
           background: "var(--color-bg-card, #111827)",
           border: "1px solid var(--color-border, #1f2937)",
-          borderRadius: 24,
-          padding: "36px 30px",
+          borderRadius: 26,
+          padding: "42px 34px",
           boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
           width: "100%",
-          maxWidth: 420,
+          maxWidth: 460,
           position: "relative",
           zIndex: 1,
         }}
       >
         {/* Brand header */}
-        <div style={{ textAlign: "center", marginBottom: 22 }}>
+        <div style={{ textAlign: "center", marginBottom: 26 }}>
           <div
             style={{
-              width: 64,
-              height: 64,
+              width: 78,
+              height: 78,
               background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
-              borderRadius: 18,
+              borderRadius: 22,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 32,
-              margin: "0 auto 12px",
-              boxShadow: "0 8px 24px rgba(59, 130, 246, 0.35)",
+              fontSize: 38,
+              margin: "0 auto 14px",
+              boxShadow: "0 10px 28px rgba(59, 130, 246, 0.4)",
             }}
           >
             🏪
           </div>
 
-          <h1 style={{ fontSize: 21, fontWeight: 900, margin: "0 0 6px 0", color: "var(--color-text-primary, #f9fafb)" }}>
+          <h1 style={{ fontSize: 23, fontWeight: 900, margin: "0 0 8px 0", color: "var(--color-text-primary, #f9fafb)" }}>
             تفعيل ترخيص النظام
           </h1>
-          <p style={{ fontSize: 13, color: "var(--color-text-muted, #94a3b8)", margin: 0, lineHeight: 1.6 }}>
+          <p style={{ fontSize: 14, color: "var(--color-text-muted, #94a3b8)", margin: 0, lineHeight: 1.7 }}>
             أدخل بيانات المشترك الخاصة بك للتفعيل. يتطلب التفعيل اتصالاً بالإنترنت لمرة واحدة فقط، وبعدها يعمل النظام بدون إنترنت بالكامل.
           </p>
         </div>
@@ -896,15 +896,15 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
         )}
 
         {/* Activation Form */}
-        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
             <label
               style={{
                 display: "block",
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 700,
                 color: "var(--color-text-secondary, #cbd5e1)",
-                marginBottom: 6,
+                marginBottom: 7,
               }}
             >
               اسم المستخدم (المشترك):
@@ -918,12 +918,12 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
               placeholder="مثال: ahmed"
               style={{
                 width: "100%",
-                padding: "12px 14px",
-                borderRadius: 12,
+                padding: "14px 16px",
+                borderRadius: 14,
                 background: "rgba(255, 255, 255, 0.05)",
                 border: "1px solid var(--color-border, #374151)",
                 color: "var(--color-text-primary, #ffffff)",
-                fontSize: 14,
+                fontSize: 15,
                 outline: "none",
                 boxSizing: "border-box",
                 fontFamily: "var(--font-main)",
@@ -935,10 +935,10 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
             <label
               style={{
                 display: "block",
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 700,
                 color: "var(--color-text-secondary, #cbd5e1)",
-                marginBottom: 6,
+                marginBottom: 7,
               }}
             >
               كلمة المرور:
@@ -951,12 +951,12 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
               placeholder="••••••••"
               style={{
                 width: "100%",
-                padding: "12px 14px",
-                borderRadius: 12,
+                padding: "14px 16px",
+                borderRadius: 14,
                 background: "rgba(255, 255, 255, 0.05)",
                 border: "1px solid var(--color-border, #374151)",
                 color: "var(--color-text-primary, #ffffff)",
-                fontSize: 14,
+                fontSize: 15,
                 outline: "none",
                 boxSizing: "border-box",
                 fontFamily: "var(--font-main)",
@@ -969,16 +969,16 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
             disabled={loginLoading}
             style={{
               width: "100%",
-              padding: "13px",
-              borderRadius: 12,
+              padding: "15px",
+              borderRadius: 14,
               background: "linear-gradient(135deg, #3b82f6, #2563eb)",
               color: "#ffffff",
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: 800,
               border: "none",
               cursor: loginLoading ? "not-allowed" : "pointer",
-              boxShadow: "0 4px 16px rgba(59, 130, 246, 0.35)",
-              marginTop: 6,
+              boxShadow: "0 6px 20px rgba(59, 130, 246, 0.4)",
+              marginTop: 8,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",

@@ -74,7 +74,7 @@ export function ProductsPage() {
   const expiryCount = products.filter((p) => isExpired(p) || isNearExpiry(p)).length
 
   return (
-    <div className="page-frame">
+    <div className="page-frame page-screen">
       {/* Top Segmented Hub Switcher */}
       <div style={{
         display: 'flex',

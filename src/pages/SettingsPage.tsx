@@ -232,7 +232,7 @@ export function SettingsPage() {
   }
 
   return (
-    <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
+    <div className="page-frame page-screen" style={{ display: 'flex', flexDirection: 'column', gap: 16, width: '100%' }}>
       <div style={{
         display: 'flex',
         alignItems: 'center',
