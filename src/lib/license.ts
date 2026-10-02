@@ -9,11 +9,33 @@ const HARDCODED_PUBLIC_KEY: JsonWebKey = {
   y: "Ou2yfITHwwrPIGHFMyXiDdpxNC987XYyd2ZM4e5zNog",
 };
 
+/**
+ * تنظيف قيمة المفتاح العام قبل التحليل — يتسامح مع أخطاء اللصق الشائعة:
+ * - علامات تنصيص مفردة حول القيمة (كما في ملف .env)
+ * - أحرف اتجاه خفية (U+200E/U+200F) تتسرب عند النسخ من صفحات عربية RTL
+ * - نصوص زائدة حول الـ JSON (يُستخرج ما بين أول { وآخر })
+ */
+export function cleanJwkEnv(raw: string): string {
+  let s = raw
+    .replace(/[\u200E\u200F\u202A-\u202E\u2066-\u2069\uFEFF\u00A0]/g, "")
+    .trim();
+  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) {
+    s = s.slice(1, -1).trim();
+  }
+  const start = s.indexOf("{");
+  const end = s.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    s = s.slice(start, end + 1);
+  }
+  return s;
+}
+
 function getPublicKey(): JsonWebKey {
   const envKey = import.meta.env.VITE_LIC_PUBLIC_KEY;
   if (envKey) {
     try {
-      const parsed = typeof envKey === "string" ? JSON.parse(envKey) : envKey;
+      const text = typeof envKey === "string" ? cleanJwkEnv(envKey) : envKey;
+      const parsed = typeof text === "string" ? JSON.parse(text) : text;
       if (parsed && parsed.x && parsed.y) return parsed;
     } catch {
       console.warn("[License] فشل تحليل VITE_LIC_PUBLIC_KEY من ملف البيئة.");
