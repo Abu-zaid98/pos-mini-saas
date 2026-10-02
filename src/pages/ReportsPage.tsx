@@ -835,7 +835,7 @@ export function ReportsPage() {
           {renderPeriodSelector()}
 
           {/* Activity & Debt KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+          <div className="summary-grid-three" style={{ display: 'grid', gap: 10 }}>
             {/* Outstanding Debts */}
             <div style={{
               background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(30,41,59,0.5))',

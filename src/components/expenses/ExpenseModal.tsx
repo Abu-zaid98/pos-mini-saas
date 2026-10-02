@@ -172,7 +172,7 @@ export function ExpenseModal({ open, onClose, onSuccess }: ExpenseModalProps) {
         />
 
         {/* Amount & Date in 2 cols */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div className="form-grid-two">
           <Input
             label="المبلغ ₪ *"
             placeholder="0.00"

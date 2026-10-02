@@ -482,7 +482,7 @@ export function PurchasesPage() {
               1. بيانات التوريد والمورد
             </h3>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-grid-two">
               <Input
                 label="اسم المورد أو الشركة"
                 placeholder="مثال: شركة سنقرط، شركة المشروبات..."
@@ -498,7 +498,7 @@ export function PurchasesPage() {
               />
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-grid-two">
               <div>
                 <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>
                   التاريخ والوقت

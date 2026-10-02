@@ -336,7 +336,7 @@ export function CustomersPage() {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {[
           { key: 'all' as const, label: 'جميع العملاء' },
           { key: 'debt' as const, label: 'عليهم ديون فقط' },
@@ -518,8 +518,8 @@ export function CustomersPage() {
                   <button
                     onClick={() => handleOpenEdit(c)}
                     style={{
-                      width: 36,
-                      height: 36,
+                      width: 44,
+                      height: 44,
                       borderRadius: 10,
                       background: 'rgba(255,255,255,0.06)',
                       border: '1px solid var(--color-border)',
@@ -537,8 +537,8 @@ export function CustomersPage() {
                   <button
                     onClick={() => setDeleteConfirm(c)}
                     style={{
-                      width: 36,
-                      height: 36,
+                      width: 44,
+                      height: 44,
                       borderRadius: 10,
                       background: 'rgba(239,68,68,0.1)',
                       border: '1px solid rgba(239,68,68,0.2)',

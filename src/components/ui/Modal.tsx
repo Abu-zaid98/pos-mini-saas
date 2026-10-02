@@ -29,7 +29,6 @@ export function Modal({ open, onClose, title, children, type = 'sheet', footer }
     <div
       className={`modal-backdrop ${type === 'box' ? 'center' : ''}`}
       onClick={handleBackdropClick}
-      style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 0px))' }}
     >
       <div
         className={type === 'sheet' ? 'modal-sheet' : 'modal-box'}
