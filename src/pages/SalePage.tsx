@@ -984,16 +984,21 @@ export function SalePage() {
                               onChange={(e) => setItemPrice(item.productId, parseFloat(e.target.value) || 0, unit, packLabel, item.lineId)}
                               title="تعديل سعر الخدمة"
                               style={{
-                                width: 76,
-                                padding: '4px 8px',
-                                borderRadius: 8,
+                                width: 92,
+                                minHeight: 44,
+                                flexShrink: 0,
+                                boxSizing: 'border-box',
+                                padding: '8px 10px',
+                                borderRadius: 10,
                                 background: 'var(--color-input-bg)',
                                 border: '1px solid var(--color-border)',
                                 color: 'var(--color-text-primary)',
-                                fontSize: 13,
+                                fontSize: 16,
                                 fontWeight: 800,
                                 outline: 'none',
                                 fontFamily: 'var(--font-main)',
+                                direction: 'ltr',
+                                textAlign: 'center',
                               }}
                             />
                             <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>₪ ✏️</span>

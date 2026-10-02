@@ -784,25 +784,19 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
   // ❻ Activation / Login Screen (First time or Invalid local token)
   return (
     <div
+      className="license-activation-screen"
       style={{
-        display: "flex",
-        minHeight: "100dvh",
-        alignItems: "center",
-        justifyContent: "center",
         background: "var(--color-bg-base, #0b1120)",
         color: "var(--color-text-primary, #f9fafb)",
         fontFamily: "var(--font-main, system-ui, -apple-system, sans-serif)",
         direction: "rtl",
-        padding: "20px 16px",
-        position: "relative",
-        overflow: "hidden",
       }}
     >
       {/* Background glow accent */}
       <div
+        className="license-activation-glow"
         style={{
           position: "absolute",
-          width: 500,
           height: 500,
           background: "radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)",
           borderRadius: "50%",
@@ -814,11 +808,11 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
       />
 
       <div
+        className="license-activation-card"
         style={{
           background: "var(--color-bg-card, #111827)",
           border: "1px solid var(--color-border, #1f2937)",
-          borderRadius: 26,
-          padding: "42px 34px",
+          borderRadius: 20,
           boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
           width: "100%",
           maxWidth: 460,
@@ -851,6 +845,48 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
           <p style={{ fontSize: 14, color: "var(--color-text-muted, #94a3b8)", margin: 0, lineHeight: 1.7 }}>
             أدخل بيانات المشترك الخاصة بك للتفعيل. يتطلب التفعيل اتصالاً بالإنترنت لمرة واحدة فقط، وبعدها يعمل النظام بدون إنترنت بالكامل.
           </p>
+        </div>
+
+        {/* First-time account request */}
+        <div
+          style={{
+            background: "rgba(16, 185, 129, 0.1)",
+            border: "1px solid rgba(52, 211, 153, 0.3)",
+            borderRadius: 14,
+            padding: "14px 16px",
+            marginBottom: 20,
+          }}
+        >
+          <p style={{ fontSize: 14, fontWeight: 800, margin: "0 0 4px", color: "var(--color-text-primary, #f9fafb)" }}>
+            أول مرة تستخدم النظام؟
+          </p>
+          <p style={{ fontSize: 12, lineHeight: 1.6, margin: "0 0 12px", color: "var(--color-text-secondary, #cbd5e1)" }}>
+            تواصل معنا لإنشاء حساب تجريبي أو طلب اشتراك جديد، وسنرسل لك بيانات الدخول.
+          </p>
+          <a
+            href={lic.signupLink()}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              minHeight: 46,
+              padding: "10px 12px",
+              borderRadius: 11,
+              background: "#0f9f6e",
+              color: "#ffffff",
+              fontSize: 13,
+              fontWeight: 800,
+              textDecoration: "none",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 7,
+              textAlign: "center",
+              boxSizing: "border-box",
+            }}
+          >
+            <span>💬</span>
+            <span>حساب تجريبي أو اشتراك عبر واتساب</span>
+          </a>
         </div>
 
         {/* Developer configuration notice if JWK not set */}
@@ -991,7 +1027,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
           </button>
         </form>
 
-        {/* WhatsApp & Developer Support */}
+        {/* Renewal for existing subscribers */}
         <div
           style={{
             marginTop: 22,
@@ -1004,7 +1040,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
           }}
         >
           <span style={{ color: "var(--color-text-muted, #94a3b8)" }}>
-            ليس لديك اشتراك أو كلمة مرور؟
+            لديك اشتراك سابق وتريد تجديده؟
           </span>
           <a
             href={lic.renewLink()}
@@ -1028,6 +1064,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
       {/* PWA install banner on the activation screen + full guide fallback */}
       <PWAInstallBanner
         storageKey="pos_pwa_prompt"
+        className="license-install-banner"
         bottom="calc(16px + env(safe-area-inset-bottom, 0px))"
         onNeedGuide={() => setPwaGuideOpen(true)}
       />

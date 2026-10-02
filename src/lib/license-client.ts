@@ -782,6 +782,11 @@ export function createLicense(config: LicenseConfig) {
     return `https://wa.me/${whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
   }
 
+  function signupLink(): string {
+    const msg = `مرحباً، أود إنشاء حساب تجريبي أو الاشتراك في ${appName}.\nأرجو تزويدي بالتفاصيل وبيانات الدخول.`;
+    return `https://wa.me/${whatsapp.replace(/\D/g, "")}?text=${encodeURIComponent(msg)}`;
+  }
+
   /**
    * isLoggedIn() — هل يوجد جلسة محلية؟ (لا يتحقق من التوقيع)
    */
@@ -813,6 +818,8 @@ export function createLicense(config: LicenseConfig) {
     logout,
     /** رابط واتساب لطلب التجديد */
     renewLink,
+    /** رابط واتساب لإنشاء حساب أو طلب اشتراك */
+    signupLink,
     /** هل المستخدم مسجل دخوله؟ */
     isLoggedIn,
     /** UID المستخدم الحالي */

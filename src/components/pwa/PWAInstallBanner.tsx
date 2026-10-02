@@ -8,13 +8,14 @@ import { shouldShowPrompt, snoozePrompt } from '../../utils/pwa'
 
 interface Props {
   storageKey: string
+  className?: string
   /** يُستدعى عند غياب التثبيت المباشر لعرض الدليل الكامل */
   onNeedGuide: () => void
   /** إزاحة من الأسفل (فوق شريط التنقل في التطبيق، 16px في شاشات الدخول) */
   bottom?: string
 }
 
-export function PWAInstallBanner({ storageKey, onNeedGuide, bottom }: Props) {
+export function PWAInstallBanner({ storageKey, onNeedGuide, bottom, className }: Props) {
   const { canInstall, isInstalled, installApp } = usePWAInstall()
   const [visible, setVisible] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -50,6 +51,7 @@ export function PWAInstallBanner({ storageKey, onNeedGuide, bottom }: Props) {
 
   return (
     <div
+      className={className}
       style={{
         position: 'fixed',
         bottom: bottom || 'calc(var(--bottom-bar-total-height, 72px) + 10px)',
