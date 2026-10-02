@@ -3,7 +3,6 @@ import { useOutletContext } from 'react-router-dom'
 import { exportBackup, importBackup, daysSinceBackup } from '../utils/backup'
 import { changePassword, hasPassword, setPassword } from '../utils/auth'
 import { getStoredTheme, applyTheme, type Theme } from '../utils/theme'
-import { applyUiScale, getStoredScale, UI_SCALE_PRESETS } from '../utils/uiScale'
 import { usePWAInstall } from '../hooks/usePWAInstall'
 import { db } from '../db/db'
 import { Modal } from '../components/ui/Modal'
@@ -22,7 +21,6 @@ export function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [currentTheme, setCurrentTheme] = useState<Theme>(getStoredTheme)
-  const [uiScale, setUiScale] = useState<number>(getStoredScale)
 
   const {
     canInstall,
@@ -785,87 +783,6 @@ export function SettingsPage() {
             {isSaving ? 'جارٍ الحفظ...' : 'حفظ مظهر الفاتورة'}
           </button>
         </form>
-      </div>
-
-      {/* Display size — تكبير/تصغير الخطوط والأيقونات */}
-      <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 16,
-        padding: 18,
-      }}>
-        <h3 style={{ fontSize: 16, fontWeight: 800, marginBottom: 4 }}>🔍 حجم العرض</h3>
-        <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
-          كبّر الخطوط والأيقونات أو صغّرها — يُطبق فوراً على كل الشاشات
-        </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          {UI_SCALE_PRESETS.map((p) => {
-            const active = uiScale === p.value
-            const demoSize = p.id === 'standard' ? 14 : p.id === 'large' ? 22 : 18
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  setUiScale(p.value)
-                  applyUiScale(p.value)
-                }}
-                style={{
-                  padding: '12px 6px',
-                  borderRadius: 12,
-                  border: active ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                  background: active ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
-                  color: 'var(--color-text-primary)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 2,
-                  fontFamily: 'var(--font-main)',
-                }}
-              >
-                <span style={{ fontSize: demoSize }}>أب</span>
-                <span style={{ fontSize: 13, fontWeight: 800 }}>{p.label}</span>
-                <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>{Math.round(p.value * 100)}٪</span>
-              </button>
-            )
-          })}
-        </div>
-
-        <div style={{
-          marginTop: 12,
-          background: 'var(--color-input-bg)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 10,
-          padding: '10px 14px',
-          fontSize: 14,
-        }}>
-          <span style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>معاينة حية: </span>
-          <strong>سعر الكنافة 25 ₪/كغ 🛒</strong>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            setUiScale(0.86)
-            applyUiScale(0.86)
-          }}
-          style={{
-            marginTop: 10,
-            width: '100%',
-            padding: '9px',
-            borderRadius: 10,
-            background: 'none',
-            border: '1px dashed var(--color-border)',
-            color: 'var(--color-text-muted)',
-            fontSize: 12,
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontFamily: 'var(--font-main)',
-          }}
-        >
-          🔄 إعادة تعيين للحجم القياسي (86٪)
-        </button>
       </div>
 
       {/* Security / Password */}      <div style={{
