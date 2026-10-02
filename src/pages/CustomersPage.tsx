@@ -226,7 +226,7 @@ export function CustomersPage() {
   }
 
   return (
-    <div className="page-frame page-screen" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Top Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
         <div style={{

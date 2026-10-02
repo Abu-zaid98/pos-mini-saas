@@ -99,7 +99,7 @@ export function InvoicesPage() {
   }
 
   return (
-    <div className="page-frame page-screen" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <section className="card" style={{ padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <div><h2 style={{ fontSize: 17, fontWeight: 900 }}>سجل الفواتير</h2><p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 2 }}>كل الفواتير محفوظة هنا ويمكن مراجعتها وتعديلها.</p></div>

@@ -443,7 +443,7 @@ export function SalePage() {
     <div
       style={{
         padding: '12px 14px',
-        paddingBottom: cart.length > 0 ? '100px' : 'calc(var(--bottom-bar-total-height, 72px) + 14px)',
+        paddingBottom: cart.length > 0 ? '100px' : undefined,
         maxWidth: 640,
         margin: '0 auto',
         width: '100%',

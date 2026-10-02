@@ -160,7 +160,7 @@ export function PurchasesPage() {
   }
 
   return (
-    <div className="page-frame page-screen">
+    <div className="page-frame">
       {/* Top Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
         <div style={{

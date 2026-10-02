@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { lic, isPublicKeyConfigured, type LicenseResult, type LocalSubscriptionDetails } from "../lib/license";
-import { applyUiScale } from "../utils/uiScale";
 import { PWAInstallBanner } from "./pwa/PWAInstallBanner";
 import { PWAInstallSheet } from "./pwa/PWAInstallSheet";
 
@@ -64,11 +63,6 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
 
   // PWA full guide fallback (when native install unavailable)
   const [pwaGuideOpen, setPwaGuideOpen] = useState(false);
-
-  // حجم العرض الثابت (86٪) — يُطبق على كل شاشات الكاشير
-  useEffect(() => {
-    applyUiScale();
-  }, []);
 
   // Check license — مزامنة فورية مع السيرفر ثم تقييم محلي
   const evaluateLicense = useCallback(async () => {
