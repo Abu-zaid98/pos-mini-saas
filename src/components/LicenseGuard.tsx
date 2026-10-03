@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { lic, isPublicKeyConfigured, type LicenseResult, type LocalSubscriptionDetails } from "../lib/license";
 import { PWAInstallBanner } from "./pwa/PWAInstallBanner";
 import { PWAInstallSheet } from "./pwa/PWAInstallSheet";
+import { getStoredTheme, toggleTheme, type Theme } from "../utils/theme";
 
 interface LicenseGuardProps {
   children: React.ReactNode;
@@ -36,6 +37,11 @@ function LicenseBrandMark() {
 export function LicenseGuard({ children }: LicenseGuardProps) {
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<LicenseResult | null>(null);
+  const [theme, setTheme] = useState<Theme>(getStoredTheme);
+
+  const handleToggleTheme = () => {
+    setTheme(toggleTheme());
+  };
 
   // تجديد الاشتراك — popup فخم + toast للتعديلات الأخرى
   const [renewal, setRenewal] = useState<RenewalInfo | null>(null);
@@ -809,6 +815,34 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
         direction: "rtl",
       }}
     >
+      <button
+        type="button"
+        onClick={handleToggleTheme}
+        aria-label={theme === "dark" ? "التبديل إلى الثيم الفاتح" : "التبديل إلى الثيم الداكن"}
+        title={theme === "dark" ? "التبديل إلى الثيم الفاتح" : "التبديل إلى الثيم الداكن"}
+        style={{
+          position: "absolute",
+          top: "max(40px, calc(env(safe-area-inset-top, 0px) + 24px))",
+          left: 28,
+          zIndex: 20,
+          width: 42,
+          height: 42,
+          minHeight: 42,
+          padding: 0,
+          borderRadius: 10,
+          border: "1px solid var(--color-border)",
+          background: "var(--color-bg-card)",
+          color: "var(--color-text-primary)",
+          fontSize: 20,
+          fontFamily: "var(--font-main)",
+          cursor: "pointer",
+          display: "grid",
+          placeItems: "center",
+        }}
+      >
+        {theme === "dark" ? "☀" : "☾"}
+      </button>
+
       {/* Background glow accent */}
       <div
         className="license-activation-glow"

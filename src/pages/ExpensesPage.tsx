@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
 import { Button } from '../components/ui/Button'
 import { ExpenseModal } from '../components/expenses/ExpenseModal'
 import { Modal } from '../components/ui/Modal'
-import { db } from '../db/db'
+import { getPaymentMethodName, PAYMENT_METHODS } from '../db/db'
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   countExpenseUsageByCategory,
+  deleteExpense,
   getExpenseCategories,
   saveExpenseCategories,
+  useExpenses,
+  type ExpensePeriod,
   type ExpenseCategoryItem,
 } from '../hooks/useExpenses'
 
@@ -19,12 +21,18 @@ function formatMoney(value: number): string {
 export function ExpensesPage() {
   const [categories, setCategories] = useState<ExpenseCategoryItem[]>(DEFAULT_EXPENSE_CATEGORIES)
   const [search, setSearch] = useState('')
-  const [modalOpen, setModalOpen] = useState(false)
+  const [categorySearch, setCategorySearch] = useState('')
+  const [period, setPeriod] = useState<ExpensePeriod>('month')
+  const [categoryFilter, setCategoryFilter] = useState('all')
+  const [paymentFilter, setPaymentFilter] = useState('all')
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
+  const [categoryEditorOpen, setCategoryEditorOpen] = useState(false)
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState({ name: '', description: '', active: true })
 
-  const expenses = useLiveQuery(() => db.expenses.orderBy('date').reverse().toArray(), []) ?? []
+  const expenses = useExpenses(period)
+  const allExpenses = useExpenses('all')
 
   useEffect(() => {
     let active = true
@@ -39,24 +47,33 @@ export function ExpensesPage() {
     }
   }, [])
 
-  const usageMap = useMemo(() => countExpenseUsageByCategory(expenses), [expenses])
+  const usageMap = useMemo(() => countExpenseUsageByCategory(allExpenses), [allExpenses])
+  const filteredExpenses = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return expenses.filter((expense) => {
+      if (categoryFilter !== 'all' && expense.category !== categoryFilter) return false
+      if (paymentFilter !== 'all' && expense.paymentMethod !== paymentFilter) return false
+      if (!term) return true
+      return [expense.title, expense.category, expense.notes ?? ''].join(' ').toLowerCase().includes(term)
+    })
+  }, [expenses, categoryFilter, paymentFilter, search])
   const totalSpent = useMemo(
-    () => expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0),
-    [expenses],
+    () => filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0),
+    [filteredExpenses],
   )
 
   const filteredCategories = useMemo(() => {
-    const term = search.trim().toLowerCase()
+    const term = categorySearch.trim().toLowerCase()
     return [...categories].sort((a, b) => Number(b.active ?? true) - Number(a.active ?? true)).filter((cat) => {
       if (!term) return true
       return [cat.name, cat.description ?? ''].join(' ').toLowerCase().includes(term)
     })
-  }, [categories, search])
+  }, [categories, categorySearch])
 
   const handleOpenCreate = () => {
     setEditingId(null)
     setDraft({ name: '', description: '', active: true })
-    setModalOpen(true)
+    setCategoryEditorOpen(true)
   }
 
   const handleOpenEdit = (item: ExpenseCategoryItem) => {
@@ -66,7 +83,7 @@ export function ExpensesPage() {
       description: item.description ?? '',
       active: item.active !== false,
     })
-    setModalOpen(true)
+    setCategoryEditorOpen(true)
   }
 
   const handleSaveCategory = async () => {
@@ -85,7 +102,7 @@ export function ExpensesPage() {
 
     const saved = await saveExpenseCategories(updated)
     setCategories(saved)
-    setModalOpen(false)
+    setCategoryEditorOpen(false)
     setEditingId(null)
     setDraft({ name: '', description: '', active: true })
   }
@@ -122,13 +139,13 @@ export function ExpensesPage() {
               <div style={{ width: 42, height: 42, borderRadius: 14, background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18, boxShadow: '0 12px 26px rgba(22, 101, 52, 0.28)' }}>💸</div>
               <div>
                 <h2 style={{ margin: 0, color: 'var(--color-text-primary)' }}>المصاريف</h2>
-                <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 12 }}>إدارة بنود المصروفات ومتابعة النفقات</p>
+                <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 12 }}>سجل المصروفات والفلاتر</p>
               </div>
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button variant="ghost" onClick={handleOpenCreate}>+ إضافة بند</Button>
+            <Button variant="ghost" onClick={() => setCategoryManagerOpen(true)}>إدارة الأنواع</Button>
             <Button variant="primary" onClick={() => setExpenseModalOpen(true)}>+ إضافة مصروف</Button>
           </div>
         </div>
@@ -139,70 +156,99 @@ export function ExpensesPage() {
             <div style={{ fontSize: 22, fontWeight: 800, marginTop: 6, color: 'var(--color-primary-light)' }}>{formatMoney(totalSpent)}</div>
           </div>
           <div className="card" style={{ padding: 12 }}>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>عدد البنود</div>
-            <div style={{ fontSize: 22, fontWeight: 800, marginTop: 6, color: 'var(--color-success-light)' }}>{categories.length}</div>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>عدد السجلات المعروضة</div>
+            <div style={{ fontSize: 22, fontWeight: 800, marginTop: 6, color: 'var(--color-success-light)' }}>{filteredExpenses.length}</div>
           </div>
           <div className="card" style={{ padding: 12 }}>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>بنود نشطة</div>
+            <div style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>أنواع نشطة</div>
             <div style={{ fontSize: 22, fontWeight: 800, marginTop: 6, color: 'var(--color-warning-light)' }}>{totalCategories}</div>
           </div>
         </div>
       </div>
 
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+          <label className="input-wrap">
+            <span className="input-label">الفترة</span>
+            <select className="input" value={period} onChange={(event) => setPeriod(event.target.value as ExpensePeriod)}>
+              <option value="today">اليوم</option>
+              <option value="week">آخر 7 أيام</option>
+              <option value="month">هذا الشهر</option>
+              <option value="all">كل الفترات</option>
+            </select>
+          </label>
+          <label className="input-wrap">
+            <span className="input-label">نوع المصروف</span>
+            <select className="input" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option value="all">كل الأنواع</option>
+              {categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}
+            </select>
+          </label>
+          <label className="input-wrap">
+            <span className="input-label">طريقة الدفع</span>
+            <select className="input" value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)}>
+              <option value="all">كل الطرق</option>
+              {PAYMENT_METHODS.map((method) => <option key={method.id} value={method.id}>{method.label}</option>)}
+            </select>
+          </label>
+        </div>
+
         <div className="input-search" style={{ width: '100%' }}>
           <span>🔎</span>
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="بحث عن بند مصروف..."
-            aria-label="بحث عن بند مصروف"
+            placeholder="ابحث في البيان أو النوع أو الملاحظات..."
+            aria-label="بحث في سجلات المصاريف"
           />
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filteredCategories.length === 0 && (
-            <div style={{ padding: 18, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-              لا توجد بنود مطابقة حالياً.
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>سجلات المصاريف</h3>
+          <span className="badge badge-muted">{filteredExpenses.length} سجل</span>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {filteredExpenses.length === 0 ? (
+            <div style={{ padding: 28, textAlign: 'center', color: 'var(--color-text-muted)', border: '1px dashed var(--color-border)', borderRadius: 12 }}>
+              لا توجد مصاريف تطابق الفلاتر المحددة.
             </div>
-          )}
-
-          {filteredCategories.map((item) => {
-            const usageCount = usageMap[item.name] ?? 0
-            const isInactive = item.active === false
-
+          ) : filteredExpenses.map((expense) => {
+            const category = categories.find((item) => item.name === expense.category)
             return (
-              <div key={item.id} style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 10,
-                padding: 12,
-                borderRadius: 14,
-                border: '1px solid var(--color-border)',
-                background: isInactive ? 'rgba(148,163,184,0.08)' : 'var(--color-bg-surface)',
+              <div key={expense.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                flexWrap: 'wrap', padding: '12px 14px', border: '1px solid var(--color-border)',
+                borderRadius: 12, background: 'var(--color-bg-surface)',
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
-                  <div style={{ width: 38, height: 38, borderRadius: 12, background: 'var(--brand-gradient-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
-                    {item.icon || '🧾'}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: '1 1 240px' }}>
+                  <div style={{ width: 40, height: 40, flexShrink: 0, borderRadius: 11, background: 'var(--brand-gradient-soft)', display: 'grid', placeItems: 'center', fontSize: 18 }}>
+                    {category?.icon || '🧾'}
                   </div>
-                  <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <strong style={{ fontSize: 14, color: 'var(--color-text-primary)' }}>{item.name}</strong>
-                      <span className={`badge ${isInactive ? 'badge-muted' : 'badge-success'}`}>
-                        {isInactive ? 'معطل' : 'نشط'}
-                      </span>
-                    </div>
-                    <div style={{ color: 'var(--color-text-muted)', fontSize: 11, marginTop: 2 }}>
-                      {item.description || 'بنود مصروفات قابلة للتعديل'}
+                  <div style={{ minWidth: 0 }}>
+                    <strong style={{ display: 'block', color: 'var(--color-text-primary)', fontSize: 14 }}>{expense.title}</strong>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 8px', marginTop: 3, color: 'var(--color-text-muted)', fontSize: 11 }}>
+                      <span>{expense.category}</span>
+                      <span>{new Date(expense.date).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                      <span>{getPaymentMethodName(expense.paymentMethod)}</span>
+                      {expense.notes && <span>{expense.notes}</span>}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                  <span className="badge badge-primary">{usageCount} استخدام</span>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleOpenEdit(item)}>تعديل</button>
-                  <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDeleteCategory(item.id)}>حذف</button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginInlineStart: 'auto' }}>
+                  <strong style={{ color: 'var(--color-danger-light)', direction: 'ltr', whiteSpace: 'nowrap' }}>{formatMoney(expense.amount)}</strong>
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    title="حذف المصروف"
+                    aria-label={`حذف مصروف ${expense.title}`}
+                    onClick={async () => {
+                      if (expense.id && window.confirm(`هل تريد حذف مصروف "${expense.title}"؟`)) {
+                        await deleteExpense(expense.id)
+                      }
+                    }}
+                  >حذف</button>
                 </div>
               </div>
             )
@@ -210,58 +256,111 @@ export function ExpensesPage() {
         </div>
       </div>
 
+      <Modal
+        open={categoryManagerOpen}
+        onClose={() => {
+          setCategoryManagerOpen(false)
+          setCategoryEditorOpen(false)
+        }}
+        title={categoryEditorOpen ? (editingId ? 'تعديل نوع المصروف' : 'إضافة نوع مصروف') : 'إدارة أنواع المصاريف'}
+        type="sheet"
+        footer={categoryEditorOpen ? (
+          <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setCategoryEditorOpen(false)} style={{ flex: 1 }}>رجوع</button>
+            <Button variant="primary" onClick={handleSaveCategory} style={{ flex: 2 }}>{editingId ? 'حفظ التغييرات' : 'إضافة النوع'}</Button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 10, width: '100%' }}>
+            <button type="button" className="btn btn-ghost" onClick={() => setCategoryManagerOpen(false)} style={{ flex: 1 }}>إغلاق</button>
+            <Button variant="primary" onClick={handleOpenCreate} style={{ flex: 2 }}>+ نوع جديد</Button>
+          </div>
+        )}
+      >
+        {categoryEditorOpen ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="input-wrap">
+              <label className="input-label">اسم النوع</label>
+              <input
+                className="input"
+                value={draft.name}
+                onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
+                placeholder="مثل: إيجار المحل"
+                autoFocus
+              />
+            </div>
+            <div className="input-wrap">
+              <label className="input-label">الوصف</label>
+              <textarea
+                className="input"
+                rows={3}
+                value={draft.description}
+                onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
+                placeholder="وصف مختصر للنوع إن رغبت..."
+              />
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: 'var(--color-input-bg)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '10px 12px' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>حالة النوع</span>
+              <button
+                type="button"
+                className={`btn btn-sm ${draft.active ? 'btn-success' : 'btn-ghost'}`}
+                onClick={() => setDraft((current) => ({ ...current, active: !current.active }))}
+              >
+                {draft.active ? 'نشط' : 'معطل'}
+              </button>
+            </label>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="input-search" style={{ width: '100%' }}>
+              <span>🔎</span>
+              <input
+                value={categorySearch}
+                onChange={(event) => setCategorySearch(event.target.value)}
+                placeholder="بحث في أنواع المصروفات..."
+                aria-label="بحث في أنواع المصروفات"
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: '52dvh', overflowY: 'auto' }}>
+              {filteredCategories.length === 0 && (
+                <div style={{ padding: 18, textAlign: 'center', color: 'var(--color-text-muted)' }}>لا توجد أنواع مطابقة.</div>
+              )}
+              {filteredCategories.map((item) => {
+                const usageCount = usageMap[item.name] ?? 0
+                const isInactive = item.active === false
+                return (
+                  <div key={item.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                    flexWrap: 'wrap', padding: 10, borderRadius: 12,
+                    border: '1px solid var(--color-border)',
+                    background: isInactive ? 'rgba(148,163,184,0.08)' : 'var(--color-bg-surface)',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, flex: '1 1 180px' }}>
+                      <span style={{ width: 34, height: 34, flexShrink: 0, borderRadius: 10, background: 'var(--brand-gradient-soft)', display: 'grid', placeItems: 'center' }}>
+                        {item.icon || '🧾'}
+                      </span>
+                      <span style={{ minWidth: 0 }}>
+                        <strong style={{ display: 'block', color: 'var(--color-text-primary)', fontSize: 13 }}>{item.name}</strong>
+                        <small style={{ color: 'var(--color-text-muted)' }}>{usageCount} استخدام · {isInactive ? 'معطل' : 'نشط'}</small>
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, marginInlineStart: 'auto' }}>
+                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleOpenEdit(item)}>تعديل</button>
+                      <button type="button" className="btn btn-danger btn-sm" onClick={() => handleDeleteCategory(item.id)}>{isInactive ? 'حذف' : 'تعطيل'}</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+      </Modal>
+
       <ExpenseModal
         open={expenseModalOpen}
         onClose={() => setExpenseModalOpen(false)}
         onSuccess={() => setExpenseModalOpen(false)}
       />
 
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        title={editingId ? 'تعديل بند المصروف' : 'إضافة بند مصروف جديد'}
-        type="sheet"
-        footer={
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button type="button" className="btn btn-ghost" onClick={() => setModalOpen(false)} style={{ flex: 1 }}>إلغاء</button>
-            <Button variant="primary" onClick={handleSaveCategory} style={{ flex: 2 }}>{editingId ? 'حفظ التغييرات' : 'إضافة البند'}</Button>
-          </div>
-        }
-      >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div className="input-wrap">
-            <label className="input-label">اسم البند</label>
-            <input
-              className="input"
-              value={draft.name}
-              onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-              placeholder="مثل: إيجار المحل"
-            />
-          </div>
-
-          <div className="input-wrap">
-            <label className="input-label">الوصف</label>
-            <textarea
-              className="input"
-              rows={3}
-              value={draft.description}
-              onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))}
-              placeholder="وصف مختصر للبند إن رغبت..."
-            />
-          </div>
-
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, background: 'var(--color-input-bg)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '10px 12px' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>حالة البند</span>
-            <button
-              type="button"
-              className={`btn btn-sm ${draft.active ? 'btn-success' : 'btn-ghost'}`}
-              onClick={() => setDraft((current) => ({ ...current, active: !current.active }))}
-            >
-              {draft.active ? 'نشط' : 'معطل'}
-            </button>
-          </label>
-        </div>
-      </Modal>
     </div>
   )
 }

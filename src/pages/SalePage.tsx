@@ -946,18 +946,15 @@ export function SalePage() {
                 return (
                   <div
                     key={key}
+                    className="sale-cart-line"
                     style={{
                       background: 'var(--color-bg-card)',
                       border: `1px solid ${overStock ? 'rgba(239,68,68,0.4)' : 'var(--color-border)'}`,
                       borderRadius: 14,
                       padding: '12px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      flexWrap: 'wrap',
                     }}
                   >
-                    <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="sale-cart-line-info">
                       <p style={{ fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {item.name}
                         {kind === 'service' && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}> 🛎️</span>}
@@ -973,9 +970,10 @@ export function SalePage() {
                           {piecesCount} قطع × {perPiece} {unitShort(unit)} للقطعة
                         </div>
                       ) : null}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 3 }}>
+                      <div className="sale-cart-line-price">
                         {kind === 'service' ? (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <label className="sale-cart-service-price">
+                            <span>سعر الخدمة</span>
                             <input
                               type="number"
                               min="0"
@@ -983,17 +981,18 @@ export function SalePage() {
                               value={item.price}
                               onChange={(e) => setItemPrice(item.productId, parseFloat(e.target.value) || 0, unit, packLabel, item.lineId)}
                               title="تعديل سعر الخدمة"
+                              aria-label={`سعر خدمة ${item.name}`}
                               style={{
-                                width: 92,
-                                minHeight: 44,
+                                width: 88,
+                                minHeight: 40,
                                 flexShrink: 0,
                                 boxSizing: 'border-box',
-                                padding: '8px 10px',
-                                borderRadius: 10,
+                                padding: '6px 8px',
+                                borderRadius: 8,
                                 background: 'var(--color-input-bg)',
                                 border: '1px solid var(--color-border)',
                                 color: 'var(--color-text-primary)',
-                                fontSize: 16,
+                                fontSize: 15,
                                 fontWeight: 800,
                                 outline: 'none',
                                 fontFamily: 'var(--font-main)',
@@ -1001,8 +1000,8 @@ export function SalePage() {
                                 textAlign: 'center',
                               }}
                             />
-                            <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>₪ ✏️</span>
-                          </span>
+                            <span>₪</span>
+                          </label>
                         ) : (
                           <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', direction: 'ltr' }}>
                             {formatCurrency(item.price)}{item.pack ? `/${item.pack.label}` : unit !== 'piece' ? `/${unitShort(unit)}` : ''}
@@ -1040,7 +1039,7 @@ export function SalePage() {
                     </div>
 
                     {/* Stepper */}
-                    <div style={{
+                    <div className="sale-cart-line-stepper" style={{
                       display: 'flex',
                       alignItems: 'center',
                       background: 'rgba(255,255,255,0.06)',
@@ -1092,7 +1091,8 @@ export function SalePage() {
                     </div>
 
                     {/* Line total */}
-                    <div style={{ minWidth: 65, textAlign: 'left' }}>
+                    <div className="sale-cart-line-summary">
+                      <div className="sale-cart-line-total">
                       {disc > 0 ? (
                         <>
                           <span style={{ fontSize: 11, color: 'var(--color-text-muted)', textDecoration: 'line-through', direction: 'ltr', display: 'block' }}>
@@ -1107,52 +1107,57 @@ export function SalePage() {
                           {formatCurrency(gross)}
                         </span>
                       )}
-                    </div>
+                      </div>
 
                     {/* Per-line discount */}
-                    <button
-                      onClick={() => {
-                        if (editorOpen) {
-                          setDiscLineKey(null)
-                        } else {
-                          setDiscLineKey(key)
-                          setDiscType(item.discount?.type ?? 'percent')
-                          setDiscValue(item.discount ? String(item.discount.value) : '')
-                        }
-                      }}
-                      title="خصم خاص بهذا الصنف"
-                      style={{
-                        background: item.discount ? 'rgba(245,158,11,0.18)' : 'none',
-                        border: item.discount ? '1px solid var(--color-warning)' : 'none',
-                        borderRadius: 8,
-                        color: item.discount ? 'var(--color-warning-light)' : 'var(--color-text-muted)',
-                        fontSize: 12,
-                        fontWeight: 800,
-                        cursor: 'pointer',
-                        padding: '4px 6px',
-                        fontFamily: 'var(--font-main)',
-                      }}
-                    >
-                      {item.discount ? `🏷️ ${formatLineDiscount(item.discount)}` : '🏷️'}
-                    </button>
+                      <div className="sale-cart-line-actions">
+                        <button
+                          className="sale-cart-line-discount"
+                          onClick={() => {
+                            if (editorOpen) {
+                              setDiscLineKey(null)
+                            } else {
+                              setDiscLineKey(key)
+                              setDiscType(item.discount?.type ?? 'percent')
+                              setDiscValue(item.discount ? String(item.discount.value) : '')
+                            }
+                          }}
+                          title="خصم خاص بهذا الصنف"
+                          style={{
+                            background: item.discount ? 'rgba(245,158,11,0.18)' : 'none',
+                            border: item.discount ? '1px solid var(--color-warning)' : 'none',
+                            borderRadius: 8,
+                            color: item.discount ? 'var(--color-warning-light)' : 'var(--color-text-muted)',
+                            fontSize: 12,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            padding: '4px 6px',
+                            fontFamily: 'var(--font-main)',
+                          }}
+                        >
+                          {item.discount ? `🏷️ ${formatLineDiscount(item.discount)}` : '🏷️'}
+                        </button>
 
                     {/* Delete */}
-                    <button
-                      onClick={() => removeFromCart(item.productId, unit, packLabel, item.lineId)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--color-text-muted)',
-                        fontSize: 16,
-                        cursor: 'pointer',
-                        padding: 4,
-                      }}
-                    >✕</button>
+                        <button
+                          className="sale-cart-line-delete"
+                          onClick={() => removeFromCart(item.productId, unit, packLabel, item.lineId)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--color-text-muted)',
+                            fontSize: 16,
+                            cursor: 'pointer',
+                            padding: 4,
+                          }}
+                        >✕</button>
+                      </div>
+                    </div>
 
                     {/* Inline per-line discount editor */}
                     {editorOpen && (
                       <div style={{
-                        flexBasis: '100%',
+                        gridColumn: '1 / -1',
                         background: 'rgba(245,158,11,0.08)',
                         border: '1px dashed rgba(245,158,11,0.4)',
                         borderRadius: 10,

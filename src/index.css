@@ -59,16 +59,16 @@
    DESIGN TOKENS (DARK MODE DEFAULT)
 ============================== */
 :root, [data-theme="dark"] {
-  /* Brand palette inspired by the logo: deep navy + teal + warm paper */
-  --color-bg-base: #edf0ec;
-  --color-bg-surface: #f8faf8;
-  --color-bg-elevated: #ffffff;
-  --color-bg-card: #ffffff;
+  /* Deep navy surfaces with the brand's teal accent */
+  --color-bg-base: #0b151d;
+  --color-bg-surface: #101f29;
+  --color-bg-elevated: #162a36;
+  --color-bg-card: #12232e;
 
-  --color-primary: #102d4a;
-  --color-primary-light: #194872;
-  --color-primary-dark: #0a1f37;
-  --color-primary-glow: rgba(16, 45, 74, 0.10);
+  --color-primary: #137f78;
+  --color-primary-light: #45c7b2;
+  --color-primary-dark: #0b625b;
+  --color-primary-glow: rgba(69, 199, 178, 0.14);
 
   --color-success: #13a883;
   --color-success-light: #20b38a;
@@ -79,12 +79,12 @@
   --color-purple: #2d7a8c;
   --color-purple-light: #4a9bb1;
 
-  --color-text-primary: #142d49;
-  --color-text-secondary: #234564;
-  --color-text-muted: #5e758c;
+  --color-text-primary: #edf5f3;
+  --color-text-secondary: #bfd0d0;
+  --color-text-muted: #91a6a8;
 
-  --color-border: rgba(16, 45, 74, 0.12);
-  --color-border-active: rgba(22, 132, 117, 0.38);
+  --color-border: rgba(208, 228, 226, 0.13);
+  --color-border-active: rgba(69, 199, 178, 0.42);
 
   /* Brand gradients */
   --brand-gradient: linear-gradient(135deg, #1dbfa8 0%, #0e5f78 100%);
@@ -92,13 +92,13 @@
   --gold-gradient: linear-gradient(135deg, #f3b77d, #e08e2d);
   --mint-gradient: linear-gradient(135deg, #36d5b4, #1fa883);
 
-  --color-header-bg: rgba(255, 255, 255, 0.86);
-  --color-nav-bg: rgba(255, 255, 255, 0.95);
-  --color-input-bg: rgba(17, 45, 74, 0.03);
-  --color-btn-ghost-bg: rgba(16, 45, 74, 0.04);
-  --color-btn-ghost-hover: rgba(16, 45, 74, 0.08);
-  --color-card-glass: rgba(255, 255, 255, 0.88);
-  --color-modal-backdrop: rgba(10, 31, 55, 0.4);
+  --color-header-bg: rgba(11, 21, 29, 0.9);
+  --color-nav-bg: rgba(16, 31, 41, 0.96);
+  --color-input-bg: rgba(255, 255, 255, 0.055);
+  --color-btn-ghost-bg: rgba(255, 255, 255, 0.06);
+  --color-btn-ghost-hover: rgba(255, 255, 255, 0.1);
+  --color-card-glass: rgba(18, 35, 46, 0.9);
+  --color-modal-backdrop: rgba(3, 10, 15, 0.72);
 
   /* KPI Card backgrounds (theme-adaptive) */
   --kpi-blue-bg: linear-gradient(135deg, rgba(99,102,241,0.22), rgba(99,102,241,0.06));
@@ -1067,6 +1067,77 @@ select.input option {
   height: 4px;
   border-radius: 4px;
   background: var(--brand-gradient);
+}
+
+.sale-cart-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.sale-cart-line-info { min-width: 0; }
+
+.sale-cart-line-price {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.sale-cart-service-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 3px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sale-cart-line-stepper button {
+  min-width: 34px;
+  min-height: 36px;
+}
+
+.sale-cart-line-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sale-cart-line-total { min-width: 72px; text-align: left; }
+
+.sale-cart-line-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sale-cart-line-discount,
+.sale-cart-line-delete { min-width: 36px; min-height: 36px; }
+
+@media (max-width: 680px) {
+  .sale-cart-line {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px 8px;
+  }
+
+  .sale-cart-line-info { grid-column: 1 / -1; }
+
+  .sale-cart-line-stepper { justify-self: start; }
+
+  .sale-cart-line-summary {
+    grid-column: 1 / -1;
+    justify-content: space-between;
+    border-top: 1px solid var(--color-border);
+    padding-top: 8px;
+  }
 }
 
 /* Stretch */

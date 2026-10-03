@@ -48,12 +48,7 @@ export function AdminApp() {
     <AdminFeedbackProvider>
       {loading ? (
         <div className="admin-splash">
-          <div className="admin-splash-logo">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-              <rect width="32" height="32" rx="8" fill="currentColor" />
-              <path d="M16 6L20 13H25L20 18L22 25L16 21L10 25L12 18L7 13H12L16 6Z" fill="white" />
-            </svg>
-          </div>
+          <img className="admin-splash-logo" src="/logo.jpeg" alt="ميزان" />
           <div className="admin-splash-spinner" />
           <p>جارٍ التحميل...</p>
         </div>

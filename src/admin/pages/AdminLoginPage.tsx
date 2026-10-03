@@ -14,11 +14,31 @@ export function AdminLoginPage({ onLogin, loading, error }: Props) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [adminTheme, setAdminTheme] = useState<'light' | 'dark'>(() => {
+    try {
+      return localStorage.getItem('admin_theme') === 'dark' ? 'dark' : 'light'
+    } catch {
+      return 'light'
+    }
+  })
   const emailRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     emailRef.current?.focus()
   }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('admin_theme', adminTheme)
+    } catch {
+      // Theme remains available for this page even if storage is blocked.
+    }
+    if (adminTheme === 'dark') {
+      document.documentElement.setAttribute('data-admin-theme', 'dark')
+    } else {
+      document.documentElement.removeAttribute('data-admin-theme')
+    }
+  }, [adminTheme])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -27,6 +47,16 @@ export function AdminLoginPage({ onLogin, loading, error }: Props) {
 
   return (
     <div className="admin-login-root">
+      <button
+        type="button"
+        className="admin-login-theme-toggle"
+        onClick={() => setAdminTheme((theme) => theme === 'dark' ? 'light' : 'dark')}
+        aria-label={adminTheme === 'dark' ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الداكن'}
+        title={adminTheme === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن'}
+      >
+        {adminTheme === 'dark' ? '☀' : '☾'}
+      </button>
+
       {/* Background pattern */}
       <div className="admin-login-bg" aria-hidden="true">
         <div className="admin-login-blob blob-1" />
@@ -37,15 +67,10 @@ export function AdminLoginPage({ onLogin, loading, error }: Props) {
       <div className="admin-login-card" role="main">
         {/* Logo */}
         <div className="admin-login-logo-wrap">
-          <div className="admin-login-logo">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-              <rect width="32" height="32" rx="8" fill="currentColor" />
-              <path d="M16 8L20 13H23L17.5 20L19.5 24H12.5L14.5 20L9 13H12L16 8Z" fill="white" />
-            </svg>
-          </div>
+          <img className="admin-login-logo" src="/logo.jpeg" alt="ميزان" />
           <div className="admin-login-logo-text">
-            <span className="admin-login-logo-title">لوحة التحكم</span>
-            <span className="admin-login-logo-sub">نظام إدارة الاشتراكات</span>
+            <span className="admin-login-logo-title">ميزان</span>
+            <span className="admin-login-logo-sub">إدارة النظام والاشتراكات</span>
           </div>
         </div>
 

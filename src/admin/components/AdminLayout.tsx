@@ -173,15 +173,10 @@ export function AdminLayout({ children, user, onLogout }: Props) {
       <aside className={`admin-sidebar ${sidebarOpen ? 'admin-sidebar-open' : ''}`} aria-label="قائمة التنقل">
         {/* Brand */}
         <div className="admin-sidebar-brand">
-          <div className="admin-sidebar-logo">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <rect width="20" height="20" rx="5" fill="currentColor" />
-              <path d="M10 4L13 8.5H15.5L11 14L12.5 17H7.5L9 14L4.5 8.5H7L10 4Z" fill="white" />
-            </svg>
-          </div>
+          <img className="admin-sidebar-logo" src="/logo.jpeg" alt="ميزان" />
           <div>
-            <div className="admin-sidebar-brand-name">لوحة التحكم</div>
-            <div className="admin-sidebar-brand-sub">POS Admin</div>
+            <div className="admin-sidebar-brand-name">ميزان</div>
+            <div className="admin-sidebar-brand-sub">إدارة النظام والاشتراكات</div>
           </div>
         </div>
 

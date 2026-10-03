@@ -2,8 +2,7 @@ import { useState, useMemo } from 'react'
 import { useInvoices, useAccountBalances } from '../hooks/useInvoices'
 import { useProducts } from '../hooks/useProducts'
 import { useCustomers } from '../hooks/useCustomers'
-import { useExpenses, deleteExpense, getCategoryIcon } from '../hooks/useExpenses'
-import { ExpenseModal } from '../components/expenses/ExpenseModal'
+import { useExpenses } from '../hooks/useExpenses'
 import { formatCurrency } from '../utils/currency'
 import { formatLineQty, lineDiscountAmount } from '../utils/units'
 import { Modal } from '../components/ui/Modal'
@@ -12,13 +11,12 @@ import { useStoreName } from '../hooks/useStoreName'
 import { useLiveQuery } from 'dexie-react-hooks'
 
 type PeriodFilter = 'today' | 'week' | 'month' | 'all'
-type ReportSubTab = 'financial' | 'expenses' | 'inventory_debt'
+type ReportSubTab = 'financial' | 'inventory_debt'
 
 export function ReportsPage() {
   const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('financial')
   const [period, setPeriod] = useState<PeriodFilter>('today')
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
-  const [expenseModalOpen, setExpenseModalOpen] = useState(false)
 
   const invoices = useInvoices({ dateRange: period })
   const allProducts = useProducts()
@@ -61,15 +59,6 @@ export function ReportsPage() {
   const realNetProfit = useMemo(() => {
     return grossSalesProfit - totalExpenses
   }, [grossSalesProfit, totalExpenses])
-
-  // Category breakdown for expenses
-  const expensesByCategory = useMemo(() => {
-    const map: Record<string, number> = {}
-    expenses.forEach((e) => {
-      map[e.category] = (map[e.category] || 0) + e.amount
-    })
-    return Object.entries(map).sort((a, b) => b[1] - a[1])
-  }, [expenses])
 
   // Period breakdown by payment method
   const periodCollections = useMemo(() => {
@@ -241,43 +230,6 @@ export function ReportsPage() {
         >
           <span>📊</span>
           <span>المالية والأرباح</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setReportSubTab('expenses')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            padding: '10px 4px',
-            borderRadius: 12,
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: 800,
-            fontSize: 13,
-            fontFamily: 'var(--font-main)',
-            background: reportSubTab === 'expenses' ? 'linear-gradient(135deg, #f43f5e, #e11d48)' : 'transparent',
-            color: reportSubTab === 'expenses' ? 'white' : 'var(--color-text-muted)',
-            transition: 'all 0.18s ease',
-            boxShadow: reportSubTab === 'expenses' ? '0 2px 8px rgba(244,63,94,0.35)' : 'none',
-          }}
-        >
-          <span>💸</span>
-          <span>المصاريف</span>
-          {expenses.length > 0 && (
-            <span style={{
-              fontSize: 10,
-              padding: '1px 5px',
-              borderRadius: 8,
-              background: reportSubTab === 'expenses' ? 'rgba(255,255,255,0.25)' : 'rgba(244,63,94,0.15)',
-              color: reportSubTab === 'expenses' ? 'white' : '#fb7185',
-              fontWeight: 900,
-            }}>
-              {expenses.length}
-            </span>
-          )}
         </button>
 
         <button
@@ -608,218 +560,6 @@ export function ReportsPage() {
                     </div>
                   </div>
                 ))}
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {/* ============================================================ */}
-      {/* TAB 2: OPERATING EXPENSES */}
-      {/* ============================================================ */}
-      {reportSubTab === 'expenses' && (
-        <>
-          {/* Period Selector */}
-          {renderPeriodSelector()}
-
-          {/* Expenses Header Banner & Add Button */}
-          <div style={{
-            background: 'linear-gradient(135deg, rgba(244,63,94,0.15), rgba(30,41,59,0.6))',
-            border: '1.5px solid rgba(244,63,94,0.3)',
-            borderRadius: 18,
-            padding: 16,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            boxShadow: 'var(--shadow-sm)',
-          }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                <span style={{ fontSize: 20 }}>💸</span>
-                <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 700 }}>
-                  إجمالي المصاريف للفترة
-                </span>
-              </div>
-              <div style={{ fontSize: 26, fontWeight: 900, color: '#fb7185', direction: 'ltr', textAlign: 'right' }}>
-                {formatCurrency(totalExpenses)}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                {expenses.length} عملية صرف مسجلة
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setExpenseModalOpen(true)}
-              style={{
-                background: 'linear-gradient(135deg, #f43f5e, #e11d48)',
-                border: 'none',
-                borderRadius: 14,
-                padding: '12px 18px',
-                color: 'white',
-                fontSize: 14,
-                fontWeight: 800,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-main)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                boxShadow: '0 4px 14px rgba(244,63,94,0.4)',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              <span style={{ fontSize: 16 }}>+</span>
-              <span>تسجيل مصروف جديد</span>
-            </button>
-          </div>
-
-          {/* Expenses Category Breakdown Pills */}
-          {expensesByCategory.length > 0 && (
-            <div style={{
-              background: 'var(--color-bg-card)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 16,
-              padding: 14,
-            }}>
-              <h4 style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-text-muted)', marginBottom: 10 }}>
-                توزيع المصاريف حسب البند:
-              </h4>
-              <div style={{
-                display: 'flex',
-                gap: 8,
-                flexWrap: 'wrap',
-              }}>
-                {expensesByCategory.map(([catName, amt]) => (
-                  <div
-                    key={catName}
-                    style={{
-                      background: 'rgba(255,255,255,0.04)',
-                      border: '1px solid var(--color-border)',
-                      borderRadius: 10,
-                      padding: '8px 12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      fontSize: 13,
-                    }}
-                  >
-                    <span>{getCategoryIcon(catName)}</span>
-                    <span style={{ fontWeight: 600 }}>{catName}:</span>
-                    <span style={{ fontWeight: 900, color: '#fb7185' }}>{amt.toFixed(2)} ₪</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Expenses list */}
-          <div style={{
-            background: 'var(--color-bg-card)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 16,
-            padding: 16,
-          }}>
-            <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
-              قائمة المصاريف المسجلة ({expenses.length})
-            </h3>
-
-            {expenses.length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: '24px 12px' }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>💡</div>
-                <p style={{ margin: 0, fontWeight: 600 }}>لا توجد مصاريف تشغيلية مسجلة في هذه الفترة.</p>
-                <p style={{ margin: '4px 0 0', fontSize: 12, opacity: 0.8 }}>
-                  اضغط على "+ تسجيل مصروف جديد" لإضافة فواتير الكهرباء، المياه، أكياس، عمالة، إلخ.
-                </p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto' }}>
-                {expenses.map((exp) => {
-                  const expDate = new Date(exp.date).toLocaleDateString('ar-EG', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-
-                  return (
-                    <div
-                      key={exp.id}
-                      style={{
-                        padding: '12px 14px',
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: 12,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                          width: 42,
-                          height: 42,
-                          borderRadius: 12,
-                          background: 'rgba(244,63,94,0.12)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 20,
-                        }}>
-                          {getCategoryIcon(exp.category)}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--color-text-primary)' }}>
-                            {exp.title}
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'flex', gap: 8, marginTop: 2 }}>
-                            <span>{exp.category}</span>
-                            <span>•</span>
-                            <span>{expDate}</span>
-                            {exp.notes && (
-                              <>
-                                <span>•</span>
-                                <span style={{ fontStyle: 'italic' }}>{exp.notes}</span>
-                              </>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{ textAlign: 'left' }}>
-                          <div style={{ fontSize: 16, fontWeight: 900, color: '#fb7185', direction: 'ltr' }}>
-                            -{exp.amount.toFixed(2)} ₪
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                            {getPaymentMethodName(exp.paymentMethod)}
-                          </div>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation()
-                            if (confirm(`هل أنت متأكد من حذف مصروف "${exp.title}" بقيمة ${exp.amount} ₪؟`)) {
-                              if (exp.id) await deleteExpense(exp.id)
-                            }
-                          }}
-                          title="حذف المصروف"
-                          style={{
-                            background: 'rgba(239,68,68,0.1)',
-                            border: '1px solid rgba(239,68,68,0.2)',
-                            color: 'var(--color-danger-light)',
-                            cursor: 'pointer',
-                            fontSize: 14,
-                            padding: '6px 10px',
-                            borderRadius: 8,
-                          }}
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
               </div>
             )}
           </div>
@@ -1161,11 +901,6 @@ export function ReportsPage() {
         </Modal>
       )}
 
-      {/* Expense Modal */}
-      <ExpenseModal
-        open={expenseModalOpen}
-        onClose={() => setExpenseModalOpen(false)}
-      />
     </div>
   )
 }
