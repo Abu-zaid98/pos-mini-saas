@@ -21,11 +21,12 @@ export function AppShell({ onLogout }: AppShellProps) {
   const storeName = useStoreName()
 
   const pageTitles: Record<string, string> = {
-    '/': `${storeName} كاشير `,
+    '/': `${storeName} كاشير`,
     '/products': 'المخزون والتوريد',
     '/purchases': 'فواتير وسجل التوريد',
     '/customers': 'العملاء والديون',
     '/invoices': 'سجل فواتير البيع',
+    '/expenses': 'المصاريف',
     '/reports': 'التقارير والإحصائيات',
     '/settings': 'الإعدادات العامة',
   }
@@ -82,17 +83,23 @@ export function AppShell({ onLogout }: AppShellProps) {
           }}>
             {/* Store badge */}
             <div style={{
-              background: 'var(--brand-gradient)',
-              borderRadius: 10,
-              padding: '5px 12px',
-              fontSize: 12,
-              fontWeight: 800,
-              color: 'white',
-              letterSpacing: '-0.2px',
-              boxShadow: '0 4px 14px rgba(124, 58, 237, 0.4), inset 0 1px 0 rgba(255,255,255,0.3)',
+              background: 'var(--color-bg-elevated)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 12,
+              padding: '4px 10px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
               whiteSpace: 'nowrap',
             }}>
-              🏪 {storeName}
+              <img
+                src="/logo.jpeg"
+                alt={storeName}
+                style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'contain', background: '#fff', display: 'block' }}
+              />
+              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-text-primary)' }}>
+                {storeName}
+              </span>
             </div>
 
 

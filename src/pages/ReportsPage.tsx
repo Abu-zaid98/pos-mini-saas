@@ -145,7 +145,7 @@ export function ReportsPage() {
       .map((i) => `• ${i.name} (${formatLineQty(i)} × ${formatCurrency(i.price)}) = ${formatCurrency(i.qty * i.price)}`)
       .join('\n')
 
-    let msg = `🧾 *فاتورة مبيعات — ${storeName}*\n`
+    let msg = `🧾 *فاتورة مبيعات — ${storeName} (ميزان)*\n`
     msg += `رقم الفاتورة: #${inv.id}\n`
     msg += `التاريخ: ${dateStr}\n`
     if (inv.customerName) msg += `العميل: ${inv.customerName}\n`

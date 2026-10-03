@@ -226,15 +226,16 @@ export interface Expense {
 }
 
 export const EXPENSE_CATEGORIES = [
-  { id: 'electricity', name: 'كهرباء', icon: '⚡' },
-  { id: 'water', name: 'مياه', icon: '💧' },
-  { id: 'cleaning', name: 'نظافة ومستلزمات', icon: '🧹' },
-  { id: 'rent', name: 'إيجار المحل', icon: '🏪' },
-  { id: 'salaries', name: 'رواتب ومكافآت', icon: '👥' },
-  { id: 'maintenance', name: 'صيانة وتصليحات', icon: '🔧' },
-  { id: 'transport', name: 'نقل وتوصيل', icon: '🚚' },
-  { id: 'hospitality', name: 'ضيافة وبوفيه', icon: '☕' },
-  { id: 'other', name: 'أخرى', icon: '📦' },
+  { id: 'electricity', name: 'كهرباء', icon: '⚡', active: true },
+  { id: 'water', name: 'ماء', icon: '💧', active: true },
+  { id: 'rent', name: 'إيجار المحل', icon: '🏪', active: true },
+  { id: 'salaries', name: 'رواتب', icon: '👥', active: true },
+  { id: 'maintenance', name: 'صيانة', icon: '🔧', active: true },
+  { id: 'transport', name: 'مواصلات', icon: '🚚', active: true },
+  { id: 'internet', name: 'إنترنت', icon: '📶', active: true },
+  { id: 'marketing', name: 'تسويق', icon: '📢', active: true },
+  { id: 'operations', name: 'مشتريات تشغيلية', icon: '📦', active: true },
+  { id: 'other', name: 'أخرى', icon: '💼', active: true },
 ]
 
 export interface PurchaseItem {
@@ -365,7 +366,7 @@ export async function initSettings() {
   const storeName = await db.settings.get('storeName')
   if (!storeName) {
     await db.settings.bulkPut([
-      { key: 'storeName', value: 'POS System' },
+      { key: 'storeName', value: 'ميزان' },
       { key: 'ownerName', value: '' },
       { key: 'currency', value: '₪' },
       { key: 'passwordHash', value: null },

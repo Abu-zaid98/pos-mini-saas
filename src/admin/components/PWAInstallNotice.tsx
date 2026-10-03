@@ -60,7 +60,19 @@ export function PWAInstallNotice({ open, onClose, storageKey }: Props) {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-          <div className="admin-login-logo" style={{ width: 52, height: 52, fontSize: 26 }}>🏪</div>
+          <img
+            src="/logo.jpeg"
+            alt="ميزان"
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: 12,
+              objectFit: 'contain',
+              background: '#fff',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
+              flexShrink: 0,
+            }}
+          />
           <p className="admin-modal-desc" style={{ margin: 0 }}>
             برنامج مستقل على شاشتك الرئيسية — وصول أسرع لإدارة الاشتراكات ويعمل بدون إنترنت.
           </p>

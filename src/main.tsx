@@ -14,6 +14,7 @@ import { ReportsPage } from './pages/ReportsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 import { PurchasesPage } from './pages/PurchasesPage'
+import { ExpensesPage } from './pages/ExpensesPage'
 
 // لوحة التحكم تُحمّل عند الطلب فقط — لا تُثقل فتح الكاشير (code-splitting)
 // (ملف admin.css يُستورد داخل AdminApp فيُحمّل مع نفس الشريحة)
@@ -83,18 +84,11 @@ function PosApp() {
         background: 'var(--color-bg-base)',
         gap: 16,
       }}>
-        <div style={{
-          width: 64,
-          height: 64,
-          background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-          borderRadius: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 32,
-        }}>
-          🏪
-        </div>
+        <img
+          src="/logo.jpeg"
+          alt="ميزان"
+          style={{ width: 72, height: 72, borderRadius: 14, objectFit: 'contain', background: '#fff' }}
+        />
         <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>جارٍ التحميل...</p>
       </div>
     )
@@ -111,6 +105,7 @@ function PosApp() {
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/purchases" element={<PurchasesPage />} />
         <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/invoices" element={<InvoicesPage />} />
         <Route path="/settings" element={<SettingsPage />} />

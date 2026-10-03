@@ -59,46 +59,46 @@
    DESIGN TOKENS (DARK MODE DEFAULT)
 ============================== */
 :root, [data-theme="dark"] {
-  /* Colors — quiet graphite with a green accent */
-  --color-bg-base: #171d19;
-  --color-bg-surface: #1d251f;
-  --color-bg-elevated: #252f28;
-  --color-bg-card: #202a24;
+  /* Brand palette inspired by the logo: deep navy + teal + warm paper */
+  --color-bg-base: #edf0ec;
+  --color-bg-surface: #f8faf8;
+  --color-bg-elevated: #ffffff;
+  --color-bg-card: #ffffff;
 
-  --color-primary: #0f766e;
-  --color-primary-light: #5eead4;
-  --color-primary-dark: #115e59;
-  --color-primary-glow: rgba(20, 184, 166, 0.2);
+  --color-primary: #102d4a;
+  --color-primary-light: #194872;
+  --color-primary-dark: #0a1f37;
+  --color-primary-glow: rgba(16, 45, 74, 0.10);
 
-  --color-success: #10b981;
-  --color-success-light: #34d399;
-  --color-danger: #f43f5e;
-  --color-danger-light: #fb7185;
-  --color-warning: #f59e0b;
-  --color-warning-light: #fbbf24;
-  --color-purple: #8b5cf6;
-  --color-purple-light: #a78bfa;
+  --color-success: #13a883;
+  --color-success-light: #20b38a;
+  --color-danger: #e65052;
+  --color-danger-light: #da4a4a;
+  --color-warning: #d9891a;
+  --color-warning-light: #e59b2d;
+  --color-purple: #2d7a8c;
+  --color-purple-light: #4a9bb1;
 
-  --color-text-primary: #f2f7f3;
-  --color-text-secondary: #b4c2b9;
-  --color-text-muted: #9aa99e;
+  --color-text-primary: #142d49;
+  --color-text-secondary: #234564;
+  --color-text-muted: #5e758c;
 
-  --color-border: rgba(180, 194, 185, 0.19);
-  --color-border-active: rgba(45, 212, 191, 0.45);
+  --color-border: rgba(16, 45, 74, 0.12);
+  --color-border-active: rgba(22, 132, 117, 0.38);
 
   /* Brand gradients */
-  --brand-gradient: linear-gradient(135deg, #0f766e 0%, #0e7490 100%);
-  --brand-gradient-soft: linear-gradient(135deg, rgba(16,185,129,0.16), rgba(14,116,144,0.1));
-  --gold-gradient: linear-gradient(135deg, #fbbf24, #f59e0b);
-  --mint-gradient: linear-gradient(135deg, #34d399, #059669);
+  --brand-gradient: linear-gradient(135deg, #1dbfa8 0%, #0e5f78 100%);
+  --brand-gradient-soft: linear-gradient(135deg, rgba(29, 191, 168, 0.14), rgba(14, 95, 120, 0.08));
+  --gold-gradient: linear-gradient(135deg, #f3b77d, #e08e2d);
+  --mint-gradient: linear-gradient(135deg, #36d5b4, #1fa883);
 
-  --color-header-bg: rgba(23, 29, 25, 0.94);
-  --color-nav-bg: rgba(29, 37, 31, 0.97);
-  --color-input-bg: rgba(180, 194, 185, 0.1);
-  --color-btn-ghost-bg: rgba(180, 194, 185, 0.1);
-  --color-btn-ghost-hover: rgba(180, 194, 185, 0.17);
-  --color-card-glass: rgba(32, 42, 36, 0.96);
-  --color-modal-backdrop: rgba(6, 12, 9, 0.72);
+  --color-header-bg: rgba(255, 255, 255, 0.86);
+  --color-nav-bg: rgba(255, 255, 255, 0.95);
+  --color-input-bg: rgba(17, 45, 74, 0.03);
+  --color-btn-ghost-bg: rgba(16, 45, 74, 0.04);
+  --color-btn-ghost-hover: rgba(16, 45, 74, 0.08);
+  --color-card-glass: rgba(255, 255, 255, 0.88);
+  --color-modal-backdrop: rgba(10, 31, 55, 0.4);
 
   /* KPI Card backgrounds (theme-adaptive) */
   --kpi-blue-bg: linear-gradient(135deg, rgba(99,102,241,0.22), rgba(99,102,241,0.06));
@@ -138,46 +138,44 @@
    LIGHT THEME OVERRIDES
 ============================== */
 [data-theme="light"] {
-  /* Colors — clear neutral surfaces with a green accent */
-  --color-bg-base: #f2f6f3;
-  --color-bg-surface: #ffffff;
+  --color-bg-base: #edf0ec;
+  --color-bg-surface: #f8faf8;
   --color-bg-elevated: #ffffff;
   --color-bg-card: #ffffff;
 
-  --color-primary: #0f766e;
-  --color-primary-light: #0f766e;
-  --color-primary-dark: #115e59;
-  --color-primary-glow: rgba(15, 118, 110, 0.12);
+  --color-primary: #102d4a;
+  --color-primary-light: #194872;
+  --color-primary-dark: #0a1f37;
+  --color-primary-glow: rgba(16, 45, 74, 0.08);
 
-  --color-success: #059669;
-  --color-success-light: #10b981;
-  --color-danger: #e11d48;
-  --color-danger-light: #f43f5e;
-  --color-warning: #d97706;
-  --color-warning-light: #f59e0b;
-  --color-purple: #7c3aed;
-  --color-purple-light: #8b5cf6;
+  --color-success: #139a7d;
+  --color-success-light: #1ca681;
+  --color-danger: #d94a4d;
+  --color-danger-light: #df4a5a;
+  --color-warning: #d9891a;
+  --color-warning-light: #e59b2d;
+  --color-purple: #2d7a8c;
+  --color-purple-light: #4a9bb1;
 
-  --color-text-primary: #18231d;
-  --color-text-secondary: #4d6256;
-  --color-text-muted: #788a7f;
+  --color-text-primary: #122d49;
+  --color-text-secondary: #244a6b;
+  --color-text-muted: #667f93;
 
-  --color-border: #dfe8e2;
-  --color-border-active: rgba(15, 118, 110, 0.5);
+  --color-border: rgba(16, 45, 74, 0.12);
+  --color-border-active: rgba(28, 166, 129, 0.42);
 
-  /* Brand gradients */
-  --brand-gradient: linear-gradient(135deg, #0f766e 0%, #0e7490 100%);
-  --brand-gradient-soft: linear-gradient(135deg, rgba(16,185,129,0.1), rgba(14,116,144,0.07));
-  --gold-gradient: linear-gradient(135deg, #fbbf24, #f59e0b);
-  --mint-gradient: linear-gradient(135deg, #34d399, #059669);
+  --brand-gradient: linear-gradient(135deg, #1dbfa8 0%, #0e5f78 100%);
+  --brand-gradient-soft: linear-gradient(135deg, rgba(29, 191, 168, 0.12), rgba(14, 95, 120, 0.08));
+  --gold-gradient: linear-gradient(135deg, #f3b77d, #e08e2d);
+  --mint-gradient: linear-gradient(135deg, #36d5b4, #1fa883);
 
-  --color-header-bg: rgba(255, 255, 255, 0.94);
-  --color-nav-bg: rgba(255, 255, 255, 0.97);
-  --color-input-bg: #f4f7f5;
-  --color-btn-ghost-bg: #edf3ef;
-  --color-btn-ghost-hover: #e1ebe5;
-  --color-card-glass: rgba(255, 255, 255, 0.9);
-  --color-modal-backdrop: rgba(25, 23, 54, 0.5);
+  --color-header-bg: rgba(255, 255, 255, 0.9);
+  --color-nav-bg: rgba(255, 255, 255, 0.95);
+  --color-input-bg: rgba(16, 45, 74, 0.035);
+  --color-btn-ghost-bg: rgba(16, 45, 74, 0.035);
+  --color-btn-ghost-hover: rgba(16, 45, 74, 0.08);
+  --color-card-glass: rgba(255, 255, 255, 0.88);
+  --color-modal-backdrop: rgba(10, 31, 55, 0.42);
 
   /* KPI Card backgrounds (light theme) */
   --kpi-blue-bg: linear-gradient(135deg, #eff6ff, #dbeafe);
@@ -240,8 +238,8 @@ html {
 body {
   background-color: var(--color-bg-base);
   background-image:
-    radial-gradient(600px 300px at 85% -5%, rgba(16, 185, 129, 0.08), transparent 70%),
-    radial-gradient(500px 280px at 10% 0%, rgba(14, 116, 144, 0.07), transparent 70%);
+    radial-gradient(600px 300px at 85% -5%, rgba(29, 191, 168, 0.12), transparent 70%),
+    radial-gradient(500px 280px at 10% 0%, rgba(14, 95, 120, 0.08), transparent 70%);
   background-attachment: fixed;
   color: var(--color-text-primary);
   font-family: var(--font-main);
@@ -255,8 +253,8 @@ body {
 
 [data-theme="light"] body {
   background-image:
-    radial-gradient(600px 300px at 85% -5%, rgba(16, 185, 129, 0.06), transparent 70%),
-    radial-gradient(500px 280px at 10% 0%, rgba(14, 116, 144, 0.05), transparent 70%);
+    radial-gradient(600px 300px at 85% -5%, rgba(29, 191, 168, 0.10), transparent 70%),
+    radial-gradient(500px 280px at 10% 0%, rgba(14, 95, 120, 0.06), transparent 70%);
 }
 
 button, input, textarea, select {

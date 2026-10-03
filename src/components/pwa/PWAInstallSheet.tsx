@@ -86,15 +86,15 @@ export function PWAInstallSheet({ open, onClose, storageKey, appName }: Props) {
 
         {/* App identity */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6 }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 16, flexShrink: 0,
-            background: 'var(--brand-gradient)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 28, color: '#fff',
-            boxShadow: '0 8px 22px rgba(124, 58, 237, 0.45), inset 0 1px 0 rgba(255,255,255,0.35)',
-          }}>
-            🏪
-          </div>
+          <img
+            src="/logo.jpeg"
+            alt="ميزان"
+            style={{
+              width: 56, height: 56, borderRadius: 12, flexShrink: 0,
+              objectFit: 'contain', background: '#fff',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
+            }}
+          />
           <div style={{ minWidth: 0 }}>
             <h3 style={{ fontSize: 17, fontWeight: 900, margin: 0 }}>
               ثبّت {appName} على جوالك 📲

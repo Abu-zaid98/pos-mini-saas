@@ -14,6 +14,25 @@ interface RenewalInfo {
   daysLeft: number;
 }
 
+function LicenseBrandMark() {
+  return (
+    <img
+      src="/logo.jpeg"
+      alt="ميزان"
+      style={{
+        width: 64,
+        height: 64,
+        borderRadius: 12,
+        objectFit: "contain",
+        background: "#ffffff",
+        border: "1px solid rgba(148, 163, 184, 0.2)",
+        display: "block",
+        margin: "0 auto 16px",
+      }}
+    />
+  );
+}
+
 export function LicenseGuard({ children }: LicenseGuardProps) {
   const [loading, setLoading] = useState(true);
   const [result, setResult] = useState<LicenseResult | null>(null);
@@ -209,26 +228,21 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
           gap: 16,
         }}
       >
-        <div
+        <img
+          src="/logo.jpeg"
+          alt="ميزان"
           style={{
             width: 72,
             height: 72,
-            background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
             borderRadius: 20,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 36,
-            boxShadow: "0 10px 30px rgba(59, 130, 246, 0.4)",
+            objectFit: 'cover',
             animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite",
           }}
-        >
-          🏪
-        </div>
+        />
         <div style={{ textAlign: "center" }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800, margin: 0 }}>نظام نقاط البيع (POS)</h2>
+          <h2 style={{ fontSize: 17, fontWeight: 800, margin: 0 }}>ميزان</h2>
           <p style={{ color: "var(--color-text-muted, #94a3b8)", fontSize: 13, marginTop: 6, margin: 0 }}>
-            جارٍ التحقق من ترخيص التطبيق أوفلاين...
+            شغلك محسوب — جارٍ التحقق من ترخيص التطبيق...
           </p>
         </div>
 
@@ -439,6 +453,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
             textAlign: "center",
           }}
         >
+          <LicenseBrandMark />
           <div
             style={{
               width: 68,
@@ -606,6 +621,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
             textAlign: "center",
           }}
         >
+          <LicenseBrandMark />
           <div
             style={{
               width: 68,
@@ -688,6 +704,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
             textAlign: "center",
           }}
         >
+          <LicenseBrandMark />
           <div
             style={{
               width: 68,
@@ -822,26 +839,27 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
       >
         {/* Brand header */}
         <div style={{ textAlign: "center", marginBottom: 26 }}>
-          <div
+          <img
+            src="/logo.jpeg"
+            alt="ميزان"
             style={{
-              width: 78,
-              height: 78,
-              background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
-              borderRadius: 22,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 38,
+              width: 108,
+              height: 108,
+              borderRadius: 16,
+              objectFit: "contain",
+              display: "block",
               margin: "0 auto 14px",
-              boxShadow: "0 10px 28px rgba(59, 130, 246, 0.4)",
+              background: "#ffffff",
+              border: "1px solid rgba(148, 163, 184, 0.2)",
             }}
-          >
-            🏪
-          </div>
+          />
 
           <h1 style={{ fontSize: 23, fontWeight: 900, margin: "0 0 8px 0", color: "var(--color-text-primary, #f9fafb)" }}>
-            تفعيل ترخيص النظام
+            ميزان
           </h1>
+          <h2 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 8px 0", color: "var(--color-text-secondary, #cbd5e1)" }}>
+            تفعيل ترخيص النظام
+          </h2>
           <p style={{ fontSize: 14, color: "var(--color-text-muted, #94a3b8)", margin: 0, lineHeight: 1.7 }}>
             أدخل بيانات المشترك الخاصة بك للتفعيل. يتطلب التفعيل اتصالاً بالإنترنت لمرة واحدة فقط، وبعدها يعمل النظام بدون إنترنت بالكامل.
           </p>

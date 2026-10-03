@@ -64,7 +64,12 @@ export function StatementPrintHost({ customer, items }: {
       <div className="invoice-doc" dir="rtl">
         <div className="invoice-header">
           <div className="invoice-brand">
-            <div className="invoice-logo">{store.name.trim().charAt(0) || '🏪'}</div>
+            <img
+              src="/logo.jpeg"
+              alt="ميزان"
+              className="invoice-logo"
+              style={{ objectFit: 'contain', padding: 2, boxShadow: 'none' }}
+            />
             <div>
               <div className="invoice-store">{store.name}</div>
               {(store.phone || store.address) && (

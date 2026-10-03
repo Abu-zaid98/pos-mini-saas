@@ -10,7 +10,7 @@ import { Modal } from '../components/ui/Modal'
 import { lic, type LicenseResult } from '../lib/license'
 
 export function SettingsPage() {
-  const [storeName, setStoreName] = useState('POS System')
+  const [storeName, setStoreName] = useState('ميزان')
   const [ownerName, setOwnerName] = useState('')
   const [currency, setCurrency] = useState('₪')
   const [lowStockDefault, setLowStockDefault] = useState('5')
@@ -287,26 +287,26 @@ export function SettingsPage() {
         boxShadow: 'var(--shadow-sm)',
         flexWrap: 'wrap',
       }}>
-        <div style={{
-          width: 60,
-          height: 60,
-          background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-          borderRadius: 16,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: 32,
-          boxShadow: '0 4px 16px rgba(59,130,246,0.3)',
-          flexShrink: 0,
-        }}>
-          🏪
-        </div>
+        <img
+          src="/logo.jpeg"
+          alt="ميزان"
+          style={{
+            width: 60,
+            height: 60,
+            borderRadius: 18,
+            objectFit: 'cover',
+            boxShadow: '0 8px 20px rgba(16, 45, 74, 0.14)',
+            border: '1px solid rgba(148, 163, 184, 0.2)',
+            flexShrink: 0,
+            display: 'block',
+          }}
+        />
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 4, color: 'var(--color-text-primary)' }}>
-            {storeName || 'POS System'}
+            {storeName || 'ميزان'}
           </h2>
           <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-            نظام نقطة البيع وإدارة الديون (POS & Debt)
+            ميزان — نظام إدارة المبيعات، المخزون، الديون والمصاريف
           </p>
         </div>
       </div>

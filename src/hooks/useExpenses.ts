@@ -3,6 +3,64 @@ import { db, type Expense, EXPENSE_CATEGORIES } from '../db/db'
 
 export type ExpensePeriod = 'today' | 'week' | 'month' | 'all'
 
+export interface ExpenseCategoryItem {
+  id: string
+  name: string
+  icon?: string
+  description?: string
+  active?: boolean
+}
+
+export const DEFAULT_EXPENSE_CATEGORIES: ExpenseCategoryItem[] = [
+  { id: 'electricity', name: 'كهرباء', icon: '⚡', active: true },
+  { id: 'water', name: 'ماء', icon: '💧', active: true },
+  { id: 'rent', name: 'إيجار المحل', icon: '🏪', active: true },
+  { id: 'salaries', name: 'رواتب', icon: '👥', active: true },
+  { id: 'maintenance', name: 'صيانة', icon: '🔧', active: true },
+  { id: 'transport', name: 'مواصلات', icon: '🚚', active: true },
+  { id: 'internet', name: 'إنترنت', icon: '📶', active: true },
+  { id: 'marketing', name: 'تسويق', icon: '📢', active: true },
+  { id: 'operations', name: 'مشتريات تشغيلية', icon: '📦', active: true },
+  { id: 'other', name: 'أخرى', icon: '💼', active: true },
+]
+
+export function countExpenseUsageByCategory<T extends { category?: string }>(items: T[]): Record<string, number> {
+  return items.reduce<Record<string, number>>((acc, item) => {
+    const category = item.category?.trim()
+    if (!category) return acc
+    acc[category] = (acc[category] ?? 0) + 1
+    return acc
+  }, {})
+}
+
+export async function getExpenseCategories(): Promise<ExpenseCategoryItem[]> {
+  const saved = await db.settings.get('expenseCategories')
+  const parsed = saved?.value as ExpenseCategoryItem[] | undefined
+  if (Array.isArray(parsed) && parsed.length) {
+    return parsed.map((item, index) => ({
+      id: item.id || `cat-${index + 1}`,
+      name: item.name?.trim() || `بند ${index + 1}`,
+      icon: item.icon || '🧾',
+      description: item.description || '',
+      active: item.active !== false,
+    }))
+  }
+  return DEFAULT_EXPENSE_CATEGORIES
+}
+
+export async function saveExpenseCategories(categories: ExpenseCategoryItem[]) {
+  const normalized = categories.map((item, index) => ({
+    id: item.id || `cat-${index + 1}`,
+    name: item.name?.trim() || `بند ${index + 1}`,
+    icon: item.icon || '🧾',
+    description: item.description || '',
+    active: item.active !== false,
+  }))
+
+  await db.settings.put({ key: 'expenseCategories', value: normalized })
+  return normalized
+}
+
 export function useExpenses(period: ExpensePeriod = 'all') {
   const expenses = useLiveQuery(async () => {
     const all = await db.expenses.orderBy('date').reverse().toArray()

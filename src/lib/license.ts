@@ -57,7 +57,7 @@ export const licenseConfig: LicenseConfig = {
     appId: import.meta.env.VITE_FB_APP_ID || "1:374790599531:web:0b22b9db833219122b122e",
   },
   appId: import.meta.env.VITE_LIC_APP_ID || "1374790599531web0b22b9db833219122b122e",
-  appName: import.meta.env.VITE_LIC_APP_NAME || "نظام نقاط البيع والمبيعات (POS)",
+  appName: import.meta.env.VITE_LIC_APP_NAME || "ميزان",
   whatsapp: import.meta.env.VITE_LIC_WHATSAPP || "972592133357",
   publicKey: getPublicKey(),
 };

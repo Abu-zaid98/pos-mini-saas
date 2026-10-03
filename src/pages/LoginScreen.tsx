@@ -52,7 +52,11 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
           gap: 12,
         }}
       >
-        <div style={{ fontSize: 32 }}>🏪</div>
+        <img
+          src="/logo.jpeg"
+          alt="ميزان"
+          style={{ width: 72, height: 72, borderRadius: 14, objectFit: 'contain', background: '#fff' }}
+        />
         <p style={{ color: 'var(--color-text-muted)', fontSize: 14 }}>جارٍ التحقق...</p>
       </div>
     )
@@ -233,7 +237,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
         }}
       >
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)' }}>
-          نظام نقاط البيع v1.0
+          ميزان v1.0
         </span>
 
         <button
@@ -292,22 +296,20 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
       }}>
         {/* Header & App Brand */}
         <div style={{ textAlign: 'center', marginBottom: 14, maxWidth: 320, width: '100%' }}>
-          <div
+          <img
+            src="/logo.jpeg"
+            alt="ميزان"
             style={{
-              width: 64,
-              height: 64,
-              background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-              borderRadius: 18,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 30,
+              width: 96,
+              height: 96,
+              objectFit: 'contain',
+              borderRadius: 16,
+              display: 'block',
               margin: '0 auto 10px',
-              boxShadow: '0 8px 30px rgba(59,130,246,0.35)',
+              background: '#fff',
+              border: '1px solid rgba(148, 163, 184, 0.2)',
             }}
-          >
-            🏪
-          </div>
+          />
 
           {isFirstSetup ? (
             <>
@@ -336,7 +338,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
           ) : (
             <>
               <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--color-text-primary)', margin: 0 }}>
-                POS Market
+                ميزان
               </h1>
               <p style={{ color: 'var(--color-text-secondary)', fontSize: 12.5, marginTop: 4, fontWeight: 600, marginBottom: 0 }}>
                 أدخل رمز الدخول للمتابعة

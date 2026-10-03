@@ -72,7 +72,19 @@ export function PWAInstallBanner({ storageKey, onNeedGuide, bottom, className }:
         boxSizing: 'border-box',
       }}
     >
-      <span style={{ fontSize: 26, flexShrink: 0 }}>📲</span>
+      <img
+        src="/logo.jpeg"
+        alt="ميزان"
+        style={{
+          width: 38,
+          height: 38,
+          borderRadius: 9,
+          objectFit: 'contain',
+          background: '#fff',
+          border: '1px solid rgba(148, 163, 184, 0.2)',
+          flexShrink: 0,
+        }}
+      />
       <span style={{ flex: 1, fontSize: 12.5, fontWeight: 700, lineHeight: 1.5 }}>
         ثبّت التطبيق على جوالك لفتح أسرع بدون إنترنت
       </span>

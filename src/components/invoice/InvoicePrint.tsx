@@ -27,7 +27,7 @@ export function useStoreInfo(): StoreInfo {
     return typeof found?.value === 'string' && found.value ? found.value : fallback
   }
   return {
-    name: get('storeName', 'POS System'),
+    name: get('storeName', 'ميزان'),
     phone: get('storePhone'),
     address: get('storeAddress'),
     currency: get('currency', '₪'),
@@ -51,9 +51,10 @@ export function InvoicePrint({ invoice: inv, store }: { invoice: Invoice; store:
       {/* Header */}
       <div className="invoice-header">
         <div className="invoice-brand">
-          <div className="invoice-logo">{store.name.trim().charAt(0) || '🏪'}</div>
+          <img src="/logo.jpeg" alt="ميزان" className="invoice-logo" style={{ objectFit: 'contain', boxShadow: 'none' }} />
           <div>
             <div className="invoice-store">{store.name}</div>
+            <div className="invoice-contact">ميزان · نظام المبيعات والمخزون</div>
             {(store.phone || store.address) && (
               <div className="invoice-contact">
                 {store.phone && <span dir="ltr">{store.phone}</span>}

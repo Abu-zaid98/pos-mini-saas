@@ -1,9 +1,9 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { EXPENSE_CATEGORIES, PAYMENT_METHODS, type PaymentMethod } from '../../db/db'
-import { addExpense } from '../../hooks/useExpenses'
+import { addExpense, getExpenseCategories, type ExpenseCategoryItem } from '../../hooks/useExpenses'
 
 interface ExpenseModalProps {
   open: boolean
@@ -12,6 +12,7 @@ interface ExpenseModalProps {
 }
 
 export function ExpenseModal({ open, onClose, onSuccess }: ExpenseModalProps) {
+  const [categories, setCategories] = useState<ExpenseCategoryItem[]>(EXPENSE_CATEGORIES as ExpenseCategoryItem[])
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0].name)
   const [amount, setAmount] = useState('')
@@ -23,6 +24,22 @@ export function ExpenseModal({ open, onClose, onSuccess }: ExpenseModalProps) {
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    getExpenseCategories().then((items) => {
+      if (!active) return
+      const filtered = items.filter((item) => item.active !== false)
+      setCategories(filtered.length ? filtered : EXPENSE_CATEGORIES)
+      if (!filtered.some((item) => item.name === category) && filtered.length) {
+        setCategory(filtered[0].name)
+      }
+    }).catch(() => undefined)
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const handleQuickSelectCategory = (catName: string) => {
     setCategory(catName)
@@ -132,7 +149,7 @@ export function ExpenseModal({ open, onClose, onSuccess }: ExpenseModalProps) {
             overflowY: 'auto',
             padding: '2px',
           }}>
-            {EXPENSE_CATEGORIES.map((cat) => {
+            {categories.map((cat) => {
               const active = category === cat.name
               return (
                 <button
