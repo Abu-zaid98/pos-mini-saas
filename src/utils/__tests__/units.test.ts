@@ -97,14 +97,15 @@ describe('المخزون', () => {
     expect(deductStock(s, 5, 'piece')).toBe(0)
     expect(exceedsStock(999, 'piece', 0, 'service')).toBe(false)
   })
-  it('خصم القطع مع حد صفري', () => {
+  it('خصم القطع مع السماح بالسالب لحين التوريد', () => {
     expect(deductStock(goods({ quantity: 10 }), 3, 'piece')).toBe(7)
-    expect(deductStock(goods({ quantity: 2 }), 5, 'piece')).toBe(0)
+    expect(deductStock(goods({ quantity: 2 }), 5, 'piece')).toBe(-3)
   })
-  it('خصم الوزن بالجرام من مخزون الجرامات', () => {
+  it('خصم الوزن بالجرام من مخزون الجرامات (مع السالب)', () => {
     const w = goods({ type: 'weighted', quantity: 2000 })
     expect(deductStock(w, 0.5, 'kg')).toBe(1500)
     expect(deductStock(w, 250, 'g')).toBe(1750)
+    expect(deductStock(goods({ type: 'weighted', quantity: 500 }), 1, 'kg')).toBe(-500)
   })
   it('استرجاع المخزون عند حذف فاتورة', () => {
     expect(restoreStock(goods({ quantity: 7 }), 3, 'piece')).toBe(10)

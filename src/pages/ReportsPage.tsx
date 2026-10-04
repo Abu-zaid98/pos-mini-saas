@@ -33,22 +33,28 @@ export function ReportsPage() {
     return allCustomers.reduce((sum, c) => sum + (c.totalDebt || 0), 0)
   }, [allCustomers])
 
-  // KPIs
-  const totalSales = useMemo(() => {
-    return invoices.reduce((sum, inv) => sum + inv.total, 0)
+  // فواتير البيع الحقيقية فقط — نستثني قيود الديون الوهمية (productId === 0)
+  // وهي فواتير الرصيد الافتتاحي والديون اليدوية التي ليست بيعاً فعلياً
+  const realInvoices = useMemo(() => {
+    return invoices.filter((inv) => inv.items.some((i) => i.productId !== 0))
   }, [invoices])
 
+  // KPIs
+  const totalSales = useMemo(() => {
+    return realInvoices.reduce((sum, inv) => sum + inv.total, 0)
+  }, [realInvoices])
+
   const grossSalesProfit = useMemo(() => {
-    return invoices.reduce((sum, inv) => {
+    return realInvoices.reduce((sum, inv) => {
       const invProfit = inv.items.reduce((iSum, item) => {
         if (item.productId === 0) return iSum // skip opening-debt entries
         const net = item.qty * item.price - lineDiscountAmount(item)
         const profit = net - (item.costPrice || 0) * item.qty
         return iSum + profit
       }, 0)
-      return sum + Math.max(0, invProfit)
+      return sum + invProfit
     }, 0)
-  }, [invoices])
+  }, [realInvoices])
 
   // Operating Expenses
   const totalExpenses = useMemo(() => {
@@ -63,7 +69,7 @@ export function ReportsPage() {
   // Period breakdown by payment method
   const periodCollections = useMemo(() => {
     const map = { cash: 0, jawwal_pay: 0, palpay: 0, bop: 0 }
-    invoices.forEach((inv) => {
+    realInvoices.forEach((inv) => {
       if (inv.paidAmount > 0) {
         const m = inv.paymentMethod || 'cash'
         if (m === 'jawwal_pay') map.jawwal_pay += inv.paidAmount
@@ -73,9 +79,10 @@ export function ReportsPage() {
       }
     })
     return map
-  }, [invoices])
+  }, [realInvoices])
 
-  // Collected debts in period
+  // Collected debts in period — سدادات العملاء المستقلة (invoiceId === null)
+  // دفعات البيع الأصلية تحمل invoiceId، أما التحصيل من useCustomers.recordPayment فيكون مستقلاً
   const collectedDebtInPeriod = useMemo(() => {
     const now = new Date()
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
@@ -83,7 +90,7 @@ export function ReportsPage() {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
 
     return allPayments.reduce((sum, p) => {
-      if (!p.invoiceId) return sum
+      if (p.invoiceId) return sum
       const pDate = new Date(p.createdAt).getTime()
       if (period === 'today' && pDate < startOfDay) return sum
       if (period === 'week' && pDate < startOfWeek) return sum
@@ -92,12 +99,13 @@ export function ReportsPage() {
     }, 0)
   }, [allPayments, period])
 
-  // Top Selling Products
+  // Top Selling Products — نستثني بنود الديون الوهمية
   const topProducts = useMemo(() => {
     const map: Record<string, { name: string; qty: number; revenue: number }> = {}
 
-    invoices.forEach((inv) => {
+    realInvoices.forEach((inv) => {
       inv.items.forEach((item) => {
+        if (item.productId === 0) return
         if (!map[item.name]) {
           map[item.name] = { name: item.name, qty: 0, revenue: 0 }
         }
@@ -388,7 +396,7 @@ export function ReportsPage() {
                 {formatCurrency(totalSales)}
               </div>
               <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                مجموع ما بعته ({invoices.length} فواتير)
+                مجموع ما بعته ({realInvoices.length} فواتير)
               </div>
             </div>
 
@@ -496,16 +504,16 @@ export function ReportsPage() {
             padding: 16,
           }}>
             <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
-              سجل الفواتير في هذه الفترة ({invoices.length})
+              سجل الفواتير في هذه الفترة ({realInvoices.length})
             </h3>
 
-            {invoices.length === 0 ? (
+            {realInvoices.length === 0 ? (
               <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: '16px 0' }}>
                 لا توجد فواتير مبيعات مسجلة في هذه الفترة
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 340, overflowY: 'auto' }}>
-                {invoices.map((inv) => (
+                {realInvoices.map((inv) => (
                   <div
                     key={inv.id}
                     onClick={() => setSelectedInvoice(inv)}
@@ -626,7 +634,7 @@ export function ReportsPage() {
                 <span style={{ fontSize: 16 }}>🧾</span>
               </div>
               <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-text-primary)' }}>
-                {invoices.length}
+                {realInvoices.length}
               </div>
               <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>
                 عملية بيع

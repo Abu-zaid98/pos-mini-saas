@@ -142,12 +142,13 @@ export function isLowStock(p: Product): boolean {
 /**
  * المخزون الجديد بعد بيع بند — يحوّل الوحدة للوحدات الأساسية
  * (قطع للسلع، جرام للموزون، الخدمات لا تُنقص)
+ * يُسمح بالسالب: البيع فوق المتاح يبقي الرصيد سالباً لحين توريد جديد
  */
 export function deductStock(product: Product, qty: number, unit: SaleUnit): number {
   const t = getProductType(product)
   if (t === 'service') return product.quantity
   const deduct = toBaseQty(Number(qty) || 0, unit)
-  return Math.max(0, Math.round((product.quantity - deduct) * 1000) / 1000)
+  return Math.round((product.quantity - deduct) * 1000) / 1000
 }
 
 /** عكس الخصم (عند حذف فاتورة) */
@@ -259,8 +260,11 @@ export function recipeCost(
   return { lines, materialCost, wastePercent: Number(wastePercent) || 0, totalCost, unitCostPerKg, missingNames, feasible }
 }
 
-/** متوسط التكلفة المرجح بعد دفعة: (مخزون قديم×تكلفته + إنتاج×تكلفته) / الإجمالي */
+/** متوسط التكلفة المرجح بعد دفعة: (مخزون قديم×تكلفته + إنتاج×تكلفته) / الإجمالي
+ * إذا كان المخزون القديم سالباً (بيع فوق المتاح) تُعتمد تكلفة التوريد الجديد فقط
+ */
 export function averageCostPerKg(oldStockKg: number, oldCostPerKg: number, producedKg: number, batchCostPerKg: number): number {
+  if (oldStockKg <= 0) return batchCostPerKg
   const total = oldStockKg + producedKg
   if (total <= 0) return batchCostPerKg
   return Math.round((((oldStockKg * oldCostPerKg) + (producedKg * batchCostPerKg)) / total) * 100) / 100

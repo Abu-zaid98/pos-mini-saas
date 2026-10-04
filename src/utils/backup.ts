@@ -4,19 +4,22 @@ import { db } from '../db/db'
  * Export all database data as a JSON file download
  */
 export async function exportBackup(): Promise<void> {
-  const [products, customers, invoices, payments, settings] = await Promise.all([
+  const [products, customers, invoices, payments, settings, expenses, purchases, productions] = await Promise.all([
     db.products.toArray(),
     db.customers.toArray(),
     db.invoices.toArray(),
     db.payments.toArray(),
     db.settings.toArray(),
+    db.expenses.toArray(),
+    db.purchases.toArray(),
+    db.productions.toArray(),
   ])
 
   const backup = {
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     storeName: 'ميزان',
-    data: { products, customers, invoices, payments, settings },
+    data: { products, customers, invoices, payments, settings, expenses, purchases, productions },
   }
 
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
@@ -42,14 +45,17 @@ export async function importBackup(file: File): Promise<{ success: boolean; erro
 
     if (!backup.data) throw new Error('ملف النسخة الاحتياطية غير صالح')
 
-    const { products, customers, invoices, payments, settings } = backup.data
+    const { products, customers, invoices, payments, settings, expenses, purchases, productions } = backup.data
 
-    await db.transaction('rw', [db.products, db.customers, db.invoices, db.payments, db.settings], async () => {
+    await db.transaction('rw', [db.products, db.customers, db.invoices, db.payments, db.settings, db.expenses, db.purchases, db.productions], async () => {
       if (products?.length) { await db.products.clear(); await db.products.bulkAdd(products) }
       if (customers?.length) { await db.customers.clear(); await db.customers.bulkAdd(customers) }
       if (invoices?.length) { await db.invoices.clear(); await db.invoices.bulkAdd(invoices) }
       if (payments?.length) { await db.payments.clear(); await db.payments.bulkAdd(payments) }
       if (settings?.length) { await db.settings.clear(); await db.settings.bulkPut(settings) }
+      if (expenses?.length) { await db.expenses.clear(); await db.expenses.bulkAdd(expenses) }
+      if (purchases?.length) { await db.purchases.clear(); await db.purchases.bulkAdd(purchases) }
+      if (productions?.length) { await db.productions.clear(); await db.productions.bulkAdd(productions) }
     })
 
     return { success: true }

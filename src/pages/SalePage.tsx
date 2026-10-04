@@ -750,7 +750,19 @@ export function SalePage() {
               <button
                 type="button"
                 onClick={() => setQuickAddOpen(true)}
-                className="mt-3 rounded-xl bg-linear-to-br from-brand-500 via-grape-500 to-fuchsia-600 px-6 py-3 font-display text-sm font-extrabold text-white shadow-lg shadow-purple-900/30 transition active:scale-95"
+                style={{
+                  marginTop: 12,
+                  padding: '12px 24px',
+                  borderRadius: 14,
+                  border: 'none',
+                  background: 'var(--brand-gradient)',
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-main)',
+                  boxShadow: 'var(--shadow-primary)',
+                }}
               >
                 ➕ إضافة "{search || 'صنف جديد'}" الآن
               </button>
