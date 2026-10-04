@@ -215,12 +215,12 @@ export function PurchasesPage() {
       {/* Tabs */}
       <div style={{
         display: 'flex',
-        background: 'rgba(255,255,255,0.05)',
+        background: 'var(--color-btn-ghost-bg)',
         border: '1px solid var(--color-border)',
-        borderRadius: 12,
-        padding: 2,
+        borderRadius: 14,
+        padding: 4,
         marginBottom: 12,
-        gap: 2,
+        gap: 4,
       }}>
         <button
           type="button"
@@ -228,7 +228,7 @@ export function PurchasesPage() {
           style={{
             flex: 1,
             padding: '10px',
-            borderRadius: 9,
+            borderRadius: 10,
             border: 'none',
             background: activeTab === 'history' ? 'var(--color-primary)' : 'transparent',
             color: activeTab === 'history' ? '#fff' : 'var(--color-text-secondary)',
@@ -246,8 +246,8 @@ export function PurchasesPage() {
           onClick={() => setActiveTab('new')}
           style={{
             flex: 1,
-            padding: '6px',
-            borderRadius: 9,
+            padding: '10px',
+            borderRadius: 10,
             border: 'none',
             background: activeTab === 'new' ? 'var(--color-primary)' : 'transparent',
             color: activeTab === 'new' ? '#fff' : 'var(--color-text-secondary)',

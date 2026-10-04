@@ -237,14 +237,14 @@ export function InvoicesPage() {
 
       {selected && editing && <Modal open onClose={() => setSelected(null)} title={viewMode === 'view' ? `فاتورة #${selected.id}` : `تعديل فاتورة #${selected.id}`} type="sheet"><div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         {/* View / Edit tabs */}
-        <div style={{ display: 'flex', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 3, gap: 4 }}>
+        <div style={{ display: 'flex', background: 'var(--color-btn-ghost-bg)', border: '1px solid var(--color-border)', borderRadius: 14, padding: 4, gap: 4 }}>
           {([['view', '🧾 عرض وطباعة'], ['edit', '✏️ تعديل الدفع']] as const).map(([mode, label]) => (
             <button
               key={mode}
               type="button"
               onClick={() => setViewMode(mode)}
               style={{
-                flex: 1, padding: '9px', borderRadius: 9, border: 'none',
+                flex: 1, padding: '10px', borderRadius: 10, border: 'none',
                 background: viewMode === mode ? 'var(--color-primary)' : 'transparent',
                 color: viewMode === mode ? 'white' : 'var(--color-text-secondary)',
                 fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-main)',

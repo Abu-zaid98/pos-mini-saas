@@ -202,45 +202,22 @@ export function AppShell({ onLogout }: AppShellProps) {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, flexDirection: 'row-reverse', alignItems: 'center', width: '100%' }}>
-            <button
-              type="button"
-              onClick={confirmLogout}
-              style={{
-                flex: 1,
-                minHeight: 46,
-                padding: '12px',
-                borderRadius: 12,
-                border: 'none',
-                background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                color: 'white',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-main)',
-                boxShadow: '0 4px 12px rgba(239,68,68,0.4)',
-              }}
-            >
-              🔒 تأكيد الخروج
-            </button>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', width: '100%' }}>
             <button
               type="button"
               onClick={() => setLogoutModalOpen(false)}
-              style={{
-                flex: 1,
-                minHeight: 46,
-                padding: '12px',
-                borderRadius: 12,
-                border: '1px solid var(--color-border)',
-                background: 'rgba(255,255,255,0.06)',
-                color: 'var(--color-text-secondary)',
-                fontSize: 14,
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-main)',
-              }}
+              className="btn btn-ghost"
+              style={{ flex: 1 }}
             >
               إلغاء
+            </button>
+            <button
+              type="button"
+              onClick={confirmLogout}
+              className="btn btn-danger"
+              style={{ flex: 1 }}
+            >
+              🔒 تأكيد الخروج
             </button>
           </div>
         </div>

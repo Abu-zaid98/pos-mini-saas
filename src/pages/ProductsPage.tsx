@@ -78,7 +78,7 @@ export function ProductsPage() {
       {/* Top Segmented Hub Switcher */}
       <div style={{
         display: 'flex',
-        background: 'rgba(255,255,255,0.05)',
+        background: 'var(--color-btn-ghost-bg)',
         border: '1px solid var(--color-border)',
         borderRadius: 14,
         padding: 4,
@@ -360,8 +360,8 @@ export function ProductsPage() {
                 flexShrink: 0,
                 padding: '6px 14px',
                 borderRadius: 50,
-                border: activeCategory === '' ? '1.5px solid rgba(59,130,246,0.6)' : '1px solid var(--color-border)',
-                background: activeCategory === '' ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+                border: activeCategory === '' ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                background: activeCategory === '' ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
                 color: activeCategory === '' ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
                 fontSize: 12, fontWeight: 700, cursor: 'pointer',
                 fontFamily: 'var(--font-main)',
@@ -382,8 +382,8 @@ export function ProductsPage() {
                     flexShrink: 0,
                     padding: '6px 14px',
                     borderRadius: 50,
-                    border: isActive ? '1.5px solid rgba(59,130,246,0.6)' : '1px solid var(--color-border)',
-                    background: isActive ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+                    border: isActive ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                    background: isActive ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
                     color: isActive ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
                     fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     fontFamily: 'var(--font-main)',
@@ -661,19 +661,11 @@ export function ProductsPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <button
                 onClick={() => setDeleteConfirm(null)}
-                style={{
-                  padding: '12px', borderRadius: 12, cursor: 'pointer', fontWeight: 700,
-                  background: 'rgba(255,255,255,0.08)', border: '1px solid var(--color-border)',
-                  color: 'var(--color-text-secondary)', fontFamily: 'var(--font-main)', fontSize: 14,
-                }}
+                className="btn btn-ghost"
               >إلغاء</button>
               <button
                 onClick={() => handleDelete(deleteConfirm)}
-                style={{
-                  padding: '12px', borderRadius: 12, cursor: 'pointer', fontWeight: 700,
-                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                  border: 'none', color: 'white', fontFamily: 'var(--font-main)', fontSize: 14,
-                }}
+                className="btn btn-danger"
               >حذف</button>
             </div>
           </div>
@@ -726,22 +718,14 @@ export function ProductsPage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <button
                 onClick={() => setProductionToDelete(null)}
-                style={{
-                  padding: '12px', borderRadius: 12, cursor: 'pointer', fontWeight: 700,
-                  background: 'rgba(255,255,255,0.08)', border: '1px solid var(--color-border)',
-                  color: 'var(--color-text-secondary)', fontFamily: 'var(--font-main)', fontSize: 14,
-                }}
+                className="btn btn-ghost"
               >إلغاء</button>
               <button
                 onClick={async () => {
                   await deleteProduction(productionToDelete)
                   setProductionToDelete(null)
                 }}
-                style={{
-                  padding: '12px', borderRadius: 12, cursor: 'pointer', fontWeight: 700,
-                  background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-                  border: 'none', color: 'white', fontFamily: 'var(--font-main)', fontSize: 14,
-                }}
+                className="btn btn-danger"
               >حذف وعكس الأثر</button>
             </div>
           </div>

@@ -564,7 +564,7 @@ export function SalePage() {
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
           gap: 4,
-          background: 'rgba(255,255,255,0.06)',
+          background: 'var(--color-btn-ghost-bg)',
           borderRadius: 14,
           padding: 4,
           border: '1px solid var(--color-border)',
@@ -669,8 +669,8 @@ export function SalePage() {
                 flexShrink: 0,
                 padding: '6px 12px',
                 borderRadius: 50,
-                border: activeCategory === '' ? '1.5px solid rgba(59,130,246,0.6)' : '1.5px solid var(--color-border)',
-                background: activeCategory === '' ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+                border: activeCategory === '' ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                background: activeCategory === '' ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
                 color: activeCategory === '' ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
                 fontSize: 12,
                 fontWeight: 600,
@@ -695,8 +695,8 @@ export function SalePage() {
                     flexShrink: 0,
                     padding: '6px 12px',
                     borderRadius: 50,
-                    border: isActive ? '1.5px solid rgba(59,130,246,0.6)' : '1.5px solid var(--color-border)',
-                    background: isActive ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+                    border: isActive ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+                    background: isActive ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
                     color: isActive ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
                     fontSize: 12,
                     fontWeight: 600,
@@ -1913,46 +1913,30 @@ export function SalePage() {
         type="box"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>
-              اسم العميل <span style={{ color: 'var(--color-danger)' }}>*</span>:
+          <div className="input-wrap">
+            <label className="input-label">
+              اسم العميل <span style={{ color: 'var(--color-danger)' }}>*</span>
             </label>
             <input
               type="text"
+              className="input"
               placeholder="مثال: أحمد أبو علي"
               value={newCustName}
               onChange={(e) => setNewCustName(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: 10,
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-primary)',
-                fontSize: 14,
-                outline: 'none',
-              }}
             />
           </div>
 
-          <div>
-            <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 4 }}>
-              رقم الهاتف (للواتساب):
+          <div className="input-wrap">
+            <label className="input-label">
+              رقم الهاتف (للواتساب)
             </label>
             <input
               type="tel"
+              className="input"
               placeholder="مثال: 0599123456"
               value={newCustPhone}
               onChange={(e) => setNewCustPhone(e.target.value)}
               style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: 10,
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-primary)',
-                fontSize: 14,
-                outline: 'none',
                 direction: 'ltr',
                 textAlign: 'right',
               }}
@@ -1963,34 +1947,16 @@ export function SalePage() {
             <button
               type="button"
               onClick={() => setQuickCustomerOpen(false)}
-              style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: 10,
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-secondary)',
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-main)',
-              }}
+              className="btn btn-ghost"
+              style={{ flex: 1 }}
             >
               إلغاء
             </button>
             <button
               type="button"
               onClick={handleCreateQuickCustomer}
-              style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: 10,
-                background: 'var(--color-primary)',
-                border: 'none',
-                color: 'white',
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-main)',
-              }}
+              className="btn btn-primary"
+              style={{ flex: 1 }}
             >
               إضافة
             </button>

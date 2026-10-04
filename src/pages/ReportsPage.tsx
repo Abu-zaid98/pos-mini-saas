@@ -255,10 +255,10 @@ export function ReportsPage() {
             fontWeight: 800,
             fontSize: 13,
             fontFamily: 'var(--font-main)',
-            background: reportSubTab === 'inventory_debt' ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'transparent',
+            background: reportSubTab === 'inventory_debt' ? 'var(--brand-gradient)' : 'transparent',
             color: reportSubTab === 'inventory_debt' ? 'white' : 'var(--color-text-muted)',
             transition: 'all 0.18s ease',
-            boxShadow: reportSubTab === 'inventory_debt' ? '0 2px 8px rgba(139,92,246,0.35)' : 'none',
+            boxShadow: reportSubTab === 'inventory_debt' ? 'var(--shadow-primary)' : 'none',
           }}
         >
           <span>📦</span>

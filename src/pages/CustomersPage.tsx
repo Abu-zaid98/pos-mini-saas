@@ -348,8 +348,8 @@ export function CustomersPage() {
             style={{
               padding: '7px 14px',
               borderRadius: 50,
-              border: filter === f.key ? '1.5px solid rgba(59,130,246,0.6)' : '1px solid var(--color-border)',
-              background: filter === f.key ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+              border: filter === f.key ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
+              background: filter === f.key ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
               color: filter === f.key ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
               fontSize: 13,
               fontWeight: 700,
@@ -636,34 +636,16 @@ export function CustomersPage() {
             <button
               type="button"
               onClick={() => setCustomerModalOpen(false)}
-              style={{
-                flex: 1,
-                padding: '11px',
-                borderRadius: 12,
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-secondary)',
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-main)',
-              }}
+              className="btn btn-ghost"
+              style={{ flex: 1 }}
             >
               إلغاء
             </button>
             <button
               type="button"
               onClick={handleSaveCustomer}
-              style={{
-                flex: 1,
-                padding: '11px',
-                borderRadius: 12,
-                background: 'var(--brand-gradient)',
-                border: 'none',
-                color: 'white',
-                fontWeight: 800,
-                cursor: 'pointer',
-                fontFamily: 'var(--font-main)',
-              }}
+              className="btn btn-primary"
+              style={{ flex: 1 }}
             >
               {editingCustomer ? 'حفظ التعديلات' : 'إضافة العميل'}
             </button>
@@ -829,17 +811,8 @@ export function CustomersPage() {
               <button
                 type="button"
                 onClick={() => setPaymentModalOpen(false)}
-                style={{
-                  flex: 1,
-                  padding: '11px',
-                  borderRadius: 12,
-                  background: 'rgba(255,255,255,0.06)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--color-text-secondary)',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-main)',
-                }}
+                className="btn btn-ghost"
+                style={{ flex: 1 }}
               >
                 إلغاء
               </button>

@@ -272,34 +272,14 @@ export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProp
                       <button
                         type="button"
                         onClick={() => setEditingCat(null)}
-                        style={{
-                          padding: '6px 12px',
-                          borderRadius: 8,
-                          background: 'rgba(255,255,255,0.08)',
-                          border: '1px solid var(--color-border)',
-                          color: 'var(--color-text-secondary)',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          fontFamily: 'var(--font-main)',
-                        }}
+                        className="btn btn-ghost btn-sm"
                       >
                         إلغاء
                       </button>
                       <button
                         type="button"
                         onClick={handleSaveEdit}
-                        style={{
-                          padding: '6px 14px',
-                          borderRadius: 8,
-                          background: 'var(--color-primary)',
-                          border: 'none',
-                          color: 'white',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                          fontFamily: 'var(--font-main)',
-                        }}
+                        className="btn btn-primary btn-sm"
                       >
                         حفظ التعديل
                       </button>
