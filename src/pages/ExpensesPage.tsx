@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../components/ui/Button'
 import { CustomSelect } from '../components/ui/CustomSelect'
+import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { ExpenseModal } from '../components/expenses/ExpenseModal'
 import { Modal } from '../components/ui/Modal'
 import { getPaymentMethodName, PAYMENT_METHODS } from '../db/db'
@@ -16,7 +17,7 @@ import {
 } from '../hooks/useExpenses'
 
 function formatMoney(value: number): string {
-  return new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 2 }).format(value) + ' ₪'
+  return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ₪'
 }
 
 export function ExpensesPage() {
@@ -31,6 +32,10 @@ export function ExpensesPage() {
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState({ name: '', description: '', active: true })
+  const [deleteExpenseTarget, setDeleteExpenseTarget] = useState<{ id: number; title: string } | null>(null)
+  const [deletingExpense, setDeletingExpense] = useState(false)
+  const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<{ id: string; name: string; count: number } | null>(null)
+  const [deletingCategory, setDeletingCategory] = useState(false)
 
   const expenses = useExpenses(period)
   const allExpenses = useExpenses('all')
@@ -108,25 +113,38 @@ export function ExpensesPage() {
     setDraft({ name: '', description: '', active: true })
   }
 
-  const handleDeleteCategory = async (id: string) => {
+  const handleDeleteCategory = (id: string) => {
     const item = categories.find((category) => category.id === id)
     if (!item) return
+    setDeleteCategoryTarget({ id, name: item.name, count: usageMap[item.name] ?? 0 })
+  }
 
-    const count = usageMap[item.name] ?? 0
-    const confirmed = window.confirm(
-      count > 0
-        ? `هذا البند مستخدم ${count} مرة في السجلات الحالية. هل تريد إخفاؤه فقط مع الاحتفاظ بالتاريخ؟`
-        : `هل تريد حذف بند "${item.name}" نهائياً؟`,
-    )
+  const handleConfirmDeleteCategory = async () => {
+    if (!deleteCategoryTarget) return
+    setDeletingCategory(true)
+    try {
+      const { id, count } = deleteCategoryTarget
+      const next = count > 0
+        ? categories.map((category) => category.id === id ? { ...category, active: false } : category)
+        : categories.filter((category) => category.id !== id)
 
-    if (!confirmed) return
+      const saved = await saveExpenseCategories(next)
+      setCategories(saved)
+      setDeleteCategoryTarget(null)
+    } finally {
+      setDeletingCategory(false)
+    }
+  }
 
-    const next = count > 0
-      ? categories.map((category) => category.id === id ? { ...category, active: false } : category)
-      : categories.filter((category) => category.id !== id)
-
-    const saved = await saveExpenseCategories(next)
-    setCategories(saved)
+  const handleConfirmDeleteExpense = async () => {
+    if (!deleteExpenseTarget) return
+    setDeletingExpense(true)
+    try {
+      await deleteExpense(deleteExpenseTarget.id)
+      setDeleteExpenseTarget(null)
+    } finally {
+      setDeletingExpense(false)
+    }
   }
 
   const totalCategories = categories.filter((category) => category.active !== false).length
@@ -250,11 +268,7 @@ export function ExpensesPage() {
                     className="btn btn-danger btn-sm"
                     title="حذف المصروف"
                     aria-label={`حذف مصروف ${expense.title}`}
-                    onClick={async () => {
-                      if (expense.id && window.confirm(`هل تريد حذف مصروف "${expense.title}"؟`)) {
-                        await deleteExpense(expense.id)
-                      }
-                    }}
+                    onClick={() => expense.id && setDeleteExpenseTarget({ id: expense.id, title: expense.title })}
                   >حذف</button>
                 </div>
               </div>
@@ -366,6 +380,36 @@ export function ExpensesPage() {
         open={expenseModalOpen}
         onClose={() => setExpenseModalOpen(false)}
         onSuccess={() => setExpenseModalOpen(false)}
+      />
+
+      <ConfirmModal
+        open={deleteExpenseTarget !== null}
+        onClose={() => setDeleteExpenseTarget(null)}
+        onConfirm={handleConfirmDeleteExpense}
+        loading={deletingExpense}
+        title="حذف المصروف"
+        icon="💸"
+        message={`هل تريد حذف مصروف "${deleteExpenseTarget?.title}"؟`}
+        subMessage="سيُحذف السجل نهائياً من المصاريف، ولن يؤثر على باقي البيانات."
+        confirmText="تأكيد الحذف"
+        cancelText="إلغاء"
+      />
+
+      <ConfirmModal
+        open={deleteCategoryTarget !== null}
+        onClose={() => setDeleteCategoryTarget(null)}
+        onConfirm={handleConfirmDeleteCategory}
+        loading={deletingCategory}
+        title="حذف نوع المصروف"
+        icon="🏷️"
+        message={(deleteCategoryTarget?.count ?? 0) > 0
+          ? `البند "${deleteCategoryTarget?.name}" مستخدم ${deleteCategoryTarget?.count} مرة — إخفاؤه فقط؟`
+          : `هل تريد حذف بند "${deleteCategoryTarget?.name}" نهائياً؟`}
+        subMessage={(deleteCategoryTarget?.count ?? 0) > 0
+          ? 'سيُخفى من القوائم مع الاحتفاظ بسجلاته التاريخية.'
+          : 'لا يمكن التراجع عن هذا الإجراء.'}
+        confirmText={(deleteCategoryTarget?.count ?? 0) > 0 ? 'إخفاء البند' : 'تأكيد الحذف'}
+        cancelText="إلغاء"
       />
 
     </div>

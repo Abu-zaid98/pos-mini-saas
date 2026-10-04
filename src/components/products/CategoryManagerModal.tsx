@@ -158,7 +158,7 @@ export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProp
               style={{
                 padding: '9px 16px',
                 borderRadius: 10,
-                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                background: 'var(--brand-gradient)',
                 border: 'none',
                 color: 'white',
                 fontSize: 13,
@@ -166,6 +166,7 @@ export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProp
                 cursor: 'pointer',
                 fontFamily: 'var(--font-main)',
                 whiteSpace: 'nowrap',
+                boxShadow: 'var(--shadow-primary)',
               }}
             >
               إضافة
@@ -183,8 +184,8 @@ export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProp
                   width: 32,
                   height: 32,
                   borderRadius: 8,
-                  border: newCatIcon === emoji ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                  background: newCatIcon === emoji ? 'rgba(59,130,246,0.2)' : 'transparent',
+                  border: newCatIcon === emoji ? '1.5px solid var(--color-border-active)' : '1px solid var(--color-border)',
+                  background: newCatIcon === emoji ? 'var(--color-primary-glow)' : 'transparent',
                   cursor: 'pointer',
                   fontSize: 16,
                   display: 'flex',
@@ -214,8 +215,8 @@ export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProp
                   <div
                     key={cat.id}
                     style={{
-                      background: 'rgba(59,130,246,0.1)',
-                      border: '1.5px solid var(--color-primary)',
+                      background: 'var(--color-primary-glow)',
+                      border: '1.5px solid var(--color-border-active)',
                       borderRadius: 12,
                       padding: 10,
                       display: 'flex',
@@ -252,8 +253,8 @@ export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProp
                             width: 28,
                             height: 28,
                             borderRadius: 6,
-                            border: editIcon === emoji ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                            background: editIcon === emoji ? 'rgba(59,130,246,0.3)' : 'transparent',
+                            border: editIcon === emoji ? '1.5px solid var(--color-border-active)' : '1px solid var(--color-border)',
+                            background: editIcon === emoji ? 'var(--color-primary-glow)' : 'transparent',
                             cursor: 'pointer',
                             fontSize: 14,
                             display: 'flex',
@@ -381,8 +382,8 @@ export function CategoryManagerModal({ open, onClose }: CategoryManagerModalProp
                         width: 30,
                         height: 30,
                         borderRadius: 8,
-                        background: 'rgba(59,130,246,0.15)',
-                        border: '1px solid rgba(59,130,246,0.3)',
+                        background: 'var(--color-primary-glow)',
+                        border: '1px solid var(--color-border-active)',
                         cursor: 'pointer',
                         fontSize: 13,
                         display: 'flex',

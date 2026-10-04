@@ -37,7 +37,7 @@ export function ConfirmModal({
         return 'linear-gradient(135deg, #f59e0b, #d97706)'
       case 'primary':
       default:
-        return 'linear-gradient(135deg, #3b82f6, #2563eb)'
+        return 'var(--brand-gradient)'
     }
   }
 
@@ -49,7 +49,7 @@ export function ConfirmModal({
         return '0 4px 14px rgba(245, 158, 11, 0.4)'
       case 'primary':
       default:
-        return '0 4px 14px rgba(59, 130, 246, 0.4)'
+        return 'var(--shadow-primary)'
     }
   }
 

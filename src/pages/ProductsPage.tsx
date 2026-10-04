@@ -284,7 +284,7 @@ export function ProductsPage() {
               style={{
                 flex: 2,
                 height: 44,
-                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                background: 'var(--brand-gradient)',
                 border: 'none',
                 borderRadius: 12,
                 cursor: 'pointer',
@@ -295,7 +295,7 @@ export function ProductsPage() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6,
-                boxShadow: '0 4px 14px rgba(59,130,246,0.3)',
+                boxShadow: 'var(--shadow-primary), inset 0 1px 0 rgba(255,255,255,0.25)',
                 fontFamily: 'var(--font-main)',
               }}
             >
@@ -309,8 +309,8 @@ export function ProductsPage() {
               style={{
                 flex: 1,
                 height: 44,
-                background: 'rgba(59,130,246,0.12)',
-                border: '1px solid rgba(59,130,246,0.3)',
+                background: 'var(--color-primary-glow)',
+                border: '1px solid var(--color-border-active)',
                 borderRadius: 12,
                 cursor: 'pointer',
                 color: 'var(--color-primary-light)',

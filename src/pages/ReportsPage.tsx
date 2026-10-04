@@ -230,10 +230,10 @@ export function ReportsPage() {
             fontWeight: 800,
             fontSize: 13,
             fontFamily: 'var(--font-main)',
-            background: reportSubTab === 'financial' ? 'linear-gradient(135deg, #3b82f6, #2563eb)' : 'transparent',
+            background: reportSubTab === 'financial' ? 'var(--brand-gradient)' : 'transparent',
             color: reportSubTab === 'financial' ? 'white' : 'var(--color-text-muted)',
             transition: 'all 0.18s ease',
-            boxShadow: reportSubTab === 'financial' ? '0 2px 8px rgba(59,130,246,0.35)' : 'none',
+            boxShadow: reportSubTab === 'financial' ? 'var(--shadow-primary)' : 'none',
           }}
         >
           <span>📊</span>

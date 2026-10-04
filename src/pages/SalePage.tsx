@@ -823,23 +823,23 @@ export function SalePage() {
                       </div>
                     )}
 
-                    <div style={{ fontSize: 24, marginBottom: 6 }}>
+                    <div style={{ fontSize: 28, marginBottom: 6 }}>
                       {p.image ? (
                         <img
                           src={p.image}
                           alt=""
-                          style={{ width: 46, height: 46, borderRadius: 14, objectFit: 'cover', boxShadow: 'var(--shadow-sm)' }}
+                          style={{ width: 58, height: 58, borderRadius: 15, objectFit: 'cover', boxShadow: 'var(--shadow-sm)' }}
                         />
                       ) : (
                         <span style={{
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          width: 46, height: 46,
-                          borderRadius: 14,
+                          width: 58, height: 58,
+                          borderRadius: 15,
                           background: 'var(--brand-gradient-soft)',
                           border: '1px solid var(--color-border)',
-                          fontSize: 24,
+                          fontSize: 28,
                         }}>
                           {catIconMap[p.category] ?? '📦'}
                         </span>

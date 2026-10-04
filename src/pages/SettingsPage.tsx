@@ -445,7 +445,7 @@ export function SettingsPage() {
               type="button"
               onClick={handleInstallClick}
               style={{
-                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                background: 'var(--brand-gradient)',
                 border: 'none',
                 borderRadius: 14,
                 padding: '14px 20px',
@@ -777,7 +777,7 @@ export function SettingsPage() {
               marginTop: 4,
               padding: '11px',
               borderRadius: 10,
-              background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+              background: 'var(--brand-gradient)',
               border: 'none',
               color: 'white',
               fontWeight: 800,
@@ -865,7 +865,7 @@ export function SettingsPage() {
             disabled={isSaving}
             style={{
               marginTop: 4, padding: '11px', borderRadius: 10,
-              background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+              background: 'var(--brand-gradient)',
               border: 'none', color: 'white', fontWeight: 800, fontSize: 14,
               cursor: isSaving ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-main)',
             }}

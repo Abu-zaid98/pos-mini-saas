@@ -10,22 +10,15 @@ import { formatCurrency } from '../utils/currency'
 import { formatLineDiscount, formatLineQty, lineDiscountAmount } from '../utils/units'
 
 type InvoiceFilter = 'all' | PaymentType
-type InvoicePeriod = 'today' | 'yesterday' | 'week' | 'month' | 'all' | 'day' | 'range'
+type InvoicePeriod = 'today' | 'yesterday' | 'week' | 'month' | 'all' | 'custom'
 
-const periodLabels: Record<InvoicePeriod, string> = {
-  today: 'اليوم',
-  yesterday: 'أمس',
-  week: 'آخر 7 أيام',
-  month: 'هذا الشهر',
-  all: 'كل الفترات',
-  day: '📅 يوم محدد',
-  range: '↔ فترة مخصصة',
-}
-
-function toDateInputValue(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
-}
+const quickPeriods: [Exclude<InvoicePeriod, 'custom'>, string][] = [
+  ['today', 'اليوم'],
+  ['yesterday', 'أمس'],
+  ['week', 'آخر 7 أيام'],
+  ['month', 'هذا الشهر'],
+  ['all', 'الكل'],
+]
 
 function startOfDay(d: Date): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
@@ -41,9 +34,8 @@ export function InvoicesPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<InvoiceFilter>('all')
   const [period, setPeriod] = useState<InvoicePeriod>('all')
-  const [customDay, setCustomDay] = useState(() => toDateInputValue(new Date()))
-  const [fromDate, setFromDate] = useState(() => toDateInputValue(new Date()))
-  const [toDate, setToDate] = useState(() => toDateInputValue(new Date()))
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [selected, setSelected] = useState<Invoice | null>(null)
   const [viewMode, setViewMode] = useState<'view' | 'edit'>('view')
   const printInvoice = usePrintInvoice()
@@ -68,13 +60,7 @@ export function InvoicesPage() {
     else if (period === 'yesterday') matchPeriod = t >= todayStart - 86400000 && t < todayStart
     else if (period === 'week') matchPeriod = t >= todayStart - 6 * 86400000
     else if (period === 'month') matchPeriod = t >= new Date(now.getFullYear(), now.getMonth(), 1).getTime()
-    else if (period === 'day') {
-      if (!customDay) matchPeriod = true
-      else {
-        const d = new Date(customDay + 'T00:00:00').getTime()
-        matchPeriod = Number.isFinite(d) && t >= d && t < d + 86400000
-      }
-    } else if (period === 'range') {
+    else if (period === 'custom') {
       const f = fromDate ? new Date(fromDate + 'T00:00:00').getTime() : NaN
       const e = toDate ? new Date(toDate + 'T00:00:00').getTime() + 86400000 : NaN
       const fromOk = !fromDate || (Number.isFinite(f) && t >= f)
@@ -82,7 +68,7 @@ export function InvoicesPage() {
       matchPeriod = fromOk && toOk
     }
     return matchFilter && matchSearch && matchPeriod
-  }), [invoices, filter, search, period, customDay, fromDate, toDate])
+  }), [invoices, filter, search, period, fromDate, toDate])
 
   const totals = useMemo(() => visible.reduce(
     (s, inv) => ({ total: s.total + (inv.total || 0), paid: s.paid + (inv.paidAmount || 0), debt: s.debt + (inv.debtAmount || 0) }),
@@ -114,7 +100,7 @@ export function InvoicesPage() {
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
-    const stamp = period === 'day' && customDay ? customDay : period === 'range' ? `${fromDate}_to_${toDate}` : period
+    const stamp = period === 'custom' ? `${fromDate || 'start'}_to_${toDate || 'now'}` : period
     a.href = url
     a.download = `invoices-${stamp}-${visible.length}.csv`
     a.click()
@@ -192,19 +178,30 @@ export function InvoicesPage() {
       </section>
 
       <section className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <CustomSelect
-          label="📅 فترة الفواتير"
-          value={period}
-          onChange={(v) => setPeriod(v as InvoicePeriod)}
-          options={(Object.entries(periodLabels) as [InvoicePeriod, string][]).map(([value, label]) => ({ value, label }))}
-        />
-        {period === 'day' && (
-          <div className="input-wrap"><label className="input-label">اليوم المطلوب</label><input className="input" type="date" value={customDay} onChange={(e) => setCustomDay(e.target.value)} /></div>
-        )}
-        {period === 'range' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div className="input-wrap"><label className="input-label">من تاريخ</label><input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></div>
-            <div className="input-wrap"><label className="input-label">إلى تاريخ</label><input className="input" type="date" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)} /></div>
+        <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
+          {quickPeriods.map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => { setPeriod(value); setFromDate(''); setToDate('') }}
+              style={{ flexShrink: 0, border: period === value ? '1px solid var(--color-primary)' : '1px solid var(--color-border)', background: period === value ? 'var(--color-primary-glow)' : 'var(--color-bg-card)', color: period === value ? 'var(--color-primary-light)' : 'var(--color-text-secondary)', borderRadius: 99, padding: '7px 13px', font: '700 12px var(--font-main)', cursor: 'pointer' }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div className="input-wrap"><label className="input-label">من تاريخ</label><input className="input" type="date" value={fromDate} max={toDate || undefined} onChange={(e) => { setFromDate(e.target.value); setPeriod('custom') }} /></div>
+          <div className="input-wrap"><label className="input-label">إلى تاريخ</label><input className="input" type="date" value={toDate} min={fromDate || undefined} onChange={(e) => { setToDate(e.target.value); setPeriod('custom') }} /></div>
+        </div>
+        {period === 'custom' && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--color-primary-light)', fontWeight: 700 }}>
+              ↔ فترة مخصصة: {fromDate || 'البداية'} → {toDate || 'اليوم'}
+            </span>
+            <button type="button" onClick={() => { setPeriod('all'); setFromDate(''); setToDate('') }} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-main)' }}>
+              مسح الفترة
+            </button>
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
@@ -266,7 +263,7 @@ export function InvoicesPage() {
               onClick={() => printInvoice(selected)}
               style={{
                 width: '100%', padding: '13px', borderRadius: 12,
-                background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                background: 'var(--brand-gradient)',
                 border: 'none', color: 'white', fontWeight: 800, fontSize: 15,
                 cursor: 'pointer', fontFamily: 'var(--font-main)',
               }}
