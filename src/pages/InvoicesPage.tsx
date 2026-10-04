@@ -10,6 +10,26 @@ import { formatCurrency } from '../utils/currency'
 import { formatLineDiscount, formatLineQty, lineDiscountAmount } from '../utils/units'
 
 type InvoiceFilter = 'all' | PaymentType
+type InvoicePeriod = 'today' | 'yesterday' | 'week' | 'month' | 'all' | 'day' | 'range'
+
+const periodLabels: Record<InvoicePeriod, string> = {
+  today: 'اليوم',
+  yesterday: 'أمس',
+  week: 'آخر 7 أيام',
+  month: 'هذا الشهر',
+  all: 'كل الفترات',
+  day: '📅 يوم محدد',
+  range: '↔ فترة مخصصة',
+}
+
+function toDateInputValue(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+function startOfDay(d: Date): number {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
 
 const typeLabels: Record<PaymentType, string> = {
   cash: 'نقدي / مكتمل', debt: 'دين كامل', partial: 'دفع جزئي',
@@ -20,6 +40,10 @@ export function InvoicesPage() {
   const customers = useCustomers()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<InvoiceFilter>('all')
+  const [period, setPeriod] = useState<InvoicePeriod>('all')
+  const [customDay, setCustomDay] = useState(() => toDateInputValue(new Date()))
+  const [fromDate, setFromDate] = useState(() => toDateInputValue(new Date()))
+  const [toDate, setToDate] = useState(() => toDateInputValue(new Date()))
   const [selected, setSelected] = useState<Invoice | null>(null)
   const [viewMode, setViewMode] = useState<'view' | 'edit'>('view')
   const printInvoice = usePrintInvoice()
@@ -35,8 +59,67 @@ export function InvoicesPage() {
     const matchFilter = filter === 'all' || invoice.paymentType === filter
     const query = search.trim().toLowerCase()
     const matchSearch = !query || String(invoice.id).includes(query) || invoice.customerName?.toLowerCase().includes(query) || invoice.items.some((item) => item.name.toLowerCase().includes(query))
-    return matchFilter && matchSearch
-  }), [invoices, filter, search])
+
+    const t = new Date(invoice.createdAt).getTime()
+    const now = new Date()
+    const todayStart = startOfDay(now)
+    let matchPeriod = true
+    if (period === 'today') matchPeriod = t >= todayStart
+    else if (period === 'yesterday') matchPeriod = t >= todayStart - 86400000 && t < todayStart
+    else if (period === 'week') matchPeriod = t >= todayStart - 6 * 86400000
+    else if (period === 'month') matchPeriod = t >= new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+    else if (period === 'day') {
+      if (!customDay) matchPeriod = true
+      else {
+        const d = new Date(customDay + 'T00:00:00').getTime()
+        matchPeriod = Number.isFinite(d) && t >= d && t < d + 86400000
+      }
+    } else if (period === 'range') {
+      const f = fromDate ? new Date(fromDate + 'T00:00:00').getTime() : NaN
+      const e = toDate ? new Date(toDate + 'T00:00:00').getTime() + 86400000 : NaN
+      const fromOk = !fromDate || (Number.isFinite(f) && t >= f)
+      const toOk = !toDate || (Number.isFinite(e) && t < e)
+      matchPeriod = fromOk && toOk
+    }
+    return matchFilter && matchSearch && matchPeriod
+  }), [invoices, filter, search, period, customDay, fromDate, toDate])
+
+  const totals = useMemo(() => visible.reduce(
+    (s, inv) => ({ total: s.total + (inv.total || 0), paid: s.paid + (inv.paidAmount || 0), debt: s.debt + (inv.debtAmount || 0) }),
+    { total: 0, paid: 0, debt: 0 },
+  ), [visible])
+
+  const exportCsv = () => {
+    if (visible.length === 0) {
+      alert('لا توجد فواتير مطابقة للتصدير في هذه الفترة.')
+      return
+    }
+    const rows: string[][] = [
+      ['رقم الفاتورة', 'التاريخ', 'العميل', 'نوع الدفع', 'الإجمالي', 'المدفوع', 'الدين', 'الأصناف'],
+      ...visible.map((inv) => [
+        String(inv.id ?? ''),
+        new Date(inv.createdAt).toLocaleString('ar-EG'),
+        inv.customerName || 'بيع مباشر',
+        typeLabels[inv.paymentType] || inv.paymentType,
+        String(inv.total || 0),
+        String(inv.paidAmount || 0),
+        String(inv.debtAmount || 0),
+        inv.items.map((i) => `${i.name} × ${i.qty}`).join(' | '),
+      ]),
+      [],
+      ['الإجمالي', '', '', '', String(totals.total), String(totals.paid), String(totals.debt), `عدد الفواتير: ${visible.length}`],
+    ]
+    const esc = (c: string) => `"${String(c).replace(/"/g, '""')}"`
+    const csv = '﻿' + rows.map((r) => r.map(esc).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    const stamp = period === 'day' && customDay ? customDay : period === 'range' ? `${fromDate}_to_${toDate}` : period
+    a.href = url
+    a.download = `invoices-${stamp}-${visible.length}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const openInvoice = (invoice: Invoice) => {
     setSelected(invoice)
@@ -103,9 +186,37 @@ export function InvoicesPage() {
       <section className="card" style={{ padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
           <div><h2 style={{ fontSize: 17, fontWeight: 900 }}>سجل الفواتير</h2><p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 2 }}>كل الفواتير محفوظة هنا ويمكن مراجعتها وتعديلها.</p></div>
-          <span className="badge badge-primary">{invoices.length} فاتورة</span>
+          <span className="badge badge-primary">{visible.length} / {invoices.length} فاتورة</span>
         </div>
         <div className="input-search"><span>🔍</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="رقم فاتورة، عميل أو منتج..." /></div>
+      </section>
+
+      <section className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <CustomSelect
+          label="📅 فترة الفواتير"
+          value={period}
+          onChange={(v) => setPeriod(v as InvoicePeriod)}
+          options={(Object.entries(periodLabels) as [InvoicePeriod, string][]).map(([value, label]) => ({ value, label }))}
+        />
+        {period === 'day' && (
+          <div className="input-wrap"><label className="input-label">اليوم المطلوب</label><input className="input" type="date" value={customDay} onChange={(e) => setCustomDay(e.target.value)} /></div>
+        )}
+        {period === 'range' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div className="input-wrap"><label className="input-label">من تاريخ</label><input className="input" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} /></div>
+            <div className="input-wrap"><label className="input-label">إلى تاريخ</label><input className="input" type="date" value={toDate} min={fromDate} onChange={(e) => setToDate(e.target.value)} /></div>
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 180, display: 'flex', gap: 8, background: 'var(--color-input-bg)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: 'var(--color-text-secondary)' }}>
+            <span>💰 {formatCurrency(totals.total)}</span>
+            <span style={{ color: 'var(--color-success-light)' }}>مقبوض {formatCurrency(totals.paid)}</span>
+            {totals.debt > 0 && <span style={{ color: 'var(--color-danger-light)' }}>دين {formatCurrency(totals.debt)}</span>}
+          </div>
+          <button type="button" className="btn btn-success btn-sm" onClick={exportCsv} disabled={visible.length === 0} title="تصدير الفواتير المعروضة كملف CSV">
+            ⬇️ تصدير ({visible.length})
+          </button>
+        </div>
       </section>
 
       <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>

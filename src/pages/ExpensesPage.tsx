@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../components/ui/Button'
+import { CustomSelect } from '../components/ui/CustomSelect'
 import { ExpenseModal } from '../components/expenses/ExpenseModal'
 import { Modal } from '../components/ui/Modal'
 import { getPaymentMethodName, PAYMENT_METHODS } from '../db/db'
@@ -168,29 +169,35 @@ export function ExpensesPage() {
 
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-          <label className="input-wrap">
-            <span className="input-label">الفترة</span>
-            <select className="input" value={period} onChange={(event) => setPeriod(event.target.value as ExpensePeriod)}>
-              <option value="today">اليوم</option>
-              <option value="week">آخر 7 أيام</option>
-              <option value="month">هذا الشهر</option>
-              <option value="all">كل الفترات</option>
-            </select>
-          </label>
-          <label className="input-wrap">
-            <span className="input-label">نوع المصروف</span>
-            <select className="input" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-              <option value="all">كل الأنواع</option>
-              {categories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}
-            </select>
-          </label>
-          <label className="input-wrap">
-            <span className="input-label">طريقة الدفع</span>
-            <select className="input" value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)}>
-              <option value="all">كل الطرق</option>
-              {PAYMENT_METHODS.map((method) => <option key={method.id} value={method.id}>{method.label}</option>)}
-            </select>
-          </label>
+          <CustomSelect
+            label="الفترة"
+            value={period}
+            onChange={(v) => setPeriod(v as ExpensePeriod)}
+            options={[
+              { value: 'today', label: 'اليوم' },
+              { value: 'week', label: 'آخر 7 أيام' },
+              { value: 'month', label: 'هذا الشهر' },
+              { value: 'all', label: 'كل الفترات' },
+            ]}
+          />
+          <CustomSelect
+            label="نوع المصروف"
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+            options={[
+              { value: 'all', label: 'كل الأنواع' },
+              ...categories.map((category) => ({ value: category.name, label: category.name })),
+            ]}
+          />
+          <CustomSelect
+            label="طريقة الدفع"
+            value={paymentFilter}
+            onChange={setPaymentFilter}
+            options={[
+              { value: 'all', label: 'كل الطرق' },
+              ...PAYMENT_METHODS.map((method) => ({ value: method.id, label: method.label })),
+            ]}
+          />
         </div>
 
         <div className="input-search" style={{ width: '100%' }}>

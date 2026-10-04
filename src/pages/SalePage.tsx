@@ -1019,28 +1019,24 @@ export function SalePage() {
                             {formatCurrency(item.price)}{item.pack ? `/${item.pack.label}` : unit !== 'piece' ? `/${unitShort(unit)}` : ''}
                           </span>
                         )}
-                        {/* Pack selector for goods with packs */}
+                        {/* Pack selector for goods with packs — customized dropdown */}
                         {kind === 'goods' && item.packOptions && item.packOptions.length > 0 && (
-                          <select
-                            value={packLabel ?? ''}
-                            onChange={(e) => {
-                              const sel = item.packOptions!.find((pk) => pk.label === e.target.value) ?? null
-                              updatePack(item.productId, packLabel, sel, item.lineId)
-                            }}
-                            style={{
-                              fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-main)',
-                              background: 'var(--color-input-bg)', color: 'var(--color-primary-light)',
-                              border: '1px solid var(--color-border)', borderRadius: 8, padding: '3px 6px',
-                              cursor: 'pointer', outline: 'none',
-                            }}
-                          >
-                            <option value="">قطعة</option>
-                            {item.packOptions.map((pk) => (
-                              <option key={pk.label} value={pk.label}>
-                                {pk.label} ({pk.factor}) — {pk.price} ₪
-                              </option>
-                            ))}
-                          </select>
+                          <div style={{ minWidth: 120, maxWidth: 170 }}>
+                            <CustomSelect
+                              value={packLabel ?? ''}
+                              onChange={(v) => {
+                                const sel = item.packOptions!.find((pk) => pk.label === v) ?? null
+                                updatePack(item.productId, packLabel, sel, item.lineId)
+                              }}
+                              options={[
+                                { value: '', label: 'قطعة' },
+                                ...item.packOptions.map((pk) => ({
+                                  value: pk.label,
+                                  label: `${pk.label} (${pk.factor}) — ${pk.price} ₪`,
+                                })),
+                              ]}
+                            />
+                          </div>
                         )}
                         {overStock && (
                           <span style={{ fontSize: 11, color: 'var(--color-danger-light)', fontWeight: 700 }}>
