@@ -17,6 +17,7 @@ import {
   buildExpiredWhatsApp,
 } from '../subscriptions'
 import { getSession, setMaxDevices, removeDevice, resetDevices, type AdminSession } from '../sessions'
+import { DEVICE_MAX_OPTIONS, deviceCountLabel } from '../../lib/session-policy'
 import { loadPrivateKey, hasPrivateKey, msToDhms, toDatetimeLocalValue, DAY_MS, formatDurationAr } from '../crypto'
 import { DurationPicker } from '../components/DurationPicker'
 import { useToast, useConfirm } from '../components/feedback'
@@ -358,7 +359,7 @@ export function SubscriberDetailPage() {
     try {
       await setMaxDevices(sub.uid, max, sub.email)
       await loadSession(sub.uid)
-      toast.success(`أصبح الحد ${max} ${max === 1 ? 'جهاز' : 'أجهزة'}`)
+      toast.success(`أصبح الحد ${deviceCountLabel(max)}`)
     } catch (e) {
       toast.error('فشل التعديل', (e as Error).message)
     } finally {
@@ -589,8 +590,8 @@ export function SubscriberDetailPage() {
                 onChange={(e) => handleMaxChange(Number(e.target.value))}
                 aria-label="الحد الأقصى للأجهزة"
               >
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <option key={n} value={n}>{n === 1 ? 'جهاز واحد' : `${n} أجهزة`}</option>
+                {(DEVICE_MAX_OPTIONS.includes(session.max) ? DEVICE_MAX_OPTIONS : [...DEVICE_MAX_OPTIONS, session.max].sort((a, b) => a - b)).map((n) => (
+                  <option key={n} value={n}>{deviceCountLabel(n)}</option>
                 ))}
               </select>
             </div>

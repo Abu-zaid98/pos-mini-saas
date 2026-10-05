@@ -56,8 +56,18 @@ export function mergeHeartbeat(
   const merged = exists
     ? pruned.map((d) => (d.id === myId ? { ...d, seen: nowMs } : d))
     : [...pruned, { id: myId, seen: nowMs }]
-  return merged.slice(-10) // سقف أمان لحجم المستند
+  return merged.slice(-500) // سقف أمان لحجم المستند — يكفي حتى 100+ جهاز لكل حساب
 }
+
+/** تسمية عربية صحيحة لعدد الأجهزة: جهاز واحد / جهازان / N أجهزة / N جهاز */
+export function deviceCountLabel(n: number): string {
+  if (n === 1) return 'جهاز واحد'
+  if (n === 2) return 'جهازان'
+  if (n >= 3 && n <= 10) return `${n} أجهزة`
+  return `${n} جهاز`
+}
+
+export const DEVICE_MAX_OPTIONS = [1, 2, 3, 4, 5, 10, 25, 50, 100]
 
 /** معرّف قصير للعرض (أول 8 أحرف) */
 export function shortDeviceId(id: string): string {

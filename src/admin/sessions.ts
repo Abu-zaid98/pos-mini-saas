@@ -60,9 +60,9 @@ export async function getAllSessions(): Promise<AdminSession[]> {
   return snap.docs.map((d) => parseSession(d.id, d.data() as Record<string, unknown>))
 }
 
-/** تغيير الحد الأقصى للأجهزة (1-5) */
+/** تغيير الحد الأقصى للأجهزة (1-1000 — يشمل باقات الشركات حتى 100 جهاز) */
 export async function setMaxDevices(uid: string, max: number, email: string): Promise<void> {
-  const safe = Math.min(5, Math.max(1, Math.round(max) || SESSION_DEFAULT_MAX))
+  const safe = Math.min(1000, Math.max(1, Math.round(max) || SESSION_DEFAULT_MAX))
   const ref = doc(db, 'sessions', uid)
   const snap = await getDoc(ref)
   if (!snap.exists()) {

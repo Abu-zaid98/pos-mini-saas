@@ -667,16 +667,8 @@ export function createLicense(config: LicenseConfig) {
 
     const { idToken, localId, refreshToken } = await firebaseSignIn(restCfg, email, password);
 
-    // فحص الأجهزة قبل تخزين الجلسة — جهاز آخر نشط يمنع هذا الدخول
-    // (الأولوية لصاحب الجلسة النشطة؛ الجديد يُرفض حتى يفك المدير الارتباط)
-    const session = await checkSession(idToken, localId, true);
-    if (session === "blocked") {
-      return { ok: false, reason: "session" };
-    }
-
-    ls.set(K.uid, localId);
-    ls.set(K.idToken, refreshToken); // نخزن refreshToken للتجديد الصامت لاحقاً
-
+    // نتحقق من التوكن أولاً قبل لمس الجلسات — حتى لا تترك محاولات الدخول
+    // الفاشلة (توكن غير صالح/موقوف/محذوف) أجهزة شبح في لوحة التحكم
     const outcome = await fetchToken(idToken, localId);
     if (outcome.kind === "deleted") {
       // مستخدم موجود لكن لا اشتراك لهذا التطبيق
@@ -698,6 +690,16 @@ export function createLicense(config: LicenseConfig) {
       console.warn("[License Login] معرّف التطبيق غير متطابق! في التوكن:", payload.a, "وفي التطبيق:", appId);
       return { ok: false, reason: "invalid" };
     }
+
+    // فحص الأجهزة بعد ثبوت صلاحية التوكن — جهاز آخر نشط يمنع هذا الدخول
+    // (الأولوية لصاحب الجلسة النشطة؛ الجديد يُرفض حتى يفك المدير الارتباط)
+    const session = await checkSession(idToken, localId, true);
+    if (session === "blocked") {
+      return { ok: false, reason: "session" };
+    }
+
+    ls.set(K.uid, localId);
+    ls.set(K.idToken, refreshToken); // نخزن refreshToken للتجديد الصامت لاحقاً
 
     ls.set(K.lastSeen, String(Date.now()));
     return evalPayload(payload);
