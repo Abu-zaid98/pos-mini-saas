@@ -9,7 +9,7 @@
  *   وإجمالي السطر دائماً qty × price أياً كانت الوحدة
  * - الوصفة: مكوّنات كل 1 كغ — تُضرب بوزن الدفعة عند الإنتاج
  */
-import type { InvoiceItem, Product, ProductType, RecipeLine, SalePack, SaleUnit } from '../db/db'
+import type { InvoiceItem, Product, ProductType, SalePack, SaleUnit } from '../db/db'
 
 export const GRAMS_PER_KG = 1000
 
@@ -172,93 +172,7 @@ export function unitStep(unit: SaleUnit): number {
   return 1
 }
 
-// ── وصفات الإنتاج ──
 
-export interface RecipeCostLine {
-  productId: number
-  productName: string
-  /** المطلوب بالوحدات الأساسية (قطع/جرام) بعد ضرب وزن الدفعة */
-  requiredBase: number
-  unit: SaleUnit
-  unitCost: number
-  lineCost: number
-  availableBase: number
-  enough: boolean
-  missing: boolean
-}
-
-export interface RecipeCost {
-  lines: RecipeCostLine[]
-  materialCost: number
-  wastePercent: number
-  totalCost: number
-  /** تكلفة الكيلو للدفعة */
-  unitCostPerKg: number
-  /** أسماء المكوّنات المحذوفة من المخزون */
-  missingNames: string[]
-  /** هل تكفي المواد؟ */
-  feasible: boolean
-}
-
-/**
- * تكلفة وصفة لدفعة بوزن معين.
- * recipe: مكوّنات كل 1 كغ — تُضرب بـ batchKg.
- */
-export function recipeCost(
-  recipe: RecipeLine[],
-  productsById: Map<number, Product>,
-  batchKg: number,
-  wastePercent = 0
-): RecipeCost {
-  const lines: RecipeCostLine[] = []
-  let materialCost = 0
-  const missingNames: string[] = []
-  let feasible = true
-
-  for (const line of recipe) {
-    const ing = productsById.get(line.productId)
-    const requiredBase = Math.round(line.qty * batchKg * 1000) / 1000
-    if (!ing) {
-      missingNames.push(line.productName)
-      feasible = false
-      lines.push({
-        productId: line.productId,
-        productName: line.productName,
-        requiredBase,
-        unit: line.unit,
-        unitCost: 0,
-        lineCost: 0,
-        availableBase: 0,
-        enough: false,
-        missing: true,
-      })
-      continue
-    }
-    const ingType = getProductType(ing)
-    const pricingQty = ingType === 'weighted' ? requiredBase / GRAMS_PER_KG : requiredBase
-    const lineCost = Math.round(pricingQty * (Number(ing.costPrice) || 0) * 100) / 100
-    materialCost += lineCost
-    const enough = ing.quantity >= requiredBase
-    if (!enough) feasible = false
-    lines.push({
-      productId: ing.id ?? line.productId,
-      productName: ing.name,
-      requiredBase,
-      unit: line.unit,
-      unitCost: Number(ing.costPrice) || 0,
-      lineCost,
-      availableBase: ing.quantity,
-      enough,
-      missing: false,
-    })
-  }
-
-  materialCost = Math.round(materialCost * 100) / 100
-  const totalCost = Math.round(materialCost * (1 + (Number(wastePercent) || 0) / 100) * 100) / 100
-  const unitCostPerKg = batchKg > 0 ? Math.round((totalCost / batchKg) * 100) / 100 : 0
-
-  return { lines, materialCost, wastePercent: Number(wastePercent) || 0, totalCost, unitCostPerKg, missingNames, feasible }
-}
 
 /** متوسط التكلفة المرجح بعد دفعة: (مخزون قديم×تكلفته + إنتاج×تكلفته) / الإجمالي
  * إذا كان المخزون القديم سالباً (بيع فوق المتاح) تُعتمد تكلفة التوريد الجديد فقط

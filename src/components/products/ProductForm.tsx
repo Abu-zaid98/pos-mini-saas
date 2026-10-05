@@ -5,10 +5,10 @@ import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { BarcodeScanner } from '../ui/BarcodeScanner'
 import { CustomSelect } from '../ui/CustomSelect'
-import { addProduct, updateProduct, useProducts } from '../../hooks/useProducts'
+import { addProduct, updateProduct } from '../../hooks/useProducts'
 import { useCategories } from '../../hooks/useCategories'
-import { db, PRODUCT_TYPES, type Product, type ProductType, type RecipeLine, type SalePack, type SaleUnit } from '../../db/db'
-import { GRAMS_PER_KG, getProductType, recipeCost, toDateInputValue } from '../../utils/units'
+import { db, PRODUCT_TYPES, type Product, type ProductType, type SalePack } from '../../db/db'
+import { GRAMS_PER_KG, getProductType, toDateInputValue } from '../../utils/units'
 import { fileToThumbnail } from '../../utils/image'
 
 interface ProductFormProps {
@@ -41,16 +41,8 @@ export function ProductForm({
   onSaved,
 }: ProductFormProps) {
   const categories = useCategories()
-  const allProducts = useProducts()
   const [form, setForm] = useState(EMPTY)
   const [itemType, setItemType] = useState<ProductType>('goods')
-  // الوصفة: مكوّنات كل 1 كغ (للموزون فقط)
-  const [recipe, setRecipe] = useState<RecipeLine[]>([])
-  const [wastePercent, setWastePercent] = useState('5')
-  const [ingSearch, setIngSearch] = useState('')
-  const [ingQty, setIngQty] = useState('1')
-  const [ingUnit, setIngUnit] = useState<SaleUnit>('kg')
-  const [ingPicked, setIngPicked] = useState<Product | null>(null)
   // عبوات البيع (للسلع): {label, factor, price} كنصوص للإدخال
   const [packs, setPacks] = useState<{ label: string; factor: string; price: string }[]>([])
   // تاريخ الصلاحية (للسلع والموزون)
@@ -70,8 +62,6 @@ export function ProductForm({
       if (product) {
         const t = getProductType(product)
         setItemType(t)
-        setRecipe(product.recipe ?? [])
-        setWastePercent(String(product.wastePercent ?? 5))
         setPacks((product.packs ?? []).map((pk) => ({ label: pk.label, factor: String(pk.factor), price: String(pk.price) })))
         setExpiryDate(toDateInputValue(product.expiryDate))
         setOpenPrice(product.openPrice === true)
@@ -89,17 +79,11 @@ export function ProductForm({
         })
       } else {
         setItemType('goods')
-        setRecipe([])
-        setWastePercent('5')
         setPacks([])
         setExpiryDate('')
         setOpenPrice(false)
         setDuration('')
         setImageData(null)
-        setIngSearch('')
-        setIngQty('1')
-        setIngUnit('kg')
-        setIngPicked(null)
         setForm({
           ...EMPTY,
           barcode: initialBarcode ?? '',
@@ -165,8 +149,6 @@ export function ProductForm({
         : itemType === 'service' ? 0 : parseInt(form.lowStockAlert) || 5,
       category: form.category,
       type: itemType,
-      recipe: itemType === 'weighted' ? recipe : [],
-      wastePercent: itemType === 'weighted' ? parseFloat(wastePercent) || 0 : 0,
       packs: parsedPacks,
       expiryDate: !isService && expiryDate ? new Date(`${expiryDate}T00:00:00`) : null,
       openPrice: isService ? openPrice : false,
@@ -515,199 +497,7 @@ export function ProductForm({
             />
           )}
 
-          {/* Recipe (weighted only) — مكونات كل 1 كغ */}
-          {isWeighted && (
-            <div style={{
-              background: 'rgba(139,92,246,0.07)',
-              border: '1.5px solid rgba(139,92,246,0.3)',
-              borderRadius: 12,
-              padding: 12,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <strong style={{ fontSize: 13 }}>🧪 وصفة الإنتاج <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(المكونات لكل 1 كغ)</span></strong>
-              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <Input
-                  label="نسبة الهالك %"
-                  placeholder="5"
-                  value={wastePercent}
-                  onChange={(e) => setWastePercent(e.target.value)}
-                  inputMode="decimal"
-                />
-                <div style={{
-                  background: 'rgba(16,185,129,0.1)',
-                  border: '1px solid rgba(16,185,129,0.25)',
-                  borderRadius: 10,
-                  padding: '8px 10px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                }}>
-                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>تكلفة الكيلو المحسوبة</span>
-                  <span style={{ fontSize: 16, fontWeight: 900, color: 'var(--color-success-light)', direction: 'ltr' }}>
-                    {(() => {
-                      const byId = new Map(allProducts.map((p) => [p.id!, p]))
-                      return recipeCost(recipe, byId, 1, parseFloat(wastePercent) || 0).unitCostPerKg.toFixed(2)
-                    })()} ₪
-                  </span>
-                </div>
-              </div>
-
-              {/* Current lines */}
-              {recipe.map((line, idx) => {
-                const dispQty = line.unit === 'kg'
-                  ? Math.round((line.qty / GRAMS_PER_KG) * 1000) / 1000
-                  : line.qty
-                const unitLbl = line.unit === 'kg' ? 'كغ' : line.unit === 'g' ? 'غ' : 'قطعة'
-                return (
-                  <div key={idx} style={{
-                    display: 'flex', alignItems: 'center', gap: 8,
-                    background: 'var(--color-bg-card)',
-                    border: '1px solid var(--color-border)',
-                    borderRadius: 10, padding: '8px 10px',
-                  }}>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>{line.productName}</span>
-                    <span style={{ fontSize: 12, color: 'var(--color-text-secondary)', direction: 'ltr' }}>
-                      {dispQty} {unitLbl}/كغ
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setRecipe((r) => r.filter((_, i) => i !== idx))}
-                      style={{ background: 'none', border: 'none', color: 'var(--color-danger-light)', cursor: 'pointer', fontSize: 14 }}
-                    >✕</button>
-                  </div>
-                )
-              })}
-
-              {/* Add ingredient */}
-              {!ingPicked ? (
-                <div>
-                  <input
-                    className="input"
-                    placeholder="🔍 ابحث عن مكوّن (سكر، سمن، علب...)"
-                    value={ingSearch}
-                    onChange={(e) => setIngSearch(e.target.value)}
-                  />
-                  {ingSearch.trim() && (
-                    <div style={{
-                      marginTop: 6, maxHeight: 150, overflowY: 'auto',
-                      background: 'var(--color-bg-elevated)',
-                      border: '1px solid var(--color-border)', borderRadius: 10,
-                    }}>
-                      {allProducts
-                        .filter((p) =>
-                          p.id !== product?.id &&
-                          getProductType(p) !== 'service' &&
-                          !recipe.some((r) => r.productId === p.id) &&
-                          (p.name.includes(ingSearch.trim()) || p.barcode.includes(ingSearch.trim()))
-                        )
-                        .slice(0, 6)
-                        .map((p) => {
-                          const pt = getProductType(p)
-                          return (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => {
-                                setIngPicked(p)
-                                setIngUnit(pt === 'weighted' ? 'kg' : 'piece')
-                                setIngQty(pt === 'weighted' ? '0.5' : '1')
-                              }}
-                              style={{
-                                width: '100%', padding: '9px 12px', border: 'none',
-                                borderBottom: '1px solid var(--color-border)',
-                                background: 'transparent', color: 'var(--color-text-primary)',
-                                display: 'flex', justifyContent: 'space-between',
-                                cursor: 'pointer', fontFamily: 'var(--font-main)', fontSize: 13,
-                              }}
-                            >
-                              <span><strong>{p.name}</strong> <span style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>({pt === 'weighted' ? 'موزون' : 'سلعة'})</span></span>
-                              <span style={{ color: 'var(--color-primary-light)', fontWeight: 800 }}>+ اختيار</span>
-                            </button>
-                          )
-                        })}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div style={{
-                  background: 'var(--color-bg-card)',
-                  border: '1.5px solid var(--color-primary)',
-                  borderRadius: 10, padding: 10,
-                  display: 'flex', flexDirection: 'column', gap: 8,
-                }}>
-                  <div style={{ fontSize: 13, fontWeight: 800 }}>{ingPicked.name}</div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <input
-                      className="input"
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={ingQty}
-                      onChange={(e) => setIngQty(e.target.value)}
-                      placeholder="الكمية لكل كغ"
-                      style={{ flex: 1 }}
-                    />
-                    {getProductType(ingPicked) === 'weighted' ? (
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        {(['kg', 'g'] as SaleUnit[]).map((u) => (
-                          <button
-                            key={u}
-                            type="button"
-                            onClick={() => setIngUnit(u)}
-                            style={{
-                              padding: '8px 12px', borderRadius: 8,
-                              border: ingUnit === u ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                              background: ingUnit === u ? 'var(--color-primary-glow)' : 'transparent',
-                              color: 'var(--color-text-primary)', fontWeight: 800, cursor: 'pointer',
-                              fontFamily: 'var(--font-main)',
-                            }}
-                          >
-                            {u === 'kg' ? 'كغ' : 'غ'}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 700 }}>قطعة</span>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const q = parseFloat(ingQty) || 0
-                        if (q <= 0 || !ingPicked.id) return
-                        const base = ingUnit === 'kg' ? Math.round(q * GRAMS_PER_KG) : q
-                        setRecipe((r) => [...r, {
-                          productId: ingPicked.id!,
-                          productName: ingPicked.name,
-                          qty: base,
-                          unit: getProductType(ingPicked) === 'weighted' ? ingUnit : 'piece',
-                        }])
-                        setIngPicked(null)
-                        setIngSearch('')
-                        setIngQty('1')
-                      }}
-                      className="btn btn-primary btn-sm"
-                      style={{ flex: 1 }}
-                    >
-                      ✓ إضافة للوصفة
-                    </button>
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => setIngPicked(null)}>
-                      إلغاء
-                    </button>
-                  </div>
-                </div>
-              )}
-              <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: 0 }}>
-                عند إنتاج دفعة تُخصم هذه الكميات × وزن الدفعة تلقائياً، وتُحسب تكلفة الكيلو من أسعار المكونات الحالية.
-              </p>
-            </div>
-          )}
 
           {/* Profit preview */}
           {form.salePrice && (form.costPrice || isService) && (

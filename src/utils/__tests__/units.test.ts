@@ -19,7 +19,6 @@ import {
   restoreStock,
   exceedsStock,
   unitStep,
-  recipeCost,
   averageCostPerKg,
   daysToExpiry,
   isExpired,
@@ -123,37 +122,9 @@ describe('المخزون', () => {
   })
 })
 
-describe('وصفات الإنتاج', () => {
-  const sugar = goods({ id: 10, name: 'سكر', type: 'weighted', quantity: 5000, costPrice: 4 })
-  const boxes = goods({ id: 11, name: 'علب', quantity: 100, costPrice: 1 })
-  const byId = new Map([[10, sugar], [11, boxes]])
-  // وصفة 1 كغ كنافة: 600غ سكر + علبتان
-  const recipe = [
-    { productId: 10, productName: 'سكر', qty: 600, unit: 'g' as const },
-    { productId: 11, productName: 'علب', qty: 2, unit: 'piece' as const },
-  ]
-
-  it('تضرب الوصفة بوزن الدفعة وتحسب التكلفة', () => {
-    const c = recipeCost(recipe, byId, 5, 10)
-    // سكر: 600غ × 5 = 3000غ = 3كغ × 4 = 12 + علب: 10 × 1 = 10 → مواد 22 + هالك 10% = 24.2
-    expect(c.materialCost).toBe(22)
-    expect(c.totalCost).toBe(24.2)
-    expect(c.unitCostPerKg).toBe(4.84)
-    expect(c.feasible).toBe(true)
-    expect(c.lines[0].requiredBase).toBe(3000)
-  })
-
-  it('تكشف نقص المواد والمكوّنات المحذوفة', () => {
-    const c = recipeCost(recipe, byId, 20, 0)
-    expect(c.feasible).toBe(false) // سكر يحتاج 12كغ والمتوفر 5كغ
-    expect(c.lines[0].enough).toBe(false)
-    const c2 = recipeCost([{ productId: 99, productName: 'مفقود', qty: 1, unit: 'piece' as const }], byId, 1, 0)
-    expect(c2.feasible).toBe(false)
-    expect(c2.missingNames).toEqual(['مفقود'])
-  })
-
-  it('متوسط التكلفة المرجح', () => {
-    // مخزون 2كغ بتكلفة 4 + إنتاج 3كغ بتكلفة 5 → (8+15)/5 = 4.6
+describe('متوسط التكلفة المرجح', () => {
+  it('متوسط التكلفة المرجح للتوريد أو الشراء', () => {
+    // مخزون 2كغ بتكلفة 4 + توريد 3كغ بتكلفة 5 → (8+15)/5 = 4.6
     expect(averageCostPerKg(2, 4, 3, 5)).toBe(4.6)
     expect(averageCostPerKg(0, 0, 3, 5)).toBe(5)
     // يعمل للقطع أيضاً: 10 قطع بتكلفة 3 + توريد 10 بتكلفة 5 → 4

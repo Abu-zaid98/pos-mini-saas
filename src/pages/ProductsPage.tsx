@@ -4,8 +4,6 @@ import { useCategories } from '../hooks/useCategories'
 import { ProductForm } from '../components/products/ProductForm'
 import { CategoryManagerModal } from '../components/products/CategoryManagerModal'
 import { QuickRestockModal } from '../components/products/QuickRestockModal'
-import { ProductionModal } from '../components/products/ProductionModal'
-import { useProductions, deleteProduction } from '../hooks/useProductions'
 import { PurchasesPage } from './PurchasesPage'
 import { BarcodeScanner } from '../components/ui/BarcodeScanner'
 import { Badge } from '../components/ui/Badge'
@@ -14,7 +12,7 @@ import { PRODUCT_TYPES } from '../db/db'
 import { getProductType, isLowStock, isOutOfStock, stockLabel, isExpired, isNearExpiry, daysToExpiry, formatServiceDuration } from '../utils/units'
 
 export function ProductsPage() {
-  const [mainTab, setMainTab] = useState<'inventory' | 'production' | 'purchases'>('inventory')
+  const [mainTab, setMainTab] = useState<'inventory' | 'purchases'>('inventory')
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -25,10 +23,6 @@ export function ProductsPage() {
   const [scannedBarcode, setScannedBarcode] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<Product | null>(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
-  const [produceProduct, setProduceProduct] = useState<Product | null>(null)
-  const [productionModalOpen, setProductionModalOpen] = useState(false)
-  const [productionToDelete, setProductionToDelete] = useState<number | null>(null)
-  const productions = useProductions()
 
   // التبديل بين التبويبات يبدأ دائماً من الأعلى — وإلا يقفز تبويب قصير (كالإنتاج) لمنتصف الفراغ
   useEffect(() => {
@@ -112,31 +106,6 @@ export function ProductsPage() {
 
         <button
           type="button"
-          onClick={() => setMainTab('production')}
-          style={{
-            flex: 1,
-            padding: '10px 14px',
-            borderRadius: 10,
-            border: 'none',
-            background: mainTab === 'production' ? 'var(--color-primary)' : 'transparent',
-            color: mainTab === 'production' ? '#fff' : 'var(--color-text-secondary)',
-            fontSize: 12,
-            fontWeight: 800,
-            cursor: 'pointer',
-            fontFamily: 'var(--font-main)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            transition: 'all 0.15s ease',
-          }}
-        >
-          <span>🏭</span>
-          <span>سجل الإنتاج</span>
-        </button>
-
-        <button
-          type="button"
           onClick={() => setMainTab('purchases')}
           style={{
             flex: 1,
@@ -163,59 +132,6 @@ export function ProductsPage() {
 
       {mainTab === 'purchases' ? (
         <PurchasesPage />
-      ) : mainTab === 'production' ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {productions.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">🏭</div>
-              <p style={{ fontSize: 15, fontWeight: 700 }}>لا توجد دفعات إنتاج بعد</p>
-              <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                من بطاقة أي منتج موزون بوصفة اضغط "إنتاج دفعة"
-              </p>
-            </div>
-          ) : (
-            productions.map((prod) => (
-              <div
-                key={prod.id}
-                style={{
-                  background: 'var(--color-bg-card)',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 14,
-                  padding: '12px 14px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 10,
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800 }}>
-                    🏭 {prod.productName} — {(prod.producedQty / 1000).toFixed(2)} كغ
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 3 }}>
-                    {new Date(prod.date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
-                    {' · '}تكلفة الكيلو: {prod.unitCost.toFixed(2)} ₪
-                    {' · '}الإجمالي: {prod.totalCost.toFixed(2)} ₪
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setProductionToDelete(prod.id!)}
-                  title="حذف الدفعة وعكس أثرها على المخزون"
-                  style={{
-                    width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-                    background: 'rgba(239,68,68,0.1)',
-                    border: '1px solid rgba(239,68,68,0.25)',
-                    color: 'var(--color-danger-light)',
-                    cursor: 'pointer', fontSize: 15,
-                  }}
-                >
-                  🗑️
-                </button>
-              </div>
-            ))
-          )}
-        </div>
       ) : (
         <>
           {/* Stats bar */}
@@ -507,42 +423,6 @@ export function ProductsPage() {
                       </div>
                     </div>
 
-                    {/* Produce button for weighted items */}
-                    {pType === 'weighted' && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProduceProduct(p)
-                          setProductionModalOpen(true)
-                        }}
-                        title={p.recipe && p.recipe.length > 0 ? 'تسجيل دفعة إنتاج جديدة' : 'أضف وصفة أولاً من تعديل المنتج'}
-                        style={{
-                          width: '100%',
-                          height: 40,
-                          borderRadius: 10,
-                          background: p.recipe && p.recipe.length > 0
-                            ? 'linear-gradient(135deg, rgba(139,92,246,0.25), rgba(59,130,246,0.25))'
-                            : 'rgba(255,255,255,0.04)',
-                          border: '1.5px solid rgba(139,92,246,0.45)',
-                          color: 'var(--color-purple-light)',
-                          fontWeight: 800,
-                          fontSize: 13,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          gap: 6,
-                          fontFamily: 'var(--font-main)',
-                        }}
-                      >
-                        <span>🏭</span>
-                        <span>
-                          {p.recipe && p.recipe.length > 0
-                            ? `إنتاج دفعة (${p.recipe.length} مكونات)`
-                            : 'إنتاج دفعة — أضف الوصفة أولاً'}
-                        </span>
-                      </button>
-                    )}
 
                     {/* Bottom Action Bar: Horizontal, wide, and comfortable */}
                     <div style={{
@@ -687,50 +567,7 @@ export function ProductsPage() {
         product={restockProduct}
       />
 
-      {/* Production Modal */}
-      <ProductionModal
-        open={productionModalOpen}
-        onClose={() => { setProductionModalOpen(false); setProduceProduct(null) }}
-        product={produceProduct}
-      />
 
-      {/* Delete production confirm (reverts stock effect) */}
-      {productionToDelete !== null && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 100,
-          background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        }}
-          onClick={() => setProductionToDelete(null)}
-        >
-          <div
-            style={{
-              background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)',
-              borderRadius: 20, padding: 24, width: '100%', maxWidth: 340, textAlign: 'center',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🏭</div>
-            <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>حذف دفعة الإنتاج؟</h3>
-            <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 20 }}>
-              سيتم إنقاص المنتج وإرجاع المواد الخام للمخزون تلقائياً
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <button
-                onClick={() => setProductionToDelete(null)}
-                className="btn btn-ghost"
-              >إلغاء</button>
-              <button
-                onClick={async () => {
-                  await deleteProduction(productionToDelete)
-                  setProductionToDelete(null)
-                }}
-                className="btn btn-danger"
-              >حذف وعكس الأثر</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Barcode scanner */}
       <BarcodeScanner
