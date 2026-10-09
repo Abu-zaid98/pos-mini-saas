@@ -519,6 +519,24 @@ p  { font-size: 13px; line-height: 1.55; }
   background: var(--color-bg-elevated); border: 1px solid var(--color-border-active);
   border-radius: 12px; box-shadow: var(--shadow-lg);
 }
+.custom-select-search {
+  position: sticky; top: 0; z-index: 2;
+  padding: 2px 2px 6px;
+  background: var(--color-bg-elevated);
+}
+.custom-select-search input {
+  width: 100%; min-height: 40px; padding: 8px 12px;
+  background: var(--color-input-bg); color: var(--color-text-primary);
+  border: 1.5px solid var(--color-border); border-radius: 10px;
+  font: 600 clamp(12.5px, 2.6vw, 13.5px) var(--font-main);
+  outline: none; box-sizing: border-box;
+}
+.custom-select-search input:focus { border-color: var(--color-primary); }
+.custom-select-search input::placeholder { color: var(--color-text-muted); }
+.custom-select-empty {
+  padding: 14px 10px; text-align: center;
+  color: var(--color-text-muted); font-size: 13px; font-weight: 600;
+}
 .custom-select-option {
   width: 100%; min-height: 42px; padding: 8px 10px; border: 0; border-radius: 8px;
   display: grid; grid-template-columns: 1fr auto; column-gap: 8px; align-items: center;

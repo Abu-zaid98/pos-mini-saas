@@ -1749,12 +1749,16 @@ export function SalePage() {
               <CustomSelect
                 value={selectedCustomerId}
                 placeholder="-- اختر العميل --"
+                searchable
                 onChange={setSelectedCustomerId}
-                options={customers.filter((customer) => customer.id !== undefined).map((customer) => ({
-                  value: customer.id!,
-                  label: customer.name,
-                  description: customer.totalDebt > 0 ? `رصيده الحالي: ${formatCurrency(customer.totalDebt)}` : 'لا يوجد دين حالي',
-                }))}
+                options={customers.filter((customer) => customer.id !== undefined).map((customer) => {
+                  const debtText = customer.totalDebt > 0 ? `رصيده الحالي: ${formatCurrency(customer.totalDebt)}` : 'لا يوجد دين حالي'
+                  return {
+                    value: customer.id!,
+                    label: customer.name,
+                    description: customer.phone ? `${customer.phone} · ${debtText}` : debtText,
+                  }
+                })}
               />
             </div>
 

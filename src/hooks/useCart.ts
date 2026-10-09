@@ -10,6 +10,10 @@ export interface CartItem extends InvoiceItem {
   packOptions?: SalePack[]
   /** معرّف فريد للسطر — يميّز وزنات متطابقة (3×100غ مرتين = سطران) */
   lineId: string
+  /** سعر الحبة الأصلي وقت الإضافة — للرجوع إليه عند إلغاء العبوة بدل اشتقاقه من سعرها */
+  basePrice?: number
+  /** تكلفة الحبة الأصلية وقت الإضافة */
+  baseCost?: number
 }
 
 export interface AddToCartInput {
@@ -57,6 +61,28 @@ function withLineIds(items: CartItem[]): CartItem[] {
     return it
   })
   return changed ? fixed : items
+}
+
+/**
+ * منطق تبديل العبوة النقي (قابل للاختبار): عند إلغاء العبوة يُسترجع
+ * سعر/تكلفة الحبة الأصليان المحفوظان وقت الإضافة — لا يُشتقان من سعر
+ * العبوة الذي قد يتضمن خصماً على الكمية (كان يظهر سعر التكلفة بدل البيع).
+ */
+export function applyPackChange(item: CartItem, pack: SalePack | null): CartItem {
+  const factorNow = item.pack?.factor ?? 1
+  // احتياطي للسطور القديمة المحفوظة قبل basePrice/baseCost
+  const piecePrice = item.basePrice ?? (Number(item.price) || 0) / factorNow
+  const pieceCost = item.baseCost ?? (Number(item.costPrice) || 0) / factorNow
+  if (!pack) {
+    return { ...item, pack: undefined, qty: 1, price: Math.round(piecePrice * 100) / 100, costPrice: Math.round(pieceCost * 100) / 100 }
+  }
+  return {
+    ...item,
+    pack,
+    qty: 1,
+    price: pack.price,
+    costPrice: Math.round(pieceCost * pack.factor * 100) / 100,
+  }
 }
 
 export function useCart() {
@@ -127,6 +153,8 @@ export function useCart() {
           durationMinutes: product.durationMinutes,
           pieces,
           lineId: genLineId(),
+          basePrice: price,
+          baseCost: costPrice,
         },
       ]
     })
@@ -160,27 +188,15 @@ export function useCart() {
   }
 
   /**
-   * تغيير عبوة البند (للسلع): تُشتق أسعار الحبة من السطر الحالي
-   * وتُعاد الكمية إلى 1 من العبوة الجديدة
+   * تغيير عبوة البند (للسلع): تُعاد الكمية إلى 1 من العبوة الجديدة،
+   * والأسعار عبر applyPackChange (استرجاع الأصلي عند إلغاء العبوة)
    */
   const updatePack = (productId: number, fromPackLabel: string | null, pack: SalePack | null, lineId?: string | null) => {
     setCartState((prev) =>
       prev.map((item) => {
         if (item.productId !== productId || getItemUnit(item) !== 'piece') return item
         if (lineId ? item.lineId !== lineId : (item.pack?.label ?? null) !== fromPackLabel) return item
-        const factorNow = item.pack?.factor ?? 1
-        const piecePrice = (Number(item.price) || 0) / factorNow
-        const pieceCost = (Number(item.costPrice) || 0) / factorNow
-        if (!pack) {
-          return { ...item, pack: undefined, qty: 1, price: Math.round(piecePrice * 100) / 100, costPrice: Math.round(pieceCost * 100) / 100 }
-        }
-        return {
-          ...item,
-          pack,
-          qty: 1,
-          price: pack.price,
-          costPrice: Math.round(pieceCost * pack.factor * 100) / 100,
-        }
+        return applyPackChange(item, pack)
       })
     )
   }

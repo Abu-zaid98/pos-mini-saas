@@ -13,15 +13,32 @@ interface CustomSelectProps<T extends string | number> {
   placeholder?: string
   label?: string
   disabled?: boolean
+  /** إظهار خانة بحث داخل القائمة (تصفية بالاسم والوصف — للعملاء: الاسم أو الرقم) */
+  searchable?: boolean
+  searchPlaceholder?: string
 }
 
 /** A small, touch-friendly replacement for the browser's native select. */
 export function CustomSelect<T extends string | number>({
   value, options, onChange, placeholder = 'اختر من القائمة', label, disabled = false,
+  searchable = false, searchPlaceholder = '🔍 بحث بالاسم أو الرقم...',
 }: CustomSelectProps<T>) {
   const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   const selected = options.find((option) => option.value === value)
+
+  const toggle = () => {
+    if (disabled) return
+    setQuery('')
+    setOpen((current) => !current)
+  }
+
+  const filtered = query.trim()
+    ? options.filter((option) =>
+      `${option.label} ${option.description ?? ''}`.toLowerCase().includes(query.trim().toLowerCase())
+    )
+    : options
 
   useEffect(() => {
     const close = (event: MouseEvent) => {
@@ -37,7 +54,7 @@ export function CustomSelect<T extends string | number>({
       <button
         type="button"
         className={`custom-select-trigger ${open ? 'is-open' : ''}`}
-        onClick={() => !disabled && setOpen((current) => !current)}
+        onClick={toggle}
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -47,20 +64,36 @@ export function CustomSelect<T extends string | number>({
       </button>
       {open && (
         <div className="custom-select-menu" role="listbox">
-          {options.map((option) => (
-            <button
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              className={`custom-select-option ${option.value === value ? 'is-selected' : ''}`}
-              key={String(option.value)}
-              onClick={() => { onChange(option.value); setOpen(false) }}
-            >
-              <span>{option.label}</span>
-              {option.description && <small>{option.description}</small>}
-              {option.value === value && <b>✓</b>}
-            </button>
-          ))}
+          {searchable && (
+            <div className="custom-select-search">
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
+                placeholder={searchPlaceholder}
+                aria-label="بحث في القائمة"
+              />
+            </div>
+          )}
+          {filtered.length === 0 ? (
+            <div className="custom-select-empty">لا توجد نتائج مطابقة</div>
+          ) : (
+            filtered.map((option) => (
+              <button
+                type="button"
+                role="option"
+                aria-selected={option.value === value}
+                className={`custom-select-option ${option.value === value ? 'is-selected' : ''}`}
+                key={String(option.value)}
+                onClick={() => { onChange(option.value); setQuery(''); setOpen(false) }}
+              >
+                <span>{option.label}</span>
+                {option.description && <small>{option.description}</small>}
+                {option.value === value && <b>✓</b>}
+              </button>
+            ))
+          )}
         </div>
       )}
     </div>
