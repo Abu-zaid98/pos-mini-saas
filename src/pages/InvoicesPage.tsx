@@ -178,17 +178,30 @@ export function InvoicesPage() {
       </section>
 
       <section className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
-          {quickPeriods.map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => { setPeriod(value); setFromDate(''); setToDate('') }}
-              style={{ flexShrink: 0, border: period === value ? '1px solid var(--color-primary)' : '1px solid var(--color-border)', background: period === value ? 'var(--color-primary-glow)' : 'var(--color-bg-card)', color: period === value ? 'var(--color-primary-light)' : 'var(--color-text-secondary)', borderRadius: 99, padding: '7px 13px', font: '700 12px var(--font-main)', cursor: 'pointer' }}
-            >
-              {label}
-            </button>
-          ))}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <CustomSelect
+            label="📅 الفترة"
+            value={period === 'custom' ? 'custom' : period}
+            onChange={(v) => {
+              if (v === 'custom') { setPeriod('custom'); return }
+              setPeriod(v as InvoicePeriod); setFromDate(''); setToDate('')
+            }}
+            options={[
+              ...quickPeriods.map(([value, label]) => ({ value, label })),
+              { value: 'custom' as InvoicePeriod, label: '↔ فترة مخصصة' },
+            ]}
+          />
+          <CustomSelect
+            label="🧾 نوع الدفع"
+            value={filter}
+            onChange={(v) => setFilter(v as InvoiceFilter)}
+            options={[
+              { value: 'all' as InvoiceFilter, label: 'الكل' },
+              { value: 'cash' as InvoiceFilter, label: 'مكتملة' },
+              { value: 'partial' as InvoiceFilter, label: 'جزئي' },
+              { value: 'debt' as InvoiceFilter, label: 'ديون' },
+            ]}
+          />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div className="input-wrap"><label className="input-label">من تاريخ</label><input className="input" type="date" value={fromDate} max={toDate || undefined} onChange={(e) => { setFromDate(e.target.value); setPeriod('custom') }} /></div>
@@ -215,12 +228,6 @@ export function InvoicesPage() {
           </button>
         </div>
       </section>
-
-      <div style={{ display: 'flex', gap: 7, overflowX: 'auto', paddingBottom: 2 }}>
-        {([['all', 'الكل'], ['cash', 'مكتملة'], ['partial', 'جزئي'], ['debt', 'ديون']] as [InvoiceFilter, string][]).map(([value, label]) => (
-          <button key={value} type="button" onClick={() => setFilter(value)} style={{ flexShrink: 0, border: filter === value ? '1px solid var(--color-primary)' : '1px solid var(--color-border)', background: filter === value ? 'var(--color-primary-glow)' : 'var(--color-bg-card)', color: filter === value ? 'var(--color-primary-light)' : 'var(--color-text-secondary)', borderRadius: 99, padding: '7px 13px', font: '700 12px var(--font-main)', cursor: 'pointer' }}>{label}</button>
-        ))}
-      </div>
 
       {visible.length === 0 ? <div className="empty-state"><div className="empty-icon">🧾</div><p>لا توجد فواتير مطابقة</p></div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>

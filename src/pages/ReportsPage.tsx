@@ -6,6 +6,7 @@ import { useExpenses } from '../hooks/useExpenses'
 import { formatCurrency } from '../utils/currency'
 import { formatLineQty, lineDiscountAmount } from '../utils/units'
 import { Modal } from '../components/ui/Modal'
+import { CustomSelect } from '../components/ui/CustomSelect'
 import { WalletDetailModal } from '../components/wallet/WalletDetailModal'
 import { type Invoice, type PaymentMethod, getPaymentMethodName, db } from '../db/db'
 import { useStoreName } from '../hooks/useStoreName'
@@ -167,41 +168,17 @@ export function ReportsPage() {
 
   // Period selector helper element
   const renderPeriodSelector = () => (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fit, minmax(90px, 1fr))',
-      gap: 6,
-      background: 'var(--kpi-period-bg)',
-      padding: 4,
-      borderRadius: 14,
-      border: '1px solid var(--color-border)',
-    }}>
-      {[
-        { key: 'today' as PeriodFilter, label: 'اليوم' },
-        { key: 'week' as PeriodFilter, label: 'آخر 7 أيام' },
-        { key: 'month' as PeriodFilter, label: 'هذا الشهر' },
-        { key: 'all' as PeriodFilter, label: 'الكل' },
-      ].map((tab) => (
-        <button
-          key={tab.key}
-          onClick={() => setPeriod(tab.key)}
-          style={{
-            padding: '8px 4px',
-            borderRadius: 10,
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: 700,
-            fontSize: 13,
-            fontFamily: 'var(--font-main)',
-            background: period === tab.key ? 'var(--color-primary)' : 'transparent',
-            color: period === tab.key ? 'white' : 'var(--color-text-muted)',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
+    <CustomSelect
+      label="📅 الفترة"
+      value={period}
+      onChange={(v) => setPeriod(v as PeriodFilter)}
+      options={[
+        { value: 'today' as PeriodFilter, label: 'اليوم' },
+        { value: 'week' as PeriodFilter, label: 'آخر 7 أيام' },
+        { value: 'month' as PeriodFilter, label: 'هذا الشهر' },
+        { value: 'all' as PeriodFilter, label: 'الكل' },
+      ]}
+    />
   )
 
   return (

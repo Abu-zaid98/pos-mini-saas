@@ -12,6 +12,7 @@ import {
   type CustomerLedgerItem,
 } from '../hooks/useCustomers'
 import { Modal } from '../components/ui/Modal'
+import { CustomSelect } from '../components/ui/CustomSelect'
 import { StatementPrintHost, downloadStatementCSV } from '../components/customer/StatementPrint'
 import { formatCurrency } from '../utils/currency'
 import { type Customer, type PaymentMethod, getPaymentMethodName } from '../db/db'
@@ -336,31 +337,16 @@ export function CustomersPage() {
       </div>
 
       {/* Filters */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {[
-          { key: 'all' as const, label: 'جميع العملاء' },
-          { key: 'debt' as const, label: 'عليهم ديون فقط' },
-          { key: 'settled' as const, label: 'حسابات مسددة' },
-        ].map((f) => (
-          <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            style={{
-              padding: '7px 14px',
-              borderRadius: 50,
-              border: filter === f.key ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-              background: filter === f.key ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
-              color: filter === f.key ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
-              fontSize: 13,
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontFamily: 'var(--font-main)',
-            }}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
+      <CustomSelect
+        label="تصفية العملاء"
+        value={filter}
+        onChange={(v) => setFilter(v as 'all' | 'debt' | 'settled')}
+        options={[
+          { value: 'all', label: 'جميع العملاء' },
+          { value: 'debt', label: 'عليهم ديون فقط' },
+          { value: 'settled', label: 'حسابات مسددة' },
+        ]}
+      />
 
       {/* Customers List */}
       {customers.length === 0 ? (
