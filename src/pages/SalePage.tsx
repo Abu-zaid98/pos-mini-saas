@@ -593,7 +593,7 @@ export function SalePage() {
               gap: 4,
               background:
                 activeTab === 'catalog'
-                  ? 'var(--color-primary)'
+                  ? 'var(--brand-gradient)'
                   : 'transparent',
               color:
                 activeTab === 'catalog'
@@ -620,7 +620,7 @@ export function SalePage() {
               fontFamily: 'var(--font-main)',
               background:
                 activeTab === 'cart'
-                  ? 'var(--color-primary)'
+                  ? 'var(--brand-gradient)'
                   : 'transparent',
               color:
                 activeTab === 'cart'
@@ -641,10 +641,10 @@ export function SalePage() {
                 background:
                   activeTab === 'cart'
                     ? 'white'
-                    : 'var(--color-primary)',
+                    : 'var(--brand-gradient)',
                 color:
                   activeTab === 'cart'
-                    ? 'var(--color-primary)'
+                    ? '#0b625b'
                     : 'white',
                 fontSize: 11,
                 fontWeight: 800,
@@ -671,9 +671,9 @@ export function SalePage() {
                 flexShrink: 0,
                 padding: '6px 12px',
                 borderRadius: 50,
-                border: activeCategory === '' ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                background: activeCategory === '' ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
-                color: activeCategory === '' ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
+                border: activeCategory === '' ? '1px solid transparent' : '1px solid var(--color-border)',
+                background: activeCategory === '' ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
+                color: activeCategory === '' ? '#fff' : 'var(--color-text-muted)',
                 fontSize: 12,
                 fontWeight: 600,
                 cursor: 'pointer',
@@ -697,9 +697,9 @@ export function SalePage() {
                     flexShrink: 0,
                     padding: '6px 12px',
                     borderRadius: 50,
-                    border: isActive ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                    background: isActive ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
-                    color: isActive ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
+                    border: isActive ? '1px solid transparent' : '1px solid var(--color-border)',
+                    background: isActive ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
+                    color: isActive ? '#fff' : 'var(--color-text-muted)',
                     fontSize: 12,
                     fontWeight: 600,
                     cursor: 'pointer',
@@ -1434,9 +1434,9 @@ export function SalePage() {
               style={{
                 padding: '10px',
                 borderRadius: 10,
-                border: discountType === 'fixed' ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                background: discountType === 'fixed' ? 'rgba(59,130,246,0.2)' : 'transparent',
-                color: discountType === 'fixed' ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
+                border: discountType === 'fixed' ? '1px solid transparent' : '1px solid var(--color-border)',
+                background: discountType === 'fixed' ? 'var(--brand-gradient)' : 'transparent',
+                color: discountType === 'fixed' ? '#fff' : 'var(--color-text-muted)',
                 fontWeight: 700,
                 fontSize: 13,
                 cursor: 'pointer',
@@ -1451,9 +1451,9 @@ export function SalePage() {
               style={{
                 padding: '10px',
                 borderRadius: 10,
-                border: discountType === 'percent' ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                background: discountType === 'percent' ? 'rgba(59,130,246,0.2)' : 'transparent',
-                color: discountType === 'percent' ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
+                border: discountType === 'percent' ? '1px solid transparent' : '1px solid var(--color-border)',
+                background: discountType === 'percent' ? 'var(--brand-gradient)' : 'transparent',
+                color: discountType === 'percent' ? '#fff' : 'var(--color-text-muted)',
                 fontWeight: 700,
                 fontSize: 13,
                 cursor: 'pointer',
@@ -1960,9 +1960,9 @@ export function SalePage() {
                       style={{
                         padding: '8px',
                         borderRadius: 8,
-                        border: paymentMethod === m.id ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                        background: paymentMethod === m.id ? 'rgba(59,130,246,0.2)' : 'transparent',
-                        color: paymentMethod === m.id ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
+                        border: paymentMethod === m.id ? '1px solid transparent' : '1px solid var(--color-border)',
+                        background: paymentMethod === m.id ? 'var(--brand-gradient)' : 'transparent',
+                        color: paymentMethod === m.id ? '#fff' : 'var(--color-text-secondary)',
                         fontSize: 12,
                         fontWeight: 700,
                         cursor: 'pointer',
@@ -2280,9 +2280,9 @@ export function SalePage() {
                   style={{
                     padding: '12px',
                     borderRadius: 12,
-                    border: weightUnit === u ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                    background: weightUnit === u ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
-                    color: 'var(--color-text-primary)',
+                    border: weightUnit === u ? '1px solid transparent' : '1px solid var(--color-border)',
+                    background: weightUnit === u ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
+                    color: weightUnit === u ? '#fff' : 'var(--color-text-primary)',
                     fontWeight: 800,
                     fontSize: 16,
                     cursor: 'pointer',
@@ -2304,9 +2304,9 @@ export function SalePage() {
                   style={{
                     padding: '8px 14px',
                     borderRadius: 99,
-                    border: weightQty === v ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                    background: weightQty === v ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
-                    color: 'var(--color-text-primary)',
+                    border: weightQty === v ? '1px solid transparent' : '1px solid var(--color-border)',
+                    background: weightQty === v ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
+                    color: weightQty === v ? '#fff' : 'var(--color-text-primary)',
                     fontWeight: 700,
                     fontSize: 13,
                     cursor: 'pointer',

@@ -87,7 +87,7 @@ export function ProductsPage() {
             padding: '10px 14px',
             borderRadius: 10,
             border: 'none',
-            background: mainTab === 'inventory' ? 'var(--color-primary)' : 'transparent',
+            background: mainTab === 'inventory' ? 'var(--brand-gradient)' : 'transparent',
             color: mainTab === 'inventory' ? '#fff' : 'var(--color-text-secondary)',
             fontSize: 12,
             fontWeight: 800,
@@ -112,7 +112,7 @@ export function ProductsPage() {
             padding: '10px 14px',
             borderRadius: 10,
             border: 'none',
-            background: mainTab === 'purchases' ? 'var(--color-primary)' : 'transparent',
+            background: mainTab === 'purchases' ? 'var(--brand-gradient)' : 'transparent',
             color: mainTab === 'purchases' ? '#fff' : 'var(--color-text-secondary)',
             fontSize: 12,
             fontWeight: 800,
@@ -126,7 +126,7 @@ export function ProductsPage() {
           }}
         >
           <span>📥</span>
-          <span>فواتير وسجل التوريد</span>
+          <span>فواتير وسجل المشتريات</span>
         </button>
       </div>
 
@@ -276,9 +276,9 @@ export function ProductsPage() {
                 flexShrink: 0,
                 padding: '6px 14px',
                 borderRadius: 50,
-                border: activeCategory === '' ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                background: activeCategory === '' ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
-                color: activeCategory === '' ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
+                border: activeCategory === '' ? '1px solid transparent' : '1px solid var(--color-border)',
+                background: activeCategory === '' ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
+                color: activeCategory === '' ? '#fff' : 'var(--color-text-muted)',
                 fontSize: 12, fontWeight: 700, cursor: 'pointer',
                 fontFamily: 'var(--font-main)',
                 display: 'flex', alignItems: 'center', gap: 5,
@@ -298,9 +298,9 @@ export function ProductsPage() {
                     flexShrink: 0,
                     padding: '6px 14px',
                     borderRadius: 50,
-                    border: isActive ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                    background: isActive ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
-                    color: isActive ? 'var(--color-primary-light)' : 'var(--color-text-muted)',
+                    border: isActive ? '1px solid transparent' : '1px solid var(--color-border)',
+                    background: isActive ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
+                    color: isActive ? '#fff' : 'var(--color-text-muted)',
                     fontSize: 12, fontWeight: 700, cursor: 'pointer',
                     fontFamily: 'var(--font-main)',
                     display: 'flex', alignItems: 'center', gap: 5,

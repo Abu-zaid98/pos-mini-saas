@@ -73,7 +73,7 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
       setConfirm({
         kind: 'purchase',
         refId: entry.refId,
-        title: 'حذف سجل التوريد',
+        title: 'حذف سجل الشراء',
         message: `هل تريد حذف "${entry.title}" (${formatCurrency(entry.amount)})؟`,
         subMessage: 'سيُحذف السجل المالي وتُخصم الكميات الموردة من المخزون تلقائياً.',
         confirmText: 'تأكيد الحذف',

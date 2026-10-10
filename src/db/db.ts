@@ -308,6 +308,15 @@ export interface Purchase {
   createdAt: Date
 }
 
+/** سجل مورد مسجل — الحسابات تُجمّع من فواتير الشراء بالاسم */
+export interface Supplier {
+  id?: number
+  name: string
+  phone?: string
+  notes?: string
+  createdAt: Date
+}
+
 // ===========================
 // Database
 // ===========================
@@ -322,6 +331,7 @@ export class PosDatabase extends Dexie {
   purchases!: EntityTable<Purchase, 'id'>
   productions!: EntityTable<Production, 'id'>
   transfers!: EntityTable<WalletTransfer, 'id'>
+  suppliers!: EntityTable<Supplier, 'id'>
 
   constructor() {
     super('MallBilToulPOS')
@@ -409,6 +419,20 @@ export class PosDatabase extends Dexie {
       purchases: '++id, supplierName, date, createdAt',
       productions: '++id, productId, date, createdAt',
       transfers: '++id, fromMethod, toMethod, date, createdAt',
+    })
+
+    // Version 9: suppliers registry (سجل الموردين — الحسابات تُجمّع من الفواتير بالاسم)
+    this.version(9).stores({
+      products: '++id, barcode, name, category',
+      customers: '++id, name, phone',
+      invoices: '++id, customerId, createdAt, paymentType, paymentMethod',
+      payments: '++id, customerId, invoiceId, createdAt, method',
+      settings: 'key',
+      expenses: '++id, category, date, paymentMethod, createdAt',
+      purchases: '++id, supplierName, date, createdAt',
+      productions: '++id, productId, date, createdAt',
+      transfers: '++id, fromMethod, toMethod, date, createdAt',
+      suppliers: '++id, &name, createdAt',
     })
   }
 }

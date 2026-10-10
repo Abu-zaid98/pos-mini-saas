@@ -69,7 +69,7 @@ export async function addQuickRestock(params: {
 
     // 3. Record purchase invoice
     return db.purchases.add({
-      supplierName: params.supplierName?.trim() || 'توريد سريع',
+      supplierName: params.supplierName?.trim() || 'شراء سريع',
       items: [item],
       totalAmount: totalCost,
       paidAmount: paid,

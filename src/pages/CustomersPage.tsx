@@ -756,9 +756,9 @@ export function CustomersPage() {
                     style={{
                       padding: '8px 10px',
                       borderRadius: 10,
-                      border: paymentMethod === m.id ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                      background: paymentMethod === m.id ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
-                      color: paymentMethod === m.id ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
+                      border: paymentMethod === m.id ? '1px solid transparent' : '1px solid var(--color-border)',
+                      background: paymentMethod === m.id ? 'var(--brand-gradient)' : 'rgba(255,255,255,0.04)',
+                      color: paymentMethod === m.id ? '#fff' : 'var(--color-text-secondary)',
                       fontSize: 12,
                       fontWeight: 700,
                       cursor: 'pointer',

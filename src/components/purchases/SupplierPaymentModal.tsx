@@ -74,7 +74,7 @@ export function SupplierPaymentModal({ open, purchase, onClose, onSuccess }: Sup
     <Modal
       open={open}
       onClose={onClose}
-      title={`💳 سداد دفعة للمورد — ${purchase.supplierName || 'فاتورة توريد'}`}
+      title={`💳 سداد دفعة للمورد — ${purchase.supplierName || 'فاتورة شراء'}`}
       type="sheet"
     >
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

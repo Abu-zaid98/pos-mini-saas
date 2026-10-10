@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface SelectOption<T extends string | number> {
   value: T
@@ -18,21 +19,79 @@ interface CustomSelectProps<T extends string | number> {
   searchPlaceholder?: string
 }
 
-/** A small, touch-friendly replacement for the browser's native select. */
+const MENU_MAX_H = 260
+
+/**
+ * بديل مخصص لمنسدلة النظام — يعمل بهوية البرنامج في الثيمين.
+ * القائمة تُرسم عبر Portal بإحداثيات ثابتة، فلا يقصّها أي كارد
+ * (overflow:hidden) أو مودال أو حاوية تمرير في أي صفحة.
+ */
 export function CustomSelect<T extends string | number>({
   value, options, onChange, placeholder = 'اختر من القائمة', label, disabled = false,
   searchable = false, searchPlaceholder = '🔍 بحث بالاسم أو الرقم...',
 }: CustomSelectProps<T>) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({})
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const selected = options.find((option) => option.value === value)
+
+  const close = () => {
+    setOpen(false)
+    setQuery('')
+  }
+
+  const placeMenu = () => {
+    const el = triggerRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const maxH = Math.min(MENU_MAX_H, Math.floor(window.innerHeight * 0.4))
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    const openUp = spaceBelow < 160 && rect.top > spaceBelow
+    const width = Math.max(rect.width, 160)
+    const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - width - 8))
+    setMenuStyle({
+      position: 'fixed',
+      zIndex: 400,
+      width,
+      maxHeight: maxH,
+      left,
+      right: 'auto', // يُبطل inset-inline من كلاس القائمة (صفحة RTL)
+      ...(openUp
+        ? { bottom: Math.max(8, window.innerHeight - rect.top + 5) }
+        : { top: rect.bottom + 5 }),
+    })
+  }
 
   const toggle = () => {
     if (disabled) return
+    if (open) {
+      close()
+      return
+    }
     setQuery('')
-    setOpen((current) => !current)
+    placeMenu()
+    setOpen(true)
   }
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (event: MouseEvent) => {
+      const t = event.target as Node
+      if (!menuRef.current?.contains(t) && !wrapRef.current?.contains(t)) close()
+    }
+    const onScrollResize = () => close()
+    document.addEventListener('mousedown', onDown)
+    window.addEventListener('scroll', onScrollResize, true)
+    window.addEventListener('resize', onScrollResize)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('scroll', onScrollResize, true)
+      window.removeEventListener('resize', onScrollResize)
+    }
+  }, [open ])
 
   const filtered = query.trim()
     ? options.filter((option) =>
@@ -40,18 +99,11 @@ export function CustomSelect<T extends string | number>({
     )
     : options
 
-  useEffect(() => {
-    const close = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', close)
-    return () => document.removeEventListener('mousedown', close)
-  }, [])
-
   return (
-    <div className="custom-select" ref={ref}>
+    <div className="custom-select" ref={wrapRef}>
       {label && <label className="input-label">{label}</label>}
       <button
+        ref={triggerRef}
         type="button"
         className={`custom-select-trigger ${open ? 'is-open' : ''}`}
         onClick={toggle}
@@ -62,15 +114,15 @@ export function CustomSelect<T extends string | number>({
         <span className={selected ? '' : 'custom-select-placeholder'}>{selected?.label ?? placeholder}</span>
         <span className="custom-select-chevron">⌄</span>
       </button>
-      {open && (
-        <div className="custom-select-menu" role="listbox">
+      {open && createPortal(
+        <div className="custom-select-menu" role="listbox" ref={menuRef} style={menuStyle}>
           {searchable && (
             <div className="custom-select-search">
               <input
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false) }}
+                onKeyDown={(e) => { if (e.key === 'Escape') close() }}
                 placeholder={searchPlaceholder}
                 aria-label="بحث في القائمة"
               />
@@ -86,7 +138,7 @@ export function CustomSelect<T extends string | number>({
                 aria-selected={option.value === value}
                 className={`custom-select-option ${option.value === value ? 'is-selected' : ''}`}
                 key={String(option.value)}
-                onClick={() => { onChange(option.value); setQuery(''); setOpen(false) }}
+                onClick={() => { onChange(option.value); close() }}
               >
                 <span>{option.label}</span>
                 {option.description && <small>{option.description}</small>}
@@ -94,7 +146,8 @@ export function CustomSelect<T extends string | number>({
               </button>
             ))
           )}
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

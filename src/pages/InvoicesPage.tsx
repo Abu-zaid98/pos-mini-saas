@@ -284,7 +284,7 @@ export function InvoicesPage() {
               onClick={() => setViewMode(mode)}
               style={{
                 flex: 1, padding: '10px', borderRadius: 10, border: 'none',
-                background: viewMode === mode ? 'var(--color-primary)' : 'transparent',
+                background: viewMode === mode ? 'var(--brand-gradient)' : 'transparent',
                 color: viewMode === mode ? 'white' : 'var(--color-text-secondary)',
                 fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-main)',
               }}

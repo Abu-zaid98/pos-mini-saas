@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { usePurchases, addPurchaseInvoice, deletePurchase } from '../hooks/usePurchases'
+import { useSupplierNames } from '../hooks/useSuppliers'
 import { useProducts } from '../hooks/useProducts'
 import { useAccountBalances } from '../hooks/useInvoices'
 import { getPaymentMethodName, PAYMENT_METHODS, type PaymentMethod, type PaymentType, type Product } from '../db/db'
@@ -17,6 +18,7 @@ export function PurchasesPage() {
   const purchases = usePurchases()
   const allProducts = useProducts()
   const balances = useAccountBalances()
+  const supplierNames = useSupplierNames()
 
   const [purchaseToDelete, setPurchaseToDelete] = useState<number | null>(null)
   const [deletingPurchase, setDeletingPurchase] = useState(false)
@@ -128,7 +130,7 @@ export function PurchasesPage() {
     setFormError('')
 
     if (selectedItems.length === 0) {
-      setFormError('يرجى إضافة صنف واحد على الأقل لفاتورة التوريد')
+      setFormError('يرجى إضافة صنف واحد على الأقل لفاتورة الشراء')
       return
     }
 
@@ -195,7 +197,7 @@ export function PurchasesPage() {
             {purchases.length}
           </div>
           <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-            عمليات التوريد
+            عمليات الشراء
           </div>
         </div>
 
@@ -211,7 +213,7 @@ export function PurchasesPage() {
             {totalItemsCount}
           </div>
           <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-            إجمالي القطع الموردة
+            إجمالي القطع المشتراة
           </div>
         </div>
 
@@ -250,7 +252,7 @@ export function PurchasesPage() {
             padding: '10px',
             borderRadius: 10,
             border: 'none',
-            background: activeTab === 'history' ? 'var(--color-primary)' : 'transparent',
+            background: activeTab === 'history' ? 'var(--brand-gradient)' : 'transparent',
             color: activeTab === 'history' ? '#fff' : 'var(--color-text-secondary)',
             fontSize: 11,
             fontWeight: 700,
@@ -258,7 +260,7 @@ export function PurchasesPage() {
             transition: 'all 0.15s ease',
           }}
         >
-          📜 سجل المشتريات والتوريدات ({purchases.length})
+          📜 سجل المشتريات ({purchases.length})
         </button>
 
         <button
@@ -269,7 +271,7 @@ export function PurchasesPage() {
             padding: '10px',
             borderRadius: 10,
             border: 'none',
-            background: activeTab === 'new' ? 'var(--color-primary)' : 'transparent',
+            background: activeTab === 'new' ? 'var(--brand-gradient)' : 'transparent',
             color: activeTab === 'new' ? '#fff' : 'var(--color-text-secondary)',
             fontSize: 11,
             fontWeight: 700,
@@ -277,7 +279,7 @@ export function PurchasesPage() {
             transition: 'all 0.15s ease',
           }}
         >
-          ➕ فاتورة توريد جديدة
+          ➕ فاتورة شراء جديدة
         </button>
       </div>
 
@@ -327,7 +329,7 @@ export function PurchasesPage() {
                 {search ? 'لا توجد فواتير مطابقة لبحثك' : 'لا توجد فواتير مشتريات مسجلة بعد'}
               </p>
               <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                {search ? 'جرّب كلمة بحث أخرى' : 'اضغط على "فاتورة توريد جديدة" أو زر "توريد" بجانب أي صنف في صفحة المنتجات'}
+                {search ? 'جرّب كلمة بحث أخرى' : 'اضغط على "فاتورة شراء جديدة" أو زر "توريد" بجانب أي صنف في صفحة المنتجات'}
               </p>
             </div>
           ) : (
@@ -364,7 +366,7 @@ export function PurchasesPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ fontSize: 18 }}>📥</span>
                           <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-primary)' }}>
-                            {purchase.supplierName || 'توريد عام'}
+                            {purchase.supplierName || 'شراء عام'}
                           </span>
                           {purchase.invoiceNumber && (
                             <span style={{
@@ -539,16 +541,38 @@ export function PurchasesPage() {
             gap: 12,
           }}>
             <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--color-text-primary)' }}>
-              1. بيانات التوريد والمورد
+              1. بيانات الشراء والمورد
             </h3>
 
             <div className="form-grid-two">
-              <Input
-                label="اسم المورد أو الشركة"
-                placeholder="مثال: شركة سنقرط، شركة المشروبات..."
-                value={supplierName}
-                onChange={(e) => setSupplierName(e.target.value)}
-              />
+              <div>
+                <Input
+                  label="اسم المورد أو الشركة"
+                  placeholder="مثال: شركة سنقرط، شركة المشروبات..."
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                />
+                {supplierNames.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, marginTop: 6 }}>
+                    {supplierNames.map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setSupplierName(n)}
+                        style={{
+                          flexShrink: 0, padding: '4px 12px', borderRadius: 50,
+                          border: supplierName.trim() === n ? '1px solid transparent' : '1px solid var(--color-border)',
+                          background: supplierName.trim() === n ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
+                          color: supplierName.trim() === n ? '#fff' : 'var(--color-text-muted)',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-main)',
+                        }}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               <Input
                 label="رقم فاتورة المورد (اختياري)"
@@ -583,6 +607,12 @@ export function PurchasesPage() {
                     { id: 'partial' as PaymentType, label: '⚖️ جزئي' },
                   ].map((t) => {
                     const active = paymentType === t.id
+                    const activeStyle =
+                      t.id === 'debt'
+                        ? { border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.15)', color: 'var(--color-danger-light)' }
+                        : t.id === 'partial'
+                          ? { border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.12)', color: 'var(--color-warning-light)' }
+                          : { border: '1px solid transparent', background: 'var(--brand-gradient)', color: '#fff' }
                     return (
                       <button
                         key={t.id}
@@ -591,9 +621,9 @@ export function PurchasesPage() {
                         style={{
                           padding: '8px 4px',
                           borderRadius: 8,
-                          border: active ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                          background: active ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
-                          color: active ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
+                          border: active ? activeStyle.border : '1px solid var(--color-border)',
+                          background: active ? activeStyle.background : 'var(--color-bg-card)',
+                          color: active ? activeStyle.color : 'var(--color-text-secondary)',
                           fontSize: 11,
                           fontWeight: 700,
                           cursor: 'pointer',
@@ -681,7 +711,7 @@ export function PurchasesPage() {
             gap: 12,
           }}>
             <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--color-text-primary)' }}>
-              2. اختيار الأصناف للتوريد
+              2. اختيار الأصناف للشراء
             </h3>
 
             {/* Search / Scan bar / Add Product button */}
@@ -863,7 +893,7 @@ export function PurchasesPage() {
                 border: '1px dashed var(--color-border)',
                 borderRadius: 10,
               }}>
-                لم تقم بإضافة أي أصناف بعد. ابحث في الحقل أعلاه لإضافة الأصناف الموردة.
+                لم تقم بإضافة أي أصناف بعد. ابحث في الحقل أعلاه لإضافة الأصناف المشتراة.
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -985,7 +1015,7 @@ export function PurchasesPage() {
                     alignItems: 'center',
                   }}>
                     <div>
-                      <span style={{ fontSize: 14, fontWeight: 700 }}>إجمالي فاتورة التوريد</span>
+                      <span style={{ fontSize: 14, fontWeight: 700 }}>إجمالي فاتورة الشراء</span>
                       <span style={{ fontSize: 12, color: 'var(--color-text-muted)', marginRight: 8 }}>
                         ({selectedItems.length} أصناف)
                       </span>
@@ -1048,7 +1078,7 @@ export function PurchasesPage() {
             loading={submitting}
             style={{ height: 50, borderRadius: 14, fontSize: 16 }}
           >
-            ✓ حفظ فاتورة التوريد وتحديث المخزون
+            ✓ حفظ فاتورة الشراء وتحديث المخزون
           </Button>
         </form>
       )}
@@ -1099,13 +1129,13 @@ export function PurchasesPage() {
             setPurchaseToDelete(null)
           } catch (err) {
             console.error(err)
-            alert('حدث خطأ أثناء حذف سجل التوريد')
+            alert('حدث خطأ أثناء حذف سجل الشراء')
           } finally {
             setDeletingPurchase(false)
           }
         }}
         loading={deletingPurchase}
-        title="حذف سجل التوريد"
+        title="حذف سجل الشراء"
         icon="📦"
         message="هل أنت متأكد من حذف سجل هذه الفاتورة من الأرشيف؟"
         subMessage="سيتم حذف السجل المالي وخصم الكميات الموردة من المخزون تلقائياً."

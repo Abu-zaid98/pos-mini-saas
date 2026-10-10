@@ -200,7 +200,7 @@ export function buildWalletLedger(
           date,
           kind: 'out',
           source: 'purchase',
-          title: pur.supplierName?.trim() ? `توريد: ${pur.supplierName}` : 'دفعة توريد',
+          title: pur.supplierName?.trim() ? `شراء: ${pur.supplierName}` : 'دفعة شراء',
           sub: sp.notes || (pur.invoiceNumber ? `فاتورة #${pur.invoiceNumber}` : 'سداد دفعة للمورد'),
           amount: amt,
           refId: Number(pur.id),
@@ -216,7 +216,7 @@ export function buildWalletLedger(
         date: new Date(pur.date),
         kind: 'out',
         source: 'purchase',
-        title: pur.supplierName?.trim() ? `توريد: ${pur.supplierName}` : 'فاتورة توريد',
+        title: pur.supplierName?.trim() ? `شراء: ${pur.supplierName}` : 'فاتورة شراء',
         sub: pur.debtAmount && pur.debtAmount > 0
           ? `مدفوع ${paid} ₪ (متبقٍ دين ${pur.debtAmount} ₪)`
           : (pur.invoiceNumber?.trim() ? `رقم الفاتورة: ${pur.invoiceNumber}` : `${pur.items.length} صنف`),

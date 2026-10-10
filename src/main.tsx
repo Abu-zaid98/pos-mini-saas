@@ -14,6 +14,7 @@ import { ReportsPage } from './pages/ReportsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 import { PurchasesPage } from './pages/PurchasesPage'
+import { SuppliersPage } from './pages/SuppliersPage'
 import { ExpensesPage } from './pages/ExpensesPage'
 
 // لوحة التحكم تُحمّل عند الطلب فقط — لا تُثقل فتح الكاشير (code-splitting)
@@ -104,6 +105,7 @@ function PosApp() {
         <Route path="/" element={<SalePage />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/purchases" element={<PurchasesPage />} />
+        <Route path="/suppliers" element={<SuppliersPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/reports" element={<ReportsPage />} />

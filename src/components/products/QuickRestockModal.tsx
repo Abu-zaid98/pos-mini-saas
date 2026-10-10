@@ -4,6 +4,7 @@ import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { PAYMENT_METHODS, type Product, type PaymentMethod, type PaymentType } from '../../db/db'
 import { addQuickRestock } from '../../hooks/usePurchases'
+import { useSupplierNames } from '../../hooks/useSuppliers'
 import { useAccountBalances } from '../../hooks/useInvoices'
 import { formatCurrency } from '../../utils/currency'
 import { GRAMS_PER_KG, averageCostPerKg, getProductType } from '../../utils/units'
@@ -17,6 +18,7 @@ interface QuickRestockModalProps {
 
 export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRestockModalProps) {
   const balances = useAccountBalances()
+  const supplierNames = useSupplierNames()
   const [addedQty, setAddedQty] = useState('')
   const [costPrice, setCostPrice] = useState('')
   const [supplierName, setSupplierName] = useState('')
@@ -230,12 +232,34 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
 
         {/* Supplier & Date */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Input
-            label="اسم المورد / الشركة"
-            placeholder="مثال: شركة سند..."
-            value={supplierName}
-            onChange={(e) => setSupplierName(e.target.value)}
-          />
+          <div>
+            <Input
+              label="اسم المورد / الشركة"
+              placeholder="مثال: شركة سند..."
+              value={supplierName}
+              onChange={(e) => setSupplierName(e.target.value)}
+            />
+            {supplierNames.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, marginTop: 6 }}>
+                {supplierNames.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setSupplierName(n)}
+                    style={{
+                      flexShrink: 0, padding: '4px 12px', borderRadius: 50,
+                      border: supplierName.trim() === n ? '1px solid transparent' : '1px solid var(--color-border)',
+                      background: supplierName.trim() === n ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
+                      color: supplierName.trim() === n ? '#fff' : 'var(--color-text-muted)',
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-main)',
+                    }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div>
             <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>
@@ -263,6 +287,12 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
               { id: 'partial' as PaymentType, label: '⚖️ جزئي' },
             ].map((t) => {
               const active = paymentType === t.id
+              const activeStyle =
+                t.id === 'debt'
+                  ? { border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.15)', color: 'var(--color-danger-light)' }
+                  : t.id === 'partial'
+                    ? { border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.12)', color: 'var(--color-warning-light)' }
+                    : { border: '1px solid transparent', background: 'var(--brand-gradient)', color: '#fff' }
               return (
                 <button
                   key={t.id}
@@ -271,9 +301,9 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
                   style={{
                     padding: '8px 4px',
                     borderRadius: 8,
-                    border: active ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                    background: active ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
-                    color: active ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
+                    border: active ? activeStyle.border : '1px solid var(--color-border)',
+                    background: active ? activeStyle.background : 'var(--color-bg-card)',
+                    color: active ? activeStyle.color : 'var(--color-text-secondary)',
                     fontSize: 11,
                     fontWeight: 700,
                     cursor: 'pointer',
