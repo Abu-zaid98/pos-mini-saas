@@ -6,7 +6,8 @@ import { useExpenses } from '../hooks/useExpenses'
 import { formatCurrency } from '../utils/currency'
 import { formatLineQty, lineDiscountAmount } from '../utils/units'
 import { Modal } from '../components/ui/Modal'
-import { type Invoice, getPaymentMethodName, db } from '../db/db'
+import { WalletDetailModal } from '../components/wallet/WalletDetailModal'
+import { type Invoice, type PaymentMethod, getPaymentMethodName, db } from '../db/db'
 import { useStoreName } from '../hooks/useStoreName'
 import { useLiveQuery } from 'dexie-react-hooks'
 
@@ -17,6 +18,7 @@ export function ReportsPage() {
   const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('financial')
   const [period, setPeriod] = useState<PeriodFilter>('today')
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const [walletMethod, setWalletMethod] = useState<PaymentMethod | null>(null)
 
   const invoices = useInvoices({ dateRange: period })
   const allProducts = useProducts()
@@ -309,17 +311,29 @@ export function ReportsPage() {
               </span>
             </div>
 
+            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
+              أرصدة تراكمية (كل الفترات) — اضغط على أي محفظة لعرض حركاتها وحذف أو تعديل أي بند.
+            </p>
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {/* Cash */}
-              <div style={{
-                background: 'var(--color-input-bg)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 14,
-                padding: 12,
-              }}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setWalletMethod('cash')}
+                onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('cash') }}
+                title="عرض حركات الصندوق"
+                style={{
+                  background: 'var(--color-input-bg)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 14,
+                  padding: 12,
+                  cursor: 'pointer',
+                }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 16 }}>💵</span>
                   <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>رصيد الكاش (الصندوق)</span>
+                  <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-text-primary)', direction: 'ltr' }}>
                   {formatCurrency(balances.cash)}
@@ -327,15 +341,23 @@ export function ReportsPage() {
               </div>
 
               {/* Jawwal Pay */}
-              <div style={{
-                background: 'rgba(16,185,129,0.08)',
-                border: '1px solid rgba(16,185,129,0.25)',
-                borderRadius: 14,
-                padding: 12,
-              }}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setWalletMethod('jawwal_pay')}
+                onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('jawwal_pay') }}
+                title="عرض حركات جوال باي"
+                style={{
+                  background: 'rgba(16,185,129,0.08)',
+                  border: '1px solid rgba(16,185,129,0.25)',
+                  borderRadius: 14,
+                  padding: 12,
+                  cursor: 'pointer',
+                }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 16 }}>📱</span>
                   <span style={{ fontSize: 12, color: 'var(--color-success-light)', fontWeight: 600 }}>رصيد جوال باي</span>
+                  <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-success-light)', direction: 'ltr' }}>
                   {formatCurrency(balances.jawwal_pay)}
@@ -343,15 +365,23 @@ export function ReportsPage() {
               </div>
 
               {/* PalPay */}
-              <div style={{
-                background: 'rgba(139,92,246,0.08)',
-                border: '1px solid rgba(139,92,246,0.25)',
-                borderRadius: 14,
-                padding: 12,
-              }}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setWalletMethod('palpay')}
+                onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('palpay') }}
+                title="عرض حركات بال باي"
+                style={{
+                  background: 'rgba(139,92,246,0.08)',
+                  border: '1px solid rgba(139,92,246,0.25)',
+                  borderRadius: 14,
+                  padding: 12,
+                  cursor: 'pointer',
+                }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 16 }}>💳</span>
                   <span style={{ fontSize: 12, color: 'var(--color-purple-light)', fontWeight: 600 }}>رصيد بال باي (PalPay)</span>
+                  <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-purple-light)', direction: 'ltr' }}>
                   {formatCurrency(balances.palpay)}
@@ -359,15 +389,23 @@ export function ReportsPage() {
               </div>
 
               {/* Bank of Palestine */}
-              <div style={{
-                background: 'rgba(59,130,246,0.08)',
-                border: '1px solid rgba(59,130,246,0.25)',
-                borderRadius: 14,
-                padding: 12,
-              }}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => setWalletMethod('bop')}
+                onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('bop') }}
+                title="عرض حركات بنك فلسطين"
+                style={{
+                  background: 'rgba(59,130,246,0.08)',
+                  border: '1px solid rgba(59,130,246,0.25)',
+                  borderRadius: 14,
+                  padding: 12,
+                  cursor: 'pointer',
+                }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 16 }}>🏦</span>
                   <span style={{ fontSize: 12, color: 'var(--color-primary-light)', fontWeight: 600 }}>رصيد بنك فلسطين</span>
+                  <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
                 </div>
                 <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-primary-light)', direction: 'ltr' }}>
                   {formatCurrency(balances.bop)}
@@ -375,6 +413,10 @@ export function ReportsPage() {
               </div>
             </div>
           </div>
+
+          {walletMethod && (
+            <WalletDetailModal method={walletMethod} onClose={() => setWalletMethod(null)} />
+          )}
 
           {/* Period Selector Tabs */}
           {renderPeriodSelector()}

@@ -295,3 +295,24 @@ export async function recordPayment(data: {
     })
   })
 }
+
+/**
+ * حذف سند قبض مستقل (تحصيل دين — invoiceId فارغ) مع عكس أثره على دين العميل.
+ * دفعات البيع المرتبطة بفاتورة تُحذف فقط عبر حذف الفاتورة كاملة (deleteInvoice)
+ * حتى لا ينكسر تطابق paidAmount/debtAmount مع الفاتورة.
+ */
+export async function deleteCollectionPayment(paymentId: number) {
+  return db.transaction('rw', [db.customers, db.payments], async () => {
+    const payment = await db.payments.get(paymentId)
+    if (!payment) return
+    if (payment.invoiceId) {
+      throw new Error('دفعة بيع مرتبطة بفاتورة — احذف الفاتورة كاملة من سجل الفواتير')
+    }
+    const customer = await db.customers.get(payment.customerId)
+    if (customer) {
+      const nextBalance = normalizeCustomerBalance(customer.totalDebt || 0, customer.creditBalance || 0, Number(payment.amount) || 0)
+      await db.customers.update(payment.customerId, nextBalance)
+    }
+    await db.payments.delete(paymentId)
+  })
+}

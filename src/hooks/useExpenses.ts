@@ -91,10 +91,12 @@ export async function addExpense(data: {
   paymentMethod?: Expense['paymentMethod']
   notes?: string
 }) {
+  const amount = Math.abs(Number(data.amount))
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('يرجى إدخال مبلغ صحيح أكبر من الصفر')
   return db.expenses.add({
     title: data.title.trim(),
     category: data.category,
-    amount: Number(data.amount),
+    amount,
     date: data.date ?? new Date(),
     paymentMethod: data.paymentMethod ?? 'cash',
     notes: data.notes?.trim() ?? '',
@@ -104,6 +106,27 @@ export async function addExpense(data: {
 
 export async function deleteExpense(id: number) {
   return db.expenses.delete(id)
+}
+
+export async function updateExpense(id: number, data: {
+  title: string
+  category: string
+  amount: number
+  date?: Date
+  paymentMethod?: Expense['paymentMethod']
+  notes?: string
+}) {
+  const amount = Math.abs(Number(data.amount))
+  if (!data.title.trim()) throw new Error('يرجى كتابة بيان المصروف')
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('يرجى إدخال مبلغ صحيح أكبر من الصفر')
+  return db.expenses.update(id, {
+    title: data.title.trim(),
+    category: data.category,
+    amount,
+    date: data.date ?? new Date(),
+    paymentMethod: data.paymentMethod ?? 'cash',
+    notes: data.notes?.trim() ?? '',
+  })
 }
 
 export function getCategoryIcon(categoryName: string): string {

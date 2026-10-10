@@ -9,6 +9,7 @@ import {
   getPaymentMethodName,
 } from '../db/db'
 import { deductStock, getItemUnit, packPieces, restoreStock } from '../utils/units'
+import { computeBalances } from '../utils/wallet'
 
 export interface CreateSaleInput {
   customerId: number | null
@@ -143,13 +144,7 @@ export async function createSaleInvoice(data: CreateSaleInput): Promise<Invoice>
   })
 }
 
-export interface AccountBalances {
-  cash: number
-  jawwal_pay: number
-  palpay: number
-  bop: number
-  total: number
-}
+export type { AccountBalances } from '../utils/wallet'
 
 export function useAccountBalances() {
   const balances = useLiveQuery(async () => {
@@ -159,48 +154,8 @@ export function useAccountBalances() {
       db.expenses.toArray(),
     ])
 
-    const result: AccountBalances = {
-      cash: 0,
-      jawwal_pay: 0,
-      palpay: 0,
-      bop: 0,
-      total: 0,
-    }
-
-    // ➕ INCOMING: money received from sales
-    for (const p of payments) {
-      const amt = Number(p.amount) || 0
-      const method = p.method || 'cash'
-      if (method === 'jawwal_pay') result.jawwal_pay += amt
-      else if (method === 'palpay') result.palpay += amt
-      else if (method === 'bop') result.bop += amt
-      else result.cash += amt
-      result.total += amt
-    }
-
-    // ➖ OUTGOING: money paid for purchases/restocking
-    for (const pur of purchases) {
-      const amt = Number(pur.totalAmount) || 0
-      const method = pur.paymentMethod || 'cash'
-      if (method === 'jawwal_pay') result.jawwal_pay -= amt
-      else if (method === 'palpay') result.palpay -= amt
-      else if (method === 'bop') result.bop -= amt
-      else result.cash -= amt
-      result.total -= amt
-    }
-
-    // ➖ OUTGOING: money paid for operating expenses
-    for (const exp of expenses) {
-      const amt = Number(exp.amount) || 0
-      const method = exp.paymentMethod || 'cash'
-      if (method === 'jawwal_pay') result.jawwal_pay -= amt
-      else if (method === 'palpay') result.palpay -= amt
-      else if (method === 'bop') result.bop -= amt
-      else result.cash -= amt
-      result.total -= amt
-    }
-
-    return result
+    // المعادلة الوحيدة: داخل (+) payments، خارج (−) purchases + expenses
+    return computeBalances(payments, purchases, expenses)
   }, [])
 
   return balances ?? { cash: 0, jawwal_pay: 0, palpay: 0, bop: 0, total: 0 }
