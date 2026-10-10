@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { usePurchases, addPurchaseInvoice, deletePurchase } from '../hooks/usePurchases'
+import { useEffect, useState } from 'react'
+import { usePurchases, addPurchaseInvoice, deletePurchase, updatePurchaseMeta } from '../hooks/usePurchases'
 import { useSupplierNames } from '../hooks/useSuppliers'
 import { useProducts } from '../hooks/useProducts'
 import { useAccountBalances } from '../hooks/useInvoices'
@@ -12,7 +12,10 @@ import { BarcodeScanner } from '../components/ui/BarcodeScanner'
 import { ProductForm } from '../components/products/ProductForm'
 import { CustomSelect } from '../components/ui/CustomSelect'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { Modal } from '../components/ui/Modal'
 import { SupplierPaymentModal } from '../components/purchases/SupplierPaymentModal'
+import { PurchasePrint } from '../components/purchases/PurchasePrint'
+import { useStoreInfo } from '../components/invoice/InvoicePrint'
 
 export function PurchasesPage() {
   const purchases = usePurchases()
@@ -23,6 +26,63 @@ export function PurchasesPage() {
   const [purchaseToDelete, setPurchaseToDelete] = useState<number | null>(null)
   const [deletingPurchase, setDeletingPurchase] = useState(false)
   const [payingPurchase, setPayingPurchase] = useState<import('../db/db').Purchase | null>(null)
+  const [selectedPurchase, setSelectedPurchase] = useState<import('../db/db').Purchase | null>(null)
+  const [detailMode, setDetailMode] = useState<'view' | 'edit'>('view')
+  const [printPurchase, setPrintPurchase] = useState<import('../db/db').Purchase | null>(null)
+  const [editSupplier, setEditSupplier] = useState('')
+  const [editInvoiceNumber, setEditInvoiceNumber] = useState('')
+  const [editDateStr, setEditDateStr] = useState('')
+  const [editNotes, setEditNotes] = useState('')
+  const [editPaymentMethod, setEditPaymentMethod] = useState<PaymentMethod>('cash')
+  const [savingMeta, setSavingMeta] = useState(false)
+  const [metaError, setMetaError] = useState('')
+  const storeInfo = useStoreInfo()
+
+  useEffect(() => {
+    const clear = () => setPrintPurchase(null)
+    window.addEventListener('afterprint', clear)
+    return () => window.removeEventListener('afterprint', clear)
+  }, [])
+
+  const openPurchaseDetail = (p: import('../db/db').Purchase) => {
+    setSelectedPurchase(p)
+    setDetailMode('view')
+    setEditSupplier(p.supplierName || '')
+    setEditInvoiceNumber(p.invoiceNumber || '')
+    const d = new Date(p.date)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    setEditDateStr(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`)
+    setEditNotes(p.notes || '')
+    setEditPaymentMethod(p.paymentMethod || 'cash')
+    setMetaError('')
+  }
+
+  const handlePrintPurchase = (p: import('../db/db').Purchase) => {
+    setPrintPurchase(p)
+    setTimeout(() => window.print(), 120)
+  }
+
+  const handleSaveMeta = async () => {
+    if (!selectedPurchase?.id) return
+    setSavingMeta(true)
+    setMetaError('')
+    try {
+      const t = editDateStr ? new Date(editDateStr) : undefined
+      if (editDateStr && !Number.isFinite(t!.getTime())) throw new Error('تاريخ غير صالح')
+      await updatePurchaseMeta(selectedPurchase.id, {
+        supplierName: editSupplier,
+        invoiceNumber: editInvoiceNumber,
+        date: t,
+        notes: editNotes,
+        paymentMethod: editPaymentMethod,
+      })
+      setDetailMode('view')
+    } catch (err) {
+      setMetaError(err instanceof Error ? err.message : 'تعذر حفظ التعديلات')
+    } finally {
+      setSavingMeta(false)
+    }
+  }
 
   const [activeTab, setActiveTab] = useState<'history' | 'new'>('history')
   const [search, setSearch] = useState('')
@@ -465,7 +525,24 @@ export function PurchasesPage() {
                     )}
 
                     {/* Actions */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 2 }}>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => openPurchaseDetail(purchase)}
+                        style={{
+                          background: 'var(--color-primary-glow)',
+                          border: '1px solid var(--color-border-active)',
+                          color: 'var(--color-primary-light)',
+                          borderRadius: 8,
+                          padding: '5px 12px',
+                          fontSize: 12.5,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-main)',
+                        }}
+                      >
+                        👁️ عرض / طباعة / تعديل
+                      </button>
                       {(purchase.debtAmount ?? 0) > 0 && (
                         <button
                           type="button"
@@ -805,83 +882,95 @@ export function PurchasesPage() {
               </button>
             </div>
 
-            {/* Quick search suggestions */}
-            {productSearch && (
-              <div style={{
-                background: 'var(--color-bg-elevated)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 12,
-                maxHeight: 240,
-                overflowY: 'auto',
-                display: 'flex',
-                flexDirection: 'column',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-              }}>
-                {allProducts
-                  .filter((p) =>
-                    getProductType(p) !== 'service' && (
-                      p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                      p.barcode.includes(productSearch)
-                    )
+            {/* Quick search suggestions — تظهر دائماً: الكل عند عدم البحث */}
+            {(() => {
+              const term = productSearch.trim().toLowerCase()
+              const matches = allProducts
+                .filter((p) =>
+                  getProductType(p) !== 'service' && (
+                    !term ||
+                    p.name.toLowerCase().includes(term) ||
+                    p.barcode.includes(productSearch)
                   )
-                  .slice(0, 8)
-                  .map((p) => (
+                )
+                .slice(0, 8)
+              return (
+                <div style={{
+                  background: 'var(--color-bg-elevated)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 12,
+                  maxHeight: 240,
+                  overflowY: 'auto',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                }}>
+                  {matches.length === 0 ? (
+                    <div style={{ padding: '14px', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13 }}>
+                      لا توجد أصناف مطابقة{term ? ` لـ "${productSearch}"` : ''}
+                    </div>
+                  ) : (
+                    matches.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          handleAddProductToInvoice(p)
+                          setProductSearch('')
+                        }}
+                        style={{
+                          padding: '10px 14px',
+                          border: 'none',
+                          borderBottom: '1px solid var(--color-border)',
+                          background: 'transparent',
+                          color: 'var(--color-text-primary)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          cursor: 'pointer',
+                          textAlign: 'right',
+                          fontFamily: 'var(--font-main)',
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                            المخزون الحالي: {stockLabel(p)} | تكلفة: {p.costPrice.toFixed(2)} ₪{getProductType(p) === 'weighted' ? '/كغ' : ''}
+                          </div>
+                        </div>
+                        <span style={{ color: 'var(--color-primary-light)', fontWeight: 800, fontSize: 14 }}>
+                          + إضافة
+                        </span>
+                      </button>
+                    ))
+                  )}
+
+                  {/* Option to add new product */}
+                  {term && (
                     <button
-                      key={p.id}
                       type="button"
-                      onClick={() => {
-                        handleAddProductToInvoice(p)
-                        setProductSearch('')
-                      }}
+                      onClick={() => handleOpenNewProduct(productSearch)}
                       style={{
-                        padding: '10px 14px',
+                        padding: '12px 14px',
                         border: 'none',
-                        borderBottom: '1px solid var(--color-border)',
-                        background: 'transparent',
-                        color: 'var(--color-text-primary)',
+                        background: 'rgba(16, 185, 129, 0.1)',
+                        color: 'var(--color-success-light)',
                         display: 'flex',
-                        justifyContent: 'space-between',
+                        justifyContent: 'center',
                         alignItems: 'center',
+                        gap: 8,
                         cursor: 'pointer',
-                        textAlign: 'right',
+                        fontWeight: 700,
+                        fontSize: 13,
                         fontFamily: 'var(--font-main)',
                       }}
                     >
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 13 }}>{p.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-                          المخزون الحالي: {stockLabel(p)} | تكلفة: {p.costPrice.toFixed(2)} ₪{getProductType(p) === 'weighted' ? '/كغ' : ''}
-                        </div>
-                      </div>
-                      <span style={{ color: 'var(--color-primary-light)', fontWeight: 800, fontSize: 14 }}>
-                        + إضافة
-                      </span>
+                      <span>✨ غير موجود في المخزن؟ اضغط هنا لإنشاء "{productSearch}" وإدراجه</span>
                     </button>
-                  ))}
-
-                {/* Option to add new product */}
-                <button
-                  type="button"
-                  onClick={() => handleOpenNewProduct(productSearch)}
-                  style={{
-                    padding: '12px 14px',
-                    border: 'none',
-                    background: 'rgba(16, 185, 129, 0.1)',
-                    color: 'var(--color-success-light)',
-                    display: 'flex',
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    gap: 8,
-                    cursor: 'pointer',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    fontFamily: 'var(--font-main)',
-                  }}
-                >
-                  <span>✨ غير موجود في المخزن؟ اضغط هنا لإنشاء "{productSearch}" وإدراجه</span>
-                </button>
-              </div>
-            )}
+                  )}
+                </div>
+              )
+            })()}
 
             {/* Selected Items Table */}
             {selectedItems.length === 0 ? (
@@ -1152,6 +1241,111 @@ export function PurchasesPage() {
           onSuccess={() => setPayingPurchase(null)}
         />
       )}
+
+      {/* Purchase Detail: view / print / edit */}
+      {selectedPurchase && (
+        <Modal
+          open
+          onClose={() => setSelectedPurchase(null)}
+          title={detailMode === 'view' ? `فواتورة شراء #${selectedPurchase.invoiceNumber || selectedPurchase.id}` : '✏️ تعديل بيانات الفاتورة'}
+          type="sheet"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', background: 'var(--color-btn-ghost-bg)', border: '1px solid var(--color-border)', borderRadius: 14, padding: 4, gap: 4 }}>
+              {([['view', '🧾 عرض وطباعة'], ['edit', '✏️ تعديل البيانات']] as const).map(([mode, label]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setDetailMode(mode)}
+                  style={{
+                    flex: 1, padding: '10px', borderRadius: 10, border: 'none',
+                    background: detailMode === mode ? 'var(--brand-gradient)' : 'transparent',
+                    color: detailMode === mode ? '#fff' : 'var(--color-text-secondary)',
+                    fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {detailMode === 'view' ? (
+              <>
+                <PurchasePrint purchase={selectedPurchase} store={storeInfo} />
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button type="button" className="btn btn-primary" style={{ flex: 2 }} onClick={() => handlePrintPurchase(selectedPurchase)}>
+                    🖨️ طباعة الفاتورة
+                  </button>
+                  {(selectedPurchase.debtAmount || 0) > 0 && (
+                    <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setPayingPurchase(selectedPurchase)}>
+                      💳 سداد
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ color: 'var(--color-danger-light)' }}
+                    onClick={() => {
+                      if (selectedPurchase.id) {
+                        setSelectedPurchase(null)
+                        setPurchaseToDelete(selectedPurchase.id)
+                      }
+                    }}
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {metaError && (
+                  <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', color: 'var(--color-danger-light)', fontSize: 13, fontWeight: 600 }}>
+                    ⚠ {metaError}
+                  </div>
+                )}
+                <div className="input-wrap">
+                  <label className="input-label">اسم المورد أو الشركة</label>
+                  <input className="input" value={editSupplier} onChange={(e) => setEditSupplier(e.target.value)} placeholder="اسم المورد" />
+                </div>
+                <div className="form-grid-two">
+                  <div className="input-wrap">
+                    <label className="input-label">رقم فاتورة المورد</label>
+                    <input className="input" value={editInvoiceNumber} onChange={(e) => setEditInvoiceNumber(e.target.value)} placeholder="اختياري" />
+                  </div>
+                  <div className="input-wrap">
+                    <label className="input-label">التاريخ والوقت</label>
+                    <input className="input" type="datetime-local" value={editDateStr} onChange={(e) => setEditDateStr(e.target.value)} style={{ width: '100%' }} />
+                  </div>
+                </div>
+                <CustomSelect
+                  label="طريقة الدفع (محفظة المبلغ المدفوع)"
+                  value={editPaymentMethod}
+                  onChange={(v) => setEditPaymentMethod(v as PaymentMethod)}
+                  options={PAYMENT_METHODS.map((m) => ({ value: m.id, label: `${m.icon} ${m.label}` }))}
+                />
+                <div className="input-wrap">
+                  <label className="input-label">ملاحظات</label>
+                  <input className="input" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="اختياري" />
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: 0 }}>
+                  التعديل للبيانات فقط — الأصناف والكميات والتكلفة لا تُمس (لحماية المخزون ومتوسط التكلفة).
+                </p>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setDetailMode('view')}>رجوع</button>
+                  <button type="button" className="btn btn-primary" style={{ flex: 2 }} onClick={handleSaveMeta} disabled={savingMeta}>
+                    {savingMeta ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Hidden purchase print root */}
+      <div id="purchase-print-root" aria-hidden="true">
+        {printPurchase && <PurchasePrint purchase={printPurchase} store={storeInfo} />}
+      </div>
     </div>
   )
 }

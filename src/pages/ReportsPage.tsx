@@ -276,12 +276,12 @@ export function ReportsPage() {
             padding: 16,
             boxShadow: 'var(--shadow-sm)',
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                 <span style={{ fontSize: 20 }}>💼</span>
                 <h3 style={{ fontSize: 16, fontWeight: 900 }}>أرصدة الخزينة والحسابات</h3>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
                 <button
                   type="button"
                   onClick={() => setShowOpeningModal(true)}
@@ -334,6 +334,11 @@ export function ReportsPage() {
                   color: balances.total < 0 ? 'var(--color-danger-light)' : 'var(--color-primary-light)',
                   border: balances.total < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid transparent',
                   direction: 'ltr',
+                  flexShrink: 0,
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
                 }}>
                   {balances.total < 0 ? '⚠️ عجز: ' : 'المجموع: '}{formatCurrency(balances.total)}
                 </span>

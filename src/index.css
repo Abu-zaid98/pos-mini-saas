@@ -1179,6 +1179,7 @@ select.input option {
    ============================== */
 #invoice-print-root { display: none; }
 #statement-print-root { display: none; }
+#purchase-print-root { display: none; }
 
 .invoice-doc {
   background: linear-gradient(180deg, #ffffff 0%, #fafaff 100%);
@@ -1357,10 +1358,12 @@ select.input option {
   body * { visibility: hidden; }
 
   #invoice-print-root, #invoice-print-root *,
-  #statement-print-root, #statement-print-root * { visibility: visible; }
+  #statement-print-root, #statement-print-root *,
+  #purchase-print-root, #purchase-print-root * { visibility: visible; }
 
   #invoice-print-root,
-  #statement-print-root {
+  #statement-print-root,
+  #purchase-print-root {
     display: block !important;
     position: absolute;
     inset: 0;

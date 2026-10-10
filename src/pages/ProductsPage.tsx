@@ -5,6 +5,7 @@ import { ProductForm } from '../components/products/ProductForm'
 import { CategoryManagerModal } from '../components/products/CategoryManagerModal'
 import { QuickRestockModal } from '../components/products/QuickRestockModal'
 import { PurchasesPage } from './PurchasesPage'
+import { SuppliersPage } from './SuppliersPage'
 import { BarcodeScanner } from '../components/ui/BarcodeScanner'
 import { Badge } from '../components/ui/Badge'
 import type { Product } from '../db/db'
@@ -12,7 +13,7 @@ import { PRODUCT_TYPES } from '../db/db'
 import { getProductType, isLowStock, isOutOfStock, stockLabel, isExpired, isNearExpiry, daysToExpiry, formatServiceDuration } from '../utils/units'
 
 export function ProductsPage() {
-  const [mainTab, setMainTab] = useState<'inventory' | 'purchases'>('inventory')
+  const [mainTab, setMainTab] = useState<'inventory' | 'purchases' | 'suppliers'>('inventory')
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -128,10 +129,37 @@ export function ProductsPage() {
           <span>📥</span>
           <span>فواتير وسجل المشتريات</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setMainTab('suppliers')}
+          style={{
+            flex: 1,
+            padding: '10px 14px',
+            borderRadius: 10,
+            border: 'none',
+            background: mainTab === 'suppliers' ? 'var(--brand-gradient)' : 'transparent',
+            color: mainTab === 'suppliers' ? '#fff' : 'var(--color-text-secondary)',
+            fontSize: 12,
+            fontWeight: 800,
+            cursor: 'pointer',
+            fontFamily: 'var(--font-main)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <span>🚚</span>
+          <span>الموردون</span>
+        </button>
       </div>
 
       {mainTab === 'purchases' ? (
         <PurchasesPage />
+      ) : mainTab === 'suppliers' ? (
+        <SuppliersPage />
       ) : (
         <>
           {/* Stats bar */}

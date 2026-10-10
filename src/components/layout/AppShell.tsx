@@ -25,7 +25,6 @@ export function AppShell({ onLogout }: AppShellProps) {
     '/products': 'المخزون والمشتريات',
     '/purchases': 'فواتير وسجل المشتريات',
     '/customers': 'العملاء والديون',
-    '/suppliers': 'الموردون والحسابات',
     '/invoices': 'سجل فواتير البيع',
     '/expenses': 'المصاريف',
     '/reports': 'التقارير والإحصائيات',

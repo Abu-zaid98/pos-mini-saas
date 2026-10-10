@@ -162,6 +162,29 @@ export async function addPurchaseInvoice(params: {
   })
 }
 
+/**
+ * تعديل البيانات الوصفية لفاتورة شراء (بدون مساس بالمخزون أو التكلفة):
+ * المورد/رقم الفاتورة/التاريخ/الملاحظات/طريقة الدفع.
+ * تغيير المحفظة ينقل المبلغ المدفوع بين المحافظ — يُعاد حساب الأرصدة تلقائياً.
+ */
+export async function updatePurchaseMeta(id: number, data: {
+  supplierName?: string
+  invoiceNumber?: string
+  date?: Date
+  notes?: string
+  paymentMethod?: PaymentMethod
+}) {
+  const purchase = await db.purchases.get(id)
+  if (!purchase) throw new Error('فاتورة الشراء غير موجودة')
+  return db.purchases.update(id, {
+    supplierName: data.supplierName !== undefined ? data.supplierName.trim() : purchase.supplierName,
+    invoiceNumber: data.invoiceNumber !== undefined ? data.invoiceNumber.trim() : purchase.invoiceNumber,
+    date: data.date ?? purchase.date,
+    notes: data.notes !== undefined ? data.notes.trim() : purchase.notes,
+    paymentMethod: data.paymentMethod ?? purchase.paymentMethod,
+  })
+}
+
 export async function deletePurchase(id: number) {
   return db.transaction('rw', [db.purchases, db.products], async () => {
     const purchase = await db.purchases.get(id)
