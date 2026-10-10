@@ -3,8 +3,9 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { Modal } from '../ui/Modal'
 import { ConfirmModal } from '../ui/ConfirmModal'
 import { ExpenseModal } from '../expenses/ExpenseModal'
+import { WalletOpeningBalanceModal } from './WalletOpeningBalanceModal'
 import { db, getPaymentMethodName, type Expense, type PaymentMethod } from '../../db/db'
-import { buildWalletLedger, deleteWalletTransfer, type WalletEntryWithRunning } from '../../utils/wallet'
+import { buildWalletLedger, deleteWalletTransfer, deleteWalletAdjustment, entryDeleteKind, parseAdjustments, type WalletEntryWithRunning } from '../../utils/wallet'
 import { formatCurrency } from '../../utils/currency'
 import { deleteExpense } from '../../hooks/useExpenses'
 import { deletePurchase } from '../../hooks/usePurchases'
@@ -17,8 +18,8 @@ interface WalletDetailModalProps {
 }
 
 interface PendingDelete {
-  kind: 'expense' | 'purchase' | 'collection' | 'sale' | 'transfer'
-  refId: number
+  kind: 'expense' | 'purchase' | 'collection' | 'sale' | 'transfer' | 'adjustment'
+  refId: number | string
   title: string
   message: string
   subMessage: string
@@ -33,18 +34,21 @@ const SOURCE_ICON: Record<WalletEntryWithRunning['source'], string> = {
   transfer: '🔄',
   refund: '↩️',
   opening: '🏁',
+  adjustment: '🧮',
 }
 
 export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
   const [confirm, setConfirm] = useState<PendingDelete | null>(null)
   const [busy, setBusy] = useState(false)
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
+  const [openingOpen, setOpeningOpen] = useState(false)
 
   const payments = useLiveQuery(() => db.payments.toArray(), []) ?? []
   const purchases = useLiveQuery(() => db.purchases.toArray(), []) ?? []
   const expenses = useLiveQuery(() => db.expenses.toArray(), []) ?? []
   const transfers = useLiveQuery(() => db.transfers.toArray(), []) ?? []
   const openingSetting = useLiveQuery(() => db.settings.get('wallet_opening_balances'))
+  const adjustmentsSetting = useLiveQuery(() => db.settings.get('wallet_adjustments'))
 
   const openingBalance = useMemo(() => {
     if (!method || !openingSetting?.value) return 0
@@ -52,15 +56,22 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
     return Number(obj[method]) || 0
   }, [method, openingSetting])
 
+  const adjustments = useMemo(
+    () => parseAdjustments(adjustmentsSetting?.value),
+    [adjustmentsSetting],
+  )
+
   const ledger = useMemo(
-    () => (method ? buildWalletLedger(payments, purchases, expenses, method, transfers, openingBalance) : null),
-    [payments, purchases, expenses, method, transfers, openingBalance],
+    () => (method ? buildWalletLedger(payments, purchases, expenses, method, transfers, openingBalance, adjustments) : null),
+    [payments, purchases, expenses, method, transfers, openingBalance, adjustments],
   )
 
   if (!method || !ledger) return null
 
   const askDelete = (entry: WalletEntryWithRunning) => {
-    if (entry.source === 'expense') {
+    const kind = entryDeleteKind(entry.source)
+    if (!kind) return
+    if (kind === 'expense') {
       setConfirm({
         kind: 'expense',
         refId: entry.refId,
@@ -69,7 +80,7 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
         subMessage: 'سيُحذف من المصاريف ويرتفع رصيد المحفظة تلقائياً.',
         confirmText: 'تأكيد الحذف',
       })
-    } else if (entry.source === 'purchase') {
+    } else if (kind === 'purchase') {
       setConfirm({
         kind: 'purchase',
         refId: entry.refId,
@@ -78,7 +89,7 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
         subMessage: 'سيُحذف السجل المالي وتُخصم الكميات الموردة من المخزون تلقائياً.',
         confirmText: 'تأكيد الحذف',
       })
-    } else if (entry.source === 'collection') {
+    } else if (kind === 'collection') {
       setConfirm({
         kind: 'collection',
         refId: entry.refId,
@@ -87,7 +98,7 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
         subMessage: 'سيعود المبلغ إلى دين العميل تلقائياً وينقص رصيد المحفظة.',
         confirmText: 'تأكيد الحذف',
       })
-    } else if (entry.source === 'transfer') {
+    } else if (kind === 'transfer') {
       setConfirm({
         kind: 'transfer',
         refId: entry.refId,
@@ -95,6 +106,15 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
         message: `هل تريد إلغاء حركة "${entry.title}" (${formatCurrency(entry.amount)})؟`,
         subMessage: 'سيعود الرصيد كما كان قبل التحويل في كلا المحفظتين.',
         confirmText: 'تأكيد الإلغاء',
+      })
+    } else if (kind === 'adjustment') {
+      setConfirm({
+        kind: 'adjustment',
+        refId: entry.refId,
+        title: 'حذف التسوية اليدوية',
+        message: `هل تريد حذف "${entry.title}" (${formatCurrency(entry.amount)})؟${entry.sub ? ` — ${entry.sub}` : ''}`,
+        subMessage: 'سيُعكس أثرها على رصيد المحفظة فوراً.',
+        confirmText: 'تأكيد الحذف',
       })
     } else {
       setConfirm({
@@ -112,11 +132,12 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
     if (!confirm) return
     setBusy(true)
     try {
-      if (confirm.kind === 'expense') await deleteExpense(confirm.refId)
-      else if (confirm.kind === 'purchase') await deletePurchase(confirm.refId)
-      else if (confirm.kind === 'collection') await deleteCollectionPayment(confirm.refId)
-      else if (confirm.kind === 'transfer') await deleteWalletTransfer(confirm.refId)
-      else await deleteInvoice(confirm.refId)
+      if (confirm.kind === 'expense') await deleteExpense(Number(confirm.refId))
+      else if (confirm.kind === 'purchase') await deletePurchase(Number(confirm.refId))
+      else if (confirm.kind === 'collection') await deleteCollectionPayment(Number(confirm.refId))
+      else if (confirm.kind === 'transfer') await deleteWalletTransfer(Number(confirm.refId))
+      else if (confirm.kind === 'adjustment') await deleteWalletAdjustment(String(confirm.refId))
+      else await deleteInvoice(Number(confirm.refId))
       setConfirm(null)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'تعذر الحذف')
@@ -206,20 +227,47 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
                         تعديل
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => askDelete(e)}
-                      style={{
-                        background: 'rgba(239,68,68,0.1)',
-                        border: '1px solid rgba(239,68,68,0.25)',
-                        color: 'var(--color-danger-light)',
-                        borderRadius: 8, padding: '4px 10px',
-                        fontSize: 11, fontWeight: 800, cursor: 'pointer',
-                        fontFamily: 'var(--font-main)',
-                      }}
-                    >
-                      حذف
-                    </button>
+                    {e.source === 'opening' && (
+                      <button
+                        type="button"
+                        onClick={() => setOpeningOpen(true)}
+                        title="ضبط الأرصدة الافتتاحية (تعديل أو تصفير)"
+                        style={{
+                          background: 'var(--color-primary-glow)',
+                          border: '1px solid var(--color-border-active)',
+                          color: 'var(--color-primary-light)',
+                          borderRadius: 8, padding: '4px 10px',
+                          fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                          fontFamily: 'var(--font-main)',
+                        }}
+                      >
+                        ⚙️ ضبط
+                      </button>
+                    )}
+                    {e.source === 'refund' && (
+                      <span
+                        title="المرتجع يُعكس من مرتجعات فاتورته فقط — حذفه منفرداً يكسر المخزون والفاتورة"
+                        style={{ fontSize: 10, color: 'var(--color-text-muted)', alignSelf: 'center' }}
+                      >
+                        من مرتجعات #{e.invoiceId}
+                      </span>
+                    )}
+                    {entryDeleteKind(e.source) && (
+                      <button
+                        type="button"
+                        onClick={() => askDelete(e)}
+                        style={{
+                          background: 'rgba(239,68,68,0.1)',
+                          border: '1px solid rgba(239,68,68,0.25)',
+                          color: 'var(--color-danger-light)',
+                          borderRadius: 8, padding: '4px 10px',
+                          fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                          fontFamily: 'var(--font-main)',
+                        }}
+                      >
+                        حذف
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -247,6 +295,13 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
           expense={editingExpense}
           onClose={() => setEditingExpense(null)}
           onSuccess={() => setEditingExpense(null)}
+        />
+      )}
+
+      {openingOpen && (
+        <WalletOpeningBalanceModal
+          open
+          onClose={() => setOpeningOpen(false)}
         />
       )}
     </>

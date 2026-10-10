@@ -120,12 +120,16 @@ export function CustomersPage() {
 
   const handleDelete = async (c: Customer, force = false) => {
     if (!c.id) return
-    const result = await deleteCustomer(c.id, force)
-    if ('blocked' in result && result.blocked) {
-      // Show the modal again — it already shows debt warning and force-delete button
-      return
+    try {
+      const result = await deleteCustomer(c.id, force)
+      if ('blocked' in result && result.blocked) {
+        alert(result.reason)
+        return
+      }
+      setDeleteConfirm(null)
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر حذف العميل')
     }
-    setDeleteConfirm(null)
   }
 
   // Open payment modal
@@ -1050,7 +1054,8 @@ export function CustomersPage() {
                     {formatCurrency(deleteConfirm.totalDebt)}
                   </p>
                   <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 6 }}>
-                    حذفه مع ديونه سيمسح جميع فواتيره وسنداته من السجلات نهائياً.
+                    لا يمكن حذف عميل مدين حفاظاً على تطابق الحسابات — الفواتير والسندات تبقى في السجلات.
+                    حصّل الدين من زر «سداد دفعة» ثم احذفه.
                   </p>
                 </div>
 
@@ -1061,23 +1066,7 @@ export function CustomersPage() {
                     style={{
                       padding: '11px',
                       borderRadius: 12,
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid var(--color-border)',
-                      color: 'var(--color-text-secondary)',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      fontFamily: 'var(--font-main)',
-                    }}
-                  >
-                    إلغاء (يُنصح بتصفير الديون أولاً)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(deleteConfirm, true)}
-                    style={{
-                      padding: '11px',
-                      borderRadius: 12,
-                      background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                      background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
                       border: 'none',
                       color: 'white',
                       fontWeight: 700,
@@ -1085,7 +1074,7 @@ export function CustomersPage() {
                       fontFamily: 'var(--font-main)',
                     }}
                   >
-                    🗑️ حذف مع جميع ديونه وفواتيره
+                    فهمت — سأحصّل الدين أولاً
                   </button>
                 </div>
               </>

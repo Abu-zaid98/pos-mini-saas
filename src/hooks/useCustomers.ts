@@ -168,23 +168,39 @@ export async function updateInitialDebt(customerId: number, amount: number) {
 
 /**
  * Delete a customer.
- * - If `forceDelete` is false (default) and the customer has outstanding debt,
- *   the function returns { blocked: true } instead of deleting.
- * - If `forceDelete` is true, deletes the customer while safely unlinking historical
- *   sales and payments so cash balances, warehouse inventory, and sales reports remain intact.
+ * - If `forceDelete` is false (default) and the customer has outstanding debt
+ *   or credit, the function returns { blocked: true } instead of deleting.
+ * - If `forceDelete` is true with debt/credit, it throws: wiping a debtor
+ *   would erase real obligations while keeping their sales — an accounting hole.
+ *   Settle first (collect debt / clear credit), then delete.
+ * - If `forceDelete` is true with zero balances, deletes while safely unlinking
+ *   historical sales and payments so cash balances, inventory and reports stay intact.
  */
 export async function deleteCustomer(
   id: number,
   forceDelete = false
-): Promise<{ blocked: true } | { blocked: false }> {
+): Promise<{ blocked: true; reason: string } | { blocked: false }> {
   return db.transaction('rw', [db.customers, db.invoices, db.payments], async () => {
     const customer = await db.customers.get(id)
     if (!customer) return { blocked: false }
 
     // Block deletion if the customer still has debt or an outstanding credit balance.
-    const hasBalance = (customer.totalDebt || 0) > 0 || (customer.creditBalance || 0) > 0
-    if (!forceDelete && hasBalance) {
-      return { blocked: true }
+    const debt = customer.totalDebt || 0
+    const credit = customer.creditBalance || 0
+    if (!forceDelete && (debt > 0 || credit > 0)) {
+      return {
+        blocked: true,
+        reason: debt > 0
+          ? `لا يمكن الحذف: على العميل دين مستحق (${debt} ₪). حصّله أولاً ثم احذف.`
+          : `لا يمكن الحذف: للعميل رصيد زائد (${credit} ₪). سوّه أولاً ثم احذف.`,
+      }
+    }
+    if (forceDelete && (debt > 0 || credit > 0)) {
+      throw new Error(
+        debt > 0
+          ? `تعذر الحذف: على العميل دين مستحق (${debt} ₪). حصّله أولاً من زر «سداد دفعة» ثم احذف العميل.`
+          : `تعذر الحذف: للعميل رصيد زائد (${credit} ₪) مستحق له. سوّه أولاً ثم احذف.`
+      )
     }
 
     // For invoices: preserve real historical sales records and warehouse inventory.

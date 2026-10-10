@@ -2,7 +2,7 @@
  * wallet.test.ts — كشف حركة المحفظة: نفس معادلة الأرصدة + رصيد جارٍ مرتب زمنياً
  */
 import { describe, it, expect } from 'vitest'
-import { buildWalletLedger, computeBalances } from '../wallet'
+import { buildWalletLedger, computeBalances, entryDeleteKind, parseAdjustments } from '../wallet'
 import type { Payment } from '../../db/db'
 
 const D = (s: string) => new Date(s)
@@ -240,6 +240,60 @@ describe('buildWalletLedger مع التحويلات والمرتجعات', () =>
     expect(b.bop).toBe(600)
     // إجمالي: 1500 - 600 = 900
     expect(b.total).toBe(900)
+  })
+})
+
+describe('entryDeleteKind — انحدار: الافتتاحي والمرتجع ليسا فاتورة', () => {
+  it('الرصيد الافتتاحي والمرتجع لا يقبلان حذفاً مباشراً (null)', () => {
+    expect(entryDeleteKind('opening')).toBeNull()
+    expect(entryDeleteKind('refund')).toBeNull()
+  })
+
+  it('باقي المصادر تُحذف من جدولها الصحيح', () => {
+    expect(entryDeleteKind('expense')).toBe('expense')
+    expect(entryDeleteKind('purchase')).toBe('purchase')
+    expect(entryDeleteKind('collection')).toBe('collection')
+    expect(entryDeleteKind('transfer')).toBe('transfer')
+    expect(entryDeleteKind('sale')).toBe('sale')
+    expect(entryDeleteKind('adjustment')).toBe('adjustment')
+  })
+})
+
+describe('التسويات اليدوية', () => {
+  const adj = [
+    { id: 'a1', method: 'cash' as const, amount: 500, note: 'إيداع', date: '2026-10-05T10:00:00.000Z', createdAt: 1 },
+    { id: 'a2', method: 'cash' as const, amount: -200, note: 'سحب', date: '2026-10-06T10:00:00.000Z', createdAt: 2 },
+    { id: 'a3', method: 'bop' as const, amount: 100, note: 'أخرى', date: '2026-10-05T10:00:00.000Z', createdAt: 3 },
+  ]
+
+  it('تظهر في الكشف بإشارتها وتؤثر على الصافي', () => {
+    const { entries, totalIn, totalOut, net } = buildWalletLedger([], [], [], 'cash', [], 0, adj)
+    expect(entries).toHaveLength(2)
+    expect(entries[0].source).toBe('adjustment')
+    expect(entries[0].kind).toBe('in')
+    expect(entries[1].kind).toBe('out')
+    expect(totalIn).toBe(500)
+    expect(totalOut).toBe(200)
+    expect(net).toBe(300)
+  })
+
+  it('تُحتسب في الأرصدة لكل محفظة على حدة', () => {
+    const b = computeBalances([], [], [], [], undefined, adj)
+    expect(b.cash).toBe(300)
+    expect(b.bop).toBe(100)
+    expect(b.total).toBe(400)
+  })
+
+  it('parseAdjustments يتجاهل التالف والصفري', () => {
+    expect(parseAdjustments(undefined)).toEqual([])
+    expect(parseAdjustments('x')).toEqual([])
+    expect(parseAdjustments([
+      { id: 'a1', method: 'cash', amount: 0, note: '', date: '', createdAt: 1 },
+      { id: 5, method: 'cash', amount: 10, note: '', date: '', createdAt: 1 },
+      { id: 'a2', method: 'jawwal_pay', amount: '250.5', note: 'ok', date: '2026-10-01', createdAt: 2 },
+    ])).toEqual([
+      { id: 'a2', method: 'jawwal_pay', amount: 250.5, note: 'ok', date: '2026-10-01', createdAt: 2 },
+    ])
   })
 })
 

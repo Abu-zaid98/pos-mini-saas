@@ -9,7 +9,7 @@
  *   وإجمالي السطر دائماً qty × price أياً كانت الوحدة
  * - الوصفة: مكوّنات كل 1 كغ — تُضرب بوزن الدفعة عند الإنتاج
  */
-import type { InvoiceItem, Product, ProductType, SalePack, SaleUnit } from '../db/db'
+import type { InvoiceItem, Product, ProductType, ReturnedItem, SalePack, SaleUnit } from '../db/db'
 
 export const GRAMS_PER_KG = 1000
 
@@ -157,6 +157,59 @@ export function restoreStock(product: Product, qty: number, unit: SaleUnit): num
   if (t === 'service') return product.quantity
   const add = toBaseQty(Number(qty) || 0, unit)
   return Math.round((product.quantity + add) * 1000) / 1000
+}
+
+/**
+ * كمية بند مرتجع بالوحدات الأساسية — الدلالة الموحدة في كل البرنامج:
+ * - إن كان السطر الأصلي بعبوة: الكمية بعدّ العبوات × المعامل (قطع).
+ * - وإلا: الكمية بوحدة البند المرتجع نفسه (`r.unit`)، مع الرجوع لوحدة
+ *   السطر الأصلي عند غيابها (سجلات قديمة).
+ */
+export function returnedLineBase(
+  r: Pick<ReturnedItem, 'qty' | 'unit'>,
+  orig?: Pick<InvoiceItem, 'pack' | 'unit'>,
+): number {
+  const qty = Number(r.qty) || 0
+  if (orig?.pack) return packPieces(qty, orig.pack)
+  const unit = r.unit ?? (orig ? getItemUnit(orig) : 'piece')
+  return toBaseQty(qty, unit)
+}
+
+/**
+ * الكمية الواجب استرجاعها للمخزون عند حذف فاتورة — لكل صنف، بعد طرح
+ * ما سبق إرجاعه بمرتجعات (بنفس منطق وحدات الاسترجاع في refundInvoiceItems).
+ * تُرجع خريطة productId ← كمية بالوحدات الأساسية (تُجمع على المخزون مباشرة).
+ */
+export function computeInvoiceRestore(
+  items: InvoiceItem[],
+  returnedItems?: ReturnedItem[],
+): Map<number, number> {
+  // المباع لكل صنف بالوحدات الأساسية
+  const sold = new Map<number, number>()
+  const lineOf = new Map<number, InvoiceItem>()
+  for (const item of items) {
+    if (!item.productId || item.productId <= 0) continue
+    const qtyBase = item.pack ? packPieces(item.qty, item.pack) : item.qty
+    const unit = item.pack ? 'piece' : getItemUnit(item)
+    const base = toBaseQty(Number(qtyBase) || 0, unit)
+    sold.set(item.productId, (sold.get(item.productId) || 0) + base)
+    if (!lineOf.has(item.productId)) lineOf.set(item.productId, item)
+  }
+
+  // المرتجع لكل صنف (بوحدة البند المرتجع نفسه — انظر returnedLineBase)
+  const returned = new Map<number, number>()
+  for (const r of returnedItems || []) {
+    if (!r.productId || r.productId <= 0) continue
+    const orig = lineOf.get(r.productId) || items.find((i) => i.productId === r.productId)
+    returned.set(r.productId, (returned.get(r.productId) || 0) + returnedLineBase(r, orig))
+  }
+
+  const result = new Map<number, number>()
+  for (const [pid, soldBase] of sold) {
+    const restore = Math.max(0, Math.round((soldBase - (returned.get(pid) || 0)) * 1000) / 1000)
+    if (restore > 0) result.set(pid, restore)
+  }
+  return result
 }
 
 /** هل كمية السلة تتجاوز المخزون؟ (مقارنة بالوحدات الأساسية) */

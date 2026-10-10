@@ -41,10 +41,93 @@ function adjustBucketOnly(b: AccountBalances, method: PaymentMethod, amt: number
 
 export type OpeningBalances = Partial<Record<PaymentMethod, number>>
 
+/** تسوية يدوية على محفظة — عملية حرة غير مرتبطة بأي فاتورة (ضبط ميزانية) */
+export interface WalletAdjustment {
+  id: string
+  method: PaymentMethod
+  /** موجب = إيداع (داخل)، سالب = سحب (خارج) */
+  amount: number
+  note: string
+  /** ISO date */
+  date: string
+  createdAt: number
+}
+
+const ADJUSTMENTS_KEY = 'wallet_adjustments'
+
+export function parseAdjustments(value: unknown): WalletAdjustment[] {
+  if (!Array.isArray(value)) return []
+  return (value as Array<Partial<WalletAdjustment>>)
+    .filter((a) => a && typeof a.id === 'string' && Number.isFinite(Number(a.amount)))
+    .map((a) => ({
+      id: a.id as string,
+      method: (a.method as PaymentMethod) || 'cash',
+      amount: Math.round(Number(a.amount) * 100) / 100,
+      note: typeof a.note === 'string' ? a.note : '',
+      date: typeof a.date === 'string' ? a.date : new Date(Number(a.createdAt) || Date.now()).toISOString(),
+      createdAt: Number(a.createdAt) || 0,
+    }))
+    .filter((a) => a.amount !== 0)
+}
+
+export async function getWalletAdjustments(): Promise<WalletAdjustment[]> {
+  const setting = await db.settings.get(ADJUSTMENTS_KEY)
+  return parseAdjustments(setting?.value)
+}
+
+function newAdjustmentId(): string {
+  try {
+    return crypto.randomUUID()
+  } catch {
+    return `adj-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+  }
+}
+
+export async function saveWalletAdjustment(data: {
+  id?: string
+  method: PaymentMethod
+  amount: number
+  note?: string
+  date?: string
+}): Promise<WalletAdjustment[]> {
+  const amount = Math.round(Number(data.amount) * 100) / 100
+  if (!Number.isFinite(amount) || amount === 0) throw new Error('مبلغ التسوية يجب أن يكون رقماً غير صفري')
+  const list = await getWalletAdjustments()
+  if (data.id) {
+    const idx = list.findIndex((a) => a.id === data.id)
+    if (idx === -1) throw new Error('التسوية غير موجودة')
+    list[idx] = {
+      ...list[idx],
+      method: data.method,
+      amount,
+      note: (data.note || '').trim(),
+      date: data.date || list[idx].date,
+    }
+  } else {
+    const now = Date.now()
+    list.push({
+      id: newAdjustmentId(),
+      method: data.method,
+      amount,
+      note: (data.note || '').trim(),
+      date: data.date || new Date(now).toISOString(),
+      createdAt: now,
+    })
+  }
+  await db.settings.put({ key: ADJUSTMENTS_KEY, value: list })
+  return list
+}
+
+export async function deleteWalletAdjustment(id: string): Promise<WalletAdjustment[]> {
+  const list = (await getWalletAdjustments()).filter((a) => a.id !== id)
+  await db.settings.put({ key: ADJUSTMENTS_KEY, value: list })
+  return list
+}
+
 /**
  * معادلة الأرصدة في البرنامج:
- * الداخل (+) = payments (مبيعات + تحصيلات) + الرصيد الافتتاحي
- * الخارج (−) = purchases (مدفوعات التوريد) + expenses (مصاريف)
+ * الداخل (+) = payments (مبيعات + تحصيلات) + الرصيد الافتتاحي + تسويات الإيداع
+ * الخارج (−) = purchases (مدفوعات التوريد) + expenses (مصاريف) + تسويات السحب
  * التحويلات = نقل رصيد بين الصناديق (تغير رصيد المحفظتين مع بقاء الإجمالي الكلي ثابتاً).
  */
 export function computeBalances(
@@ -53,6 +136,7 @@ export function computeBalances(
   expenses: Pick<Expense, 'amount' | 'paymentMethod'>[],
   transfers?: Pick<WalletTransfer, 'fromMethod' | 'toMethod' | 'amount'>[],
   openingBalances?: OpeningBalances,
+  adjustments?: Pick<WalletAdjustment, 'method' | 'amount'>[],
 ): AccountBalances {
   const b = emptyBalances()
 
@@ -87,6 +171,14 @@ export function computeBalances(
     }
   }
 
+  if (adjustments) {
+    for (const a of adjustments) {
+      const amt = Number(a.amount) || 0
+      if (!Number.isFinite(amt) || amt === 0) continue
+      addToBucket(b, methodOf(a.method), Math.round(amt * 100) / 100)
+    }
+  }
+
   b.cash = Math.round(b.cash * 100) / 100
   b.jawwal_pay = Math.round(b.jawwal_pay * 100) / 100
   b.palpay = Math.round(b.palpay * 100) / 100
@@ -95,7 +187,7 @@ export function computeBalances(
   return b
 }
 
-export type WalletEntrySource = 'sale' | 'collection' | 'purchase' | 'expense' | 'transfer' | 'refund' | 'opening'
+export type WalletEntrySource = 'sale' | 'collection' | 'purchase' | 'expense' | 'transfer' | 'refund' | 'opening' | 'adjustment'
 
 export interface WalletEntry {
   key: string
@@ -107,10 +199,32 @@ export interface WalletEntry {
   title: string
   sub?: string
   amount: number
-  /** id السجل الأصلي في جدوله */
-  refId: number
+  /** id السجل الأصلي في جدوله (رقمي للجداول، نصي للتسويات اليدوية) */
+  refId: number | string
   /** لل alien linked sales */
   invoiceId?: number | null
+}
+
+/**
+ * نوع إجراء الحذف المتاح لبند في الكشف — null يعني لا حذف مباشر:
+ * - الرصيد الافتتاحي يُدار من شاشة الأرصدة الافتتاحية (تعديل/تصفير)،
+ * - المرتجع يُعكس من مرتجعات فاتورته فقط (حذف سجله منفرداً يكسر المخزون والفاتورة).
+ * هذا يمنع انزلاق أي بند مستقبلي لفرع حذف الفاتورة بالخطأ.
+ */
+export function entryDeleteKind(
+  source: WalletEntrySource,
+): 'expense' | 'purchase' | 'collection' | 'transfer' | 'sale' | 'adjustment' | null {
+  switch (source) {
+    case 'expense':
+    case 'purchase':
+    case 'collection':
+    case 'transfer':
+    case 'sale':
+    case 'adjustment':
+      return source
+    default:
+      return null
+  }
 }
 
 /**
@@ -124,6 +238,7 @@ export function buildWalletLedger(
   method: PaymentMethod,
   transfers: WalletTransfer[] = [],
   openingBalance: number = 0,
+  adjustments: WalletAdjustment[] = [],
 ): { entries: WalletEntryWithRunning[]; totalIn: number; totalOut: number; net: number } {
   const entries: WalletEntry[] = []
 
@@ -274,6 +389,24 @@ export function buildWalletLedger(
         refId: Number(t.id),
       })
     }
+  }
+
+  for (const a of adjustments) {
+    if (methodOf(a.method) !== method) continue
+    const amt = Number(a.amount) || 0
+    if (!Number.isFinite(amt) || amt === 0) continue
+    const date = a.date ? new Date(a.date) : new Date(a.createdAt || Date.now())
+    entries.push({
+      key: `adj-${a.id}`,
+      dateMs: date.getTime(),
+      date,
+      kind: amt > 0 ? 'in' : 'out',
+      source: 'adjustment',
+      title: amt > 0 ? 'تسوية يدوية (إيداع)' : 'تسوية يدوية (سحب)',
+      sub: a.note || undefined,
+      amount: Math.abs(Math.round(amt * 100) / 100),
+      refId: a.id,
+    })
   }
 
   entries.sort((a, b) => a.dateMs - b.dateMs || (a.key < b.key ? -1 : 1))

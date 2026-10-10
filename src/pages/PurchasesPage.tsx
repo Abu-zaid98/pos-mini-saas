@@ -161,13 +161,41 @@ export function PurchasesPage() {
   }
 
   const handleUpdateItemQty = (index: number, qty: number) => {
-    if (qty <= 0) {
-      setSelectedItems(selectedItems.filter((_, i) => i !== index))
-      return
-    }
+    if (!Number.isFinite(qty) || qty < 0) return
     const updated = [...selectedItems]
     updated[index].quantity = qty
     setSelectedItems(updated)
+  }
+
+  // مسودات نصية لحقول الكمية/التكلفة أثناء الكتابة — حتى لا يُحذف السطر
+  // عند مسح القيمة مؤقتاً (الحذف فقط بزر ✕ إزالة)
+  const [drafts, setDrafts] = useState<Record<number, { qty?: string; cost?: string }>>({})
+
+  const setDraft = (productId: number | undefined, field: 'qty' | 'cost', raw: string | undefined) => {
+    if (productId === undefined) return
+    setDrafts((prev) => {
+      const cur = prev[productId]
+      if (raw === undefined) {
+        if (!cur || cur[field] === undefined) return prev
+        const nextEntry = { ...cur }
+        delete nextEntry[field]
+        const next = { ...prev }
+        if (Object.keys(nextEntry).length === 0) delete next[productId]
+        else next[productId] = nextEntry
+        return next
+      }
+      return { ...prev, [productId]: { ...cur, [field]: raw } }
+    })
+  }
+
+  const clearDraftsFor = (productId: number | undefined) => {
+    if (productId === undefined) return
+    setDrafts((prev) => {
+      if (!prev[productId]) return prev
+      const next = { ...prev }
+      delete next[productId]
+      return next
+    })
   }
 
   const handleUpdateItemCost = (index: number, cost: number) => {
@@ -177,6 +205,7 @@ export function PurchasesPage() {
   }
 
   const handleRemoveItem = (index: number) => {
+    clearDraftsFor(selectedItems[index]?.product.id)
     setSelectedItems(selectedItems.filter((_, i) => i !== index))
   }
 
@@ -191,6 +220,10 @@ export function PurchasesPage() {
 
     if (selectedItems.length === 0) {
       setFormError('يرجى إضافة صنف واحد على الأقل لفاتورة الشراء')
+      return
+    }
+    if (selectedItems.some((it) => !(it.quantity > 0))) {
+      setFormError('يوجد صنف بكمية صفر — أدخل الكمية المطلوبة أو احذف السطر بزر ✕ إزالة')
       return
     }
 
@@ -226,6 +259,7 @@ export function PurchasesPage() {
 
       // Reset
       setSelectedItems([])
+      setDrafts({})
       setSupplierName('')
       setInvoiceNumber('')
       setPaymentType('cash')
@@ -988,6 +1022,7 @@ export function PurchasesPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {selectedItems.map((item, idx) => {
                   const isWeighted = getProductType(item.product) === 'weighted'
+                  const draft = item.product.id !== undefined ? drafts[item.product.id] : undefined
                   // quantity هنا بوحدات العرض (قطع أو كغ)
                   const addedBase = isWeighted ? Math.round(item.quantity * GRAMS_PER_KG) : item.quantity
                   const newQty = item.product.quantity + addedBase
@@ -1052,8 +1087,14 @@ export function PurchasesPage() {
                             type="number"
                             min="0"
                             step={isWeighted ? '0.1' : '1'}
-                            value={item.quantity}
-                            onChange={(e) => handleUpdateItemQty(idx, parseFloat(e.target.value) || 0)}
+                            value={draft?.qty ?? item.quantity}
+                            onChange={(e) => {
+                              const raw = e.target.value
+                              setDraft(item.product.id, 'qty', raw)
+                              const num = parseFloat(raw)
+                              if (Number.isFinite(num) && num > 0) handleUpdateItemQty(idx, num)
+                            }}
+                            onBlur={() => setDraft(item.product.id, 'qty', undefined)}
                             className="input"
                             style={{ height: 38, padding: '4px 8px', fontSize: 13, fontWeight: 700 }}
                           />
@@ -1067,8 +1108,14 @@ export function PurchasesPage() {
                             type="number"
                             step="0.1"
                             min="0"
-                            value={item.costPrice}
-                            onChange={(e) => handleUpdateItemCost(idx, parseFloat(e.target.value) || 0)}
+                            value={draft?.cost ?? item.costPrice}
+                            onChange={(e) => {
+                              const raw = e.target.value
+                              setDraft(item.product.id, 'cost', raw)
+                              const num = parseFloat(raw)
+                              if (Number.isFinite(num) && num >= 0) handleUpdateItemCost(idx, num)
+                            }}
+                            onBlur={() => setDraft(item.product.id, 'cost', undefined)}
                             className="input"
                             style={{ height: 38, padding: '4px 8px', fontSize: 13, fontWeight: 700 }}
                           />
@@ -1218,7 +1265,7 @@ export function PurchasesPage() {
             setPurchaseToDelete(null)
           } catch (err) {
             console.error(err)
-            alert('حدث خطأ أثناء حذف سجل الشراء')
+            alert(err instanceof Error ? err.message : 'حدث خطأ أثناء حذف سجل الشراء')
           } finally {
             setDeletingPurchase(false)
           }

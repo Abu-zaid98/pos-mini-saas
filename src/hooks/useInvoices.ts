@@ -8,8 +8,9 @@ import {
   type DiscountType,
   getPaymentMethodName,
 } from '../db/db'
-import { deductStock, getItemUnit, packPieces, restoreStock } from '../utils/units'
-import { computeBalances } from '../utils/wallet'
+import { deductStock, getItemUnit, packPieces, computeInvoiceRestore, returnedLineBase } from '../utils/units'
+import { computeBalances, parseAdjustments } from '../utils/wallet'
+import { normalizeCustomerBalance } from './useCustomers'
 
 export interface CreateSaleInput {
   customerId: number | null
@@ -109,13 +110,13 @@ export async function createSaleInvoice(data: CreateSaleInput): Promise<Invoice>
 
     const createdInvoiceId = Number(invoiceId)
 
-    // 3. Update customer debt if sale is on debt or partial
+    // 3. Update customer debt if sale is on debt or partial.
+    // يُستهلك الرصيد الدائن أولاً (عميل دفع زيادة سابقاً لا يُسجل عليه دين جديد قبل نفاد رصيده)
     if (data.customerId && data.debtAmount > 0) {
       const customer = await db.customers.get(data.customerId)
       if (customer) {
-        await db.customers.update(data.customerId, {
-          totalDebt: (customer.totalDebt || 0) + data.debtAmount,
-        })
+        const next = normalizeCustomerBalance(customer.totalDebt || 0, customer.creditBalance || 0, data.debtAmount)
+        await db.customers.update(data.customerId, next)
       }
     }
 
@@ -148,18 +149,20 @@ export type { AccountBalances, OpeningBalances } from '../utils/wallet'
 
 export function useAccountBalances() {
   const balances = useLiveQuery(async () => {
-    const [payments, purchases, expenses, transfers, openingSetting] = await Promise.all([
+    const [payments, purchases, expenses, transfers, openingSetting, adjustmentsSetting] = await Promise.all([
       db.payments.toArray(),
       db.purchases.toArray(),
       db.expenses.toArray(),
       db.transfers.toArray(),
       db.settings.get('wallet_opening_balances'),
+      db.settings.get('wallet_adjustments'),
     ])
 
     const openingBalances = openingSetting?.value as import('../utils/wallet').OpeningBalances | undefined
 
-    // المعادلة: داخل (+) payments + أرصدة افتتاحية، خارج (−) purchases + expenses، مع أثر التحويلات بين المحافظ
-    return computeBalances(payments, purchases, expenses, transfers, openingBalances)
+    // المعادلة: داخل (+) payments + أرصدة افتتاحية + تسويات إيداع،
+    // خارج (−) purchases + expenses + تسويات سحب، مع أثر التحويلات بين المحافظ
+    return computeBalances(payments, purchases, expenses, transfers, openingBalances, parseAdjustments(adjustmentsSetting?.value))
   }, [])
 
   return balances ?? { cash: 0, jawwal_pay: 0, palpay: 0, bop: 0, total: 0 }
@@ -203,16 +206,15 @@ export async function refundInvoiceItems(data: ProcessRefundInput): Promise<void
     const totalRefundAmount = data.items.reduce((sum, it) => sum + (Number(it.refundAmount) || 0), 0)
     if (totalRefundAmount <= 0) throw new Error('مبلغ الاسترداد يجب أن يكون أكبر من صفر')
 
-    // 1. إعادة البضاعة للمخزن
+    // 1. إعادة البضاعة للمخزن — الكمية بوحدة البند المرتجع نفسه (موحدة عبر returnedLineBase)
     for (const item of data.items) {
       if (item.productId > 0) {
         const originalItem = invoice.items.find((i) => i.productId === item.productId)
         const product = await db.products.get(item.productId)
         if (product) {
-          const qtyBase = originalItem?.pack ? packPieces(item.qty, originalItem.pack) : item.qty
-          const unit = originalItem?.pack ? 'piece' : (originalItem ? getItemUnit(originalItem) : 'piece')
+          const qtyBase = returnedLineBase(item, originalItem)
           await db.products.update(item.productId, {
-            quantity: restoreStock(product, qtyBase, unit),
+            quantity: Math.round((product.quantity + qtyBase) * 1000) / 1000,
             updatedAt: now,
           })
         }
@@ -277,28 +279,31 @@ export async function deleteInvoice(invoiceId: number) {
     const inv = await db.invoices.get(invoiceId)
     if (!inv) return
 
-    // Revert product quantities (unit-aware, packs revert by factor)
+    // Revert product quantities (unit-aware, packs revert by factor),
+    // مطروحاً منها ما سبق إرجاعه بمرتجعات — حتى لا يُستعاد نفس الصنف مرتين
+    const restoreMap = computeInvoiceRestore(inv.items, inv.returnedItems)
+    const restoredOnce = new Set<number>()
     for (const item of inv.items) {
-      if (item.productId > 0) {
+      if (item.productId > 0 && !restoredOnce.has(item.productId)) {
+        restoredOnce.add(item.productId)
         const product = await db.products.get(item.productId)
-        if (product) {
-          const qtyBase = item.pack ? packPieces(item.qty, item.pack) : item.qty
-          const unit = item.pack ? 'piece' : getItemUnit(item)
+        const restoreBase = restoreMap.get(item.productId) || 0
+        if (product && restoreBase > 0) {
           await db.products.update(item.productId, {
-            quantity: restoreStock(product, qtyBase, unit),
+            quantity: Math.round((product.quantity + restoreBase) * 1000) / 1000,
             updatedAt: new Date(),
           })
         }
       }
     }
 
-    // Revert customer debt
+    // Revert customer debt. التحصيلات اللاحقة (سندات مستقلة) تبقى مدفوعات صحيحة،
+    // فيتحول الفائض لرصيد دائن للعميل بدل تبخره — لا يُحذف دين سبق تحصيله
     if (inv.customerId && inv.debtAmount > 0) {
       const customer = await db.customers.get(inv.customerId)
       if (customer) {
-        await db.customers.update(inv.customerId, {
-          totalDebt: Math.max(0, (customer.totalDebt || 0) - inv.debtAmount),
-        })
+        const next = normalizeCustomerBalance(customer.totalDebt || 0, customer.creditBalance || 0, -inv.debtAmount)
+        await db.customers.update(inv.customerId, next)
       }
     }
 
@@ -329,7 +334,10 @@ export async function updateInvoiceDetails(invoiceId: number, data: UpdateInvoic
     const invoice = await db.invoices.get(invoiceId)
     if (!invoice) throw new Error('الفاتورة غير موجودة')
 
-    const paidAmount = Math.min(invoice.total, Math.max(0, Number(data.paidAmount) || 0))
+    // المقبوض لا يتجاوز المتبقي بعد المرتجعات — حتى لا يُحيي التعديل مبلغاً مسترداً
+    const refunded = Math.max(0, Number(invoice.refundedAmount) || 0)
+    const maxPaid = Math.max(0, invoice.total - refunded)
+    const paidAmount = Math.min(maxPaid, Math.max(0, Number(data.paidAmount) || 0))
     const debtAmount = Math.max(0, invoice.total - paidAmount)
 
     if (debtAmount > 0 && !data.customerId) {
@@ -337,27 +345,30 @@ export async function updateInvoiceDetails(invoiceId: number, data: UpdateInvoic
     }
 
     // Remove the old debt from its customer, then add the new debt to its customer.
+    // بالفروقات عبر normalize حتى لا يضيع تحصيل لاحق أو رصيد دائن (انظر حذف الفاتورة)
     if (invoice.customerId && invoice.debtAmount > 0) {
       const oldCustomer = await db.customers.get(invoice.customerId)
       if (oldCustomer) {
-        await db.customers.update(invoice.customerId, {
-          totalDebt: Math.max(0, (oldCustomer.totalDebt || 0) - invoice.debtAmount),
-        })
+        const next = normalizeCustomerBalance(oldCustomer.totalDebt || 0, oldCustomer.creditBalance || 0, -invoice.debtAmount)
+        await db.customers.update(invoice.customerId, next)
       }
     }
     if (data.customerId && debtAmount > 0) {
       const newCustomer = await db.customers.get(data.customerId)
       if (!newCustomer) throw new Error('العميل غير موجود')
-      await db.customers.update(data.customerId, {
-        totalDebt: (newCustomer.totalDebt || 0) + debtAmount,
-      })
+      const next = normalizeCustomerBalance(newCustomer.totalDebt || 0, newCustomer.creditBalance || 0, debtAmount)
+      await db.customers.update(data.customerId, next)
     }
 
     // The payment that belongs to the original sale is replaced. Independent
-    // collection receipts remain untouched.
+    // collection receipts remain untouched — وكذلك دفعات المرتجع النقدي (السالبة
+    // والتي تحوي "مرتجع") فحذفها يمحو أثر الاسترداد من المحفظة.
     const linkedPayments = await db.payments.where('invoiceId').equals(invoiceId).toArray()
     await Promise.all(linkedPayments
-      .filter((payment) => payment.note.includes(`فاتورة #${invoiceId}`) || payment.note.includes(`#${invoiceId}`))
+      .filter((payment) =>
+        payment.amount > 0 &&
+        !payment.note.includes('مرتجع') &&
+        (payment.note.includes(`فاتورة #${invoiceId}`) || payment.note.includes(`#${invoiceId}`)))
       .map((payment) => db.payments.delete(payment.id!)))
 
     const method = data.paymentMethod || 'cash'

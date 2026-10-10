@@ -31,8 +31,10 @@ import {
   formatLineDiscount,
   perPieceQty,
   formatLineQty,
+  computeInvoiceRestore,
+  returnedLineBase,
 } from '../units'
-import type { Product } from '../../db/db'
+import type { Product, InvoiceItem, ReturnedItem } from '../../db/db'
 
 function goods(over: Partial<Product> = {}): Product {
   return {
@@ -109,6 +111,45 @@ describe('المخزون', () => {
   it('استرجاع المخزون عند حذف فاتورة', () => {
     expect(restoreStock(goods({ quantity: 7 }), 3, 'piece')).toBe(10)
     expect(restoreStock(goods({ type: 'weighted', quantity: 1500 }), 0.5, 'kg')).toBe(2000)
+  })
+  it('حذف فاتورة يسترجع المباع ناقص المرتجع سابقاً (لا ازدواج)', () => {
+    const item = (over: Partial<InvoiceItem>): InvoiceItem => ({
+      productId: 1, name: 'شيبس', qty: 10, price: 5, costPrice: 3, unit: 'piece', ...over,
+    })
+    const ret = (over: Partial<ReturnedItem>): ReturnedItem => ({
+      productId: 1, name: 'شيبس', qty: 4, unit: 'piece', price: 5,
+      refundAmount: 20, refundMethod: 'cash', date: new Date(), ...over,
+    })
+    // بيع 10 + مرتجع 4 → استرجاع 6 فقط (كان 10 كاملة = +4 وهمية)
+    expect(computeInvoiceRestore([item({})], [ret({})]).get(1)).toBe(6)
+    // بلا مرتجعات → كامل المباع
+    expect(computeInvoiceRestore([item({})], []).get(1)).toBe(10)
+    // العبوة: بيع 2 كرتونة (×12) + مرتجع كرتونة → 12
+    const pack = { label: 'كرتونة', factor: 12, price: 55 }
+    expect(computeInvoiceRestore(
+      [{ ...item({}), qty: 2, pack }],
+      [{ ...ret({}), qty: 1 }],
+    ).get(1)).toBe(12)
+    // الموزون: بيع 1كغ + مرتجع 0.25كغ → 750غ بالأساسية
+    expect(computeInvoiceRestore(
+      [{ ...item({}), qty: 1, unit: 'kg' as const }],
+      [{ ...ret({}), qty: 0.25, unit: 'kg' as const }],
+    ).get(1)).toBe(750)
+    // وحدة البند المرتجع نفسه هي المرجع: سطر بالجرام + مرتجع 0.5كغ → 500غ
+    expect(computeInvoiceRestore(
+      [{ ...item({}), qty: 2000, unit: 'g' as const }],
+      [{ ...ret({}), qty: 0.5, unit: 'kg' as const }],
+    ).get(1)).toBe(1500)
+    // بند وهمي (دين افتتاحي) لا يُسترجع له مخزون
+    expect(computeInvoiceRestore([item({ productId: 0, qty: 1 })], []).size).toBe(0)
+  })
+  it('returnedLineBase: وحدة البند المرتجع هي المرجع الموحد', () => {
+    // عبوة: عدّ العبوات × المعامل
+    expect(returnedLineBase({ qty: 2, unit: 'piece' }, { pack: { label: 'ك', factor: 12, price: 1 }, unit: 'piece' })).toBe(24)
+    // موزون: وحدة البند نفسه تُحترم لا وحدة السطر
+    expect(returnedLineBase({ qty: 0.5, unit: 'kg' }, { unit: 'g' })).toBe(500)
+    // سجل قديم بلا وحدة: fallback لوحدة السطر الأصلي
+    expect(returnedLineBase({ qty: 250 }, { unit: 'g' })).toBe(250)
   })
   it('تجاوز المخزون يقارن بالوحدات الأساسية', () => {
     expect(exceedsStock(2.5, 'kg', 2000, 'weighted')).toBe(true)

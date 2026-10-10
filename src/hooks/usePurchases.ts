@@ -39,9 +39,9 @@ export async function addQuickRestock(params: {
     const toPricing = (base: number) => pType === 'weighted' ? base / GRAMS_PER_KG : base
     const costPrice = Math.round(averageCostPerKg(toPricing(oldQuantity), Number(product.costPrice) || 0, toPricing(params.addedQuantity), inputCost) * 100) / 100
 
-    // الإجمالي بوحدات التسعير (كيلو للموزون حتى لا يتضخم ×1000)
+    // الإجمالي بسعر الشراء المدخل فعلياً — لا بالمتوسط (المتوسط للتكلفة فقط)
     const pricingQty = pType === 'weighted' ? params.addedQuantity / GRAMS_PER_KG : params.addedQuantity
-    const totalCost = Math.round(pricingQty * costPrice * 100) / 100
+    const totalCost = Math.round(pricingQty * inputCost * 100) / 100
 
     const paid = params.paidAmount !== undefined ? Math.max(0, params.paidAmount) : totalCost
     const debt = params.debtAmount !== undefined ? Math.max(0, params.debtAmount) : Math.max(0, totalCost - paid)
@@ -54,7 +54,8 @@ export async function addQuickRestock(params: {
       updatedAt: new Date(),
     })
 
-    // 2. Create purchase log item
+    // 2. Create purchase log item — costPrice هنا سعر الشراء الحقيقي للسجل،
+    // أما المتوسط المرجح (costPrice أعلاه) فيُستخدم لتكلفة المنتج فقط
     const item: PurchaseItem = {
       productId: product.id!,
       productName: product.name,
@@ -62,7 +63,7 @@ export async function addQuickRestock(params: {
       quantity: params.addedQuantity,
       oldQuantity,
       newQuantity,
-      costPrice,
+      costPrice: Math.round(inputCost * 100) / 100,
       totalCost,
       unit,
     }
@@ -165,7 +166,10 @@ export async function addPurchaseInvoice(params: {
 /**
  * تعديل البيانات الوصفية لفاتورة شراء (بدون مساس بالمخزون أو التكلفة):
  * المورد/رقم الفاتورة/التاريخ/الملاحظات/طريقة الدفع.
- * تغيير المحفظة ينقل المبلغ المدفوع بين المحافظ — يُعاد حساب الأرصدة تلقائياً.
+ * قيود صارمة (لمنع نقل ديون صامت بين الموردين أو المحافظ):
+ * - تغيير اسم المورد ممنوع عند وجود دين مستحق (الدين يتبع الاسم في الكشوف).
+ * - تغيير المحفظة ممنوع عند وجود دفعات مسددة (كل دفعة تحمل محفظتها الخاصة).
+ * تغيير المحفظة قبل أي سداد ينقل المبلغ المدفوع بين المحافظ — وتُعاد الأرصدة تلقائياً.
  */
 export async function updatePurchaseMeta(id: number, data: {
   supplierName?: string
@@ -176,6 +180,18 @@ export async function updatePurchaseMeta(id: number, data: {
 }) {
   const purchase = await db.purchases.get(id)
   if (!purchase) throw new Error('فاتورة الشراء غير موجودة')
+  const hasPayments = (purchase.supplierPayments?.length || 0) > 0
+  const outstandingDebt = Number(purchase.debtAmount) || 0
+  if (
+    data.supplierName !== undefined &&
+    data.supplierName.trim() !== (purchase.supplierName || '').trim() &&
+    outstandingDebt > 0
+  ) {
+    throw new Error(`تعذر تغيير المورد: على هذه الفاتورة دين مستحق (${outstandingDebt} ₪) مرتبط بالاسم الحالي. سدده أولاً ثم انقل الفاتورة.`)
+  }
+  if (data.paymentMethod !== undefined && data.paymentMethod !== purchase.paymentMethod && hasPayments) {
+    throw new Error('تعذر تغيير المحفظة: على هذه الفاتورة دفعات مسددة بمحافظها الخاصة. المحفظة هنا تخص الدفعة الأولى فقط قبل أي سداد.')
+  }
   return db.purchases.update(id, {
     supplierName: data.supplierName !== undefined ? data.supplierName.trim() : purchase.supplierName,
     invoiceNumber: data.invoiceNumber !== undefined ? data.invoiceNumber.trim() : purchase.invoiceNumber,
@@ -189,6 +205,18 @@ export async function deletePurchase(id: number) {
   return db.transaction('rw', [db.purchases, db.products], async () => {
     const purchase = await db.purchases.get(id)
     if (!purchase) return
+
+    // قيد صارم: فاتورة عليها دين مستحق أو دفعات مسددة لاحقاً لا تُحذف —
+    // حذفها يمحو الدين من كشف المورد ويرفع رصيد المحفظة وهمياً
+    const laterPayments = purchase.supplierPayments?.length || 0
+    const outstandingDebt = Number(purchase.debtAmount) || 0
+    if (laterPayments > 0 || outstandingDebt > 0) {
+      throw new Error(
+        outstandingDebt > 0
+          ? `لا يمكن حذف الفاتورة: عليها دين مستحق للمورد (${outstandingDebt} ₪). سدده أولاً من زر «سداد دفعة للمورد» ثم احذف.`
+          : 'لا يمكن حذف الفاتورة: عليها دفعات مسددة مسجلة. حذفها سيخل بتطابق المحفظة — راجع سجل الدفعات أولاً.'
+      )
+    }
 
     // Revert product quantities added by this purchase
     for (const item of purchase.items) {
