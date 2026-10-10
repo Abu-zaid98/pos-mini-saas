@@ -303,11 +303,12 @@ export function ReportsPage() {
                 fontWeight: 800,
                 padding: '3px 10px',
                 borderRadius: 50,
-                background: 'rgba(59,130,246,0.15)',
-                color: 'var(--color-primary-light)',
+                background: balances.total < 0 ? 'var(--kpi-danger-bg)' : 'rgba(59,130,246,0.15)',
+                color: balances.total < 0 ? 'var(--color-danger-light)' : 'var(--color-primary-light)',
+                border: balances.total < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid transparent',
                 direction: 'ltr',
               }}>
-                المجموع: {formatCurrency(balances.total)}
+                {balances.total < 0 ? '⚠️ عجز: ' : 'المجموع: '}{formatCurrency(balances.total)}
               </span>
             </div>
 
@@ -324,8 +325,8 @@ export function ReportsPage() {
                 onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('cash') }}
                 title="عرض حركات الصندوق"
                 style={{
-                  background: 'var(--color-input-bg)',
-                  border: '1px solid var(--color-border)',
+                  background: balances.cash < 0 ? 'var(--kpi-danger-bg)' : 'var(--color-input-bg)',
+                  border: balances.cash < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid var(--color-border)',
                   borderRadius: 14,
                   padding: 12,
                   cursor: 'pointer',
@@ -333,9 +334,14 @@ export function ReportsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 16 }}>💵</span>
                   <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>رصيد الكاش (الصندوق)</span>
+                  {balances.cash < 0 && (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-danger-light)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 50, padding: '1px 8px' }}>
+                      ⚠️ عجز
+                    </span>
+                  )}
                   <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-text-primary)', direction: 'ltr' }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: balances.cash < 0 ? 'var(--color-danger-light)' : 'var(--color-text-primary)', direction: 'ltr' }}>
                   {formatCurrency(balances.cash)}
                 </div>
               </div>
@@ -348,8 +354,8 @@ export function ReportsPage() {
                 onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('jawwal_pay') }}
                 title="عرض حركات جوال باي"
                 style={{
-                  background: 'rgba(16,185,129,0.08)',
-                  border: '1px solid rgba(16,185,129,0.25)',
+                  background: balances.jawwal_pay < 0 ? 'var(--kpi-danger-bg)' : 'rgba(16,185,129,0.08)',
+                  border: balances.jawwal_pay < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid rgba(16,185,129,0.25)',
                   borderRadius: 14,
                   padding: 12,
                   cursor: 'pointer',
@@ -357,9 +363,14 @@ export function ReportsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 16 }}>📱</span>
                   <span style={{ fontSize: 12, color: 'var(--color-success-light)', fontWeight: 600 }}>رصيد جوال باي</span>
+                  {balances.jawwal_pay < 0 && (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-danger-light)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 50, padding: '1px 8px' }}>
+                      ⚠️ عجز
+                    </span>
+                  )}
                   <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-success-light)', direction: 'ltr' }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: balances.jawwal_pay < 0 ? 'var(--color-danger-light)' : 'var(--color-success-light)', direction: 'ltr' }}>
                   {formatCurrency(balances.jawwal_pay)}
                 </div>
               </div>
@@ -372,8 +383,8 @@ export function ReportsPage() {
                 onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('palpay') }}
                 title="عرض حركات بال باي"
                 style={{
-                  background: 'rgba(139,92,246,0.08)',
-                  border: '1px solid rgba(139,92,246,0.25)',
+                  background: balances.palpay < 0 ? 'var(--kpi-danger-bg)' : 'rgba(139,92,246,0.08)',
+                  border: balances.palpay < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid rgba(139,92,246,0.25)',
                   borderRadius: 14,
                   padding: 12,
                   cursor: 'pointer',
@@ -381,9 +392,14 @@ export function ReportsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 16 }}>💳</span>
                   <span style={{ fontSize: 12, color: 'var(--color-purple-light)', fontWeight: 600 }}>رصيد بال باي (PalPay)</span>
+                  {balances.palpay < 0 && (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-danger-light)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 50, padding: '1px 8px' }}>
+                      ⚠️ عجز
+                    </span>
+                  )}
                   <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-purple-light)', direction: 'ltr' }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: balances.palpay < 0 ? 'var(--color-danger-light)' : 'var(--color-purple-light)', direction: 'ltr' }}>
                   {formatCurrency(balances.palpay)}
                 </div>
               </div>
@@ -396,8 +412,8 @@ export function ReportsPage() {
                 onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('bop') }}
                 title="عرض حركات بنك فلسطين"
                 style={{
-                  background: 'rgba(59,130,246,0.08)',
-                  border: '1px solid rgba(59,130,246,0.25)',
+                  background: balances.bop < 0 ? 'var(--kpi-danger-bg)' : 'rgba(59,130,246,0.08)',
+                  border: balances.bop < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid rgba(59,130,246,0.25)',
                   borderRadius: 14,
                   padding: 12,
                   cursor: 'pointer',
@@ -405,9 +421,14 @@ export function ReportsPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                   <span style={{ fontSize: 16 }}>🏦</span>
                   <span style={{ fontSize: 12, color: 'var(--color-primary-light)', fontWeight: 600 }}>رصيد بنك فلسطين</span>
+                  {balances.bop < 0 && (
+                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-danger-light)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 50, padding: '1px 8px' }}>
+                      ⚠️ عجز
+                    </span>
+                  )}
                   <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-primary-light)', direction: 'ltr' }}>
+                <div style={{ fontSize: 18, fontWeight: 900, color: balances.bop < 0 ? 'var(--color-danger-light)' : 'var(--color-primary-light)', direction: 'ltr' }}>
                   {formatCurrency(balances.bop)}
                 </div>
               </div>

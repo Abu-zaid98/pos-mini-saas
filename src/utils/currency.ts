@@ -1,9 +1,11 @@
 /**
  * Format a number as Israeli Shekel currency
- * Always returns: "X.XX ₪"
+ * Always returns: "X.XX ₪" — السالب يُعرض بإشارته (رصيد -844.5 → "-844.50 ₪")
  */
 export function formatCurrency(amount: number): string {
-  return `${Math.abs(amount).toFixed(2)} ₪`
+  const n = Number(amount) || 0
+  if (n === 0) return `0.00 ₪`
+  return `${n < 0 ? '-' : ''}${Math.abs(n).toFixed(2)} ₪`
 }
 
 /**
