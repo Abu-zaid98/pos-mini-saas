@@ -99,4 +99,148 @@ describe('computeBalances — انحدار: المصروف يُطرح دائما
     expect(b.cash).toBe(650)
     expect(b.total).toBe(650)
   })
+
+  it('المشتريات بآجل أو دفع جزئي تخصم المدفوع فقط وتتجاهل الدين', () => {
+    const b = computeBalances(
+      [{ amount: 1000, method: 'cash' }],
+      [
+        // توريد بـ 500 مع دفع 200 كاش والباقي 300 دين للمورد
+        { totalAmount: 500, paidAmount: 200, paymentMethod: 'cash' },
+        // توريد آجل بالكامل 400 (مدفوع 0)
+        { totalAmount: 400, paidAmount: 0, paymentMethod: 'cash' },
+      ],
+      [],
+    )
+    // 1000 داخل - 200 مدفوع = 800 (وليس 1000 - 900 = 100)
+    expect(b.cash).toBe(800)
+    expect(b.total).toBe(800)
+  })
+
+  it('التحويل بين المحافظ يغير أرصدة الصناديق ويبقى الإجمالي ثابتاً (صافي أثر = 0)', () => {
+    const b = computeBalances(
+      [{ amount: 1000, method: 'cash' }],
+      [],
+      [],
+      [
+        // تحويل 300 من الكاش إلى بنك فلسطين
+        { fromMethod: 'cash', toMethod: 'bop', amount: 300 },
+        // تحويل 100 من الكاش إلى جوال باي
+        { fromMethod: 'cash', toMethod: 'jawwal_pay', amount: 100 },
+      ],
+    )
+    expect(b.cash).toBe(600) // 1000 - 300 - 100
+    expect(b.bop).toBe(300)
+    expect(b.jawwal_pay).toBe(100)
+    expect(b.palpay).toBe(0)
+    expect(b.total).toBe(1000) // لم يتغير المجموع الكلي!
+  })
 })
+
+describe('buildWalletLedger مع التحويلات والمرتجعات', () => {
+  it('يسجل التحويل كحركة خارجة للمحفظة المحول منها وحركة داخلة للمحفظة المستلمة', () => {
+    const transfers = [
+      {
+        id: 1,
+        fromMethod: 'cash' as const,
+        toMethod: 'bop' as const,
+        amount: 250,
+        notes: 'إيداع بنكي',
+        date: D('2026-10-07T12:00:00'),
+        createdAt: D('2026-10-07T12:00:00'),
+      },
+    ]
+
+    // فحص كشف الكاش (المصدر)
+    const cashLedger = buildWalletLedger(
+      [pay({ id: 1, amount: 500, createdAt: D('2026-10-07T10:00:00') })],
+      [],
+      [],
+      'cash',
+      transfers,
+    )
+    expect(cashLedger.totalIn).toBe(500)
+    expect(cashLedger.totalOut).toBe(250)
+    expect(cashLedger.net).toBe(250)
+    expect(cashLedger.entries[1].source).toBe('transfer')
+    expect(cashLedger.entries[1].kind).toBe('out')
+
+    // فحص كشف البنك (الوجهة)
+    const bopLedger = buildWalletLedger(
+      [],
+      [],
+      [],
+      'bop',
+      transfers,
+    )
+    expect(bopLedger.totalIn).toBe(250)
+    expect(bopLedger.totalOut).toBe(0)
+    expect(bopLedger.net).toBe(250)
+    expect(bopLedger.entries[0].source).toBe('transfer')
+    expect(bopLedger.entries[0].kind).toBe('in')
+  })
+
+  it('حركات الاسترداد النقدي (المرتجع) تظهر كحركة خارجة سالبة من الصندوق', () => {
+    const { entries, totalIn, totalOut, net } = buildWalletLedger(
+      [
+        pay({ id: 1, amount: 200, invoiceId: 10, createdAt: D('2026-10-08T10:00:00') }),
+        // حركة استرداد نقدي لمرتجع
+        pay({ id: 2, amount: -50, invoiceId: 10, note: 'استرداد صنف', createdAt: D('2026-10-08T11:00:00') }),
+      ],
+      [],
+      [],
+      'cash',
+    )
+    expect(totalIn).toBe(200)
+    expect(totalOut).toBe(50)
+    expect(net).toBe(150)
+    expect(entries[1].source).toBe('refund')
+    expect(entries[1].kind).toBe('out')
+    expect(entries[1].amount).toBe(50)
+    expect(entries[1].running).toBe(150)
+  })
+
+  it('الرصيد الافتتاحي يظهر كأول بند في الكشف ويبدأ منه الرصيد الجاري', () => {
+    const { entries, totalIn, net } = buildWalletLedger(
+      [pay({ id: 1, amount: 200, createdAt: D('2026-10-09T10:00:00') })],
+      [],
+      [],
+      'cash',
+      [],
+      1000, // رصيد افتتاحي 1000
+    )
+    expect(entries[0].source).toBe('opening')
+    expect(entries[0].amount).toBe(1000)
+    expect(entries[0].running).toBe(1000)
+    expect(entries[1].running).toBe(1200)
+    expect(totalIn).toBe(1200)
+    expect(net).toBe(1200)
+  })
+
+  it('دفعات سداد الموردين المتعددة تخصم من محافظها المحددة بدقة', () => {
+    const b = computeBalances(
+      [],
+      [
+        {
+          totalAmount: 1000,
+          paidAmount: 600,
+          paymentMethod: 'cash',
+          supplierPayments: [
+            { amount: 200, paymentMethod: 'cash', date: D('2026-10-01') },
+            { amount: 400, paymentMethod: 'bop', date: D('2026-10-02') },
+          ],
+        },
+      ],
+      [],
+      [],
+      { cash: 500, bop: 1000 },
+    )
+    // كاش: 500 افتتاحي - 200 دفعة = 300
+    expect(b.cash).toBe(300)
+    // بنك: 1000 افتتاحي - 400 دفعة = 600
+    expect(b.bop).toBe(600)
+    // إجمالي: 1500 - 600 = 900
+    expect(b.total).toBe(900)
+  })
+})
+
+

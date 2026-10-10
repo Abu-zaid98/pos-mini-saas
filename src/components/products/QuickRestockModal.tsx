@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Modal } from '../ui/Modal'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
-import { PAYMENT_METHODS, type Product, type PaymentMethod } from '../../db/db'
+import { PAYMENT_METHODS, type Product, type PaymentMethod, type PaymentType } from '../../db/db'
 import { addQuickRestock } from '../../hooks/usePurchases'
 import { useAccountBalances } from '../../hooks/useInvoices'
 import { formatCurrency } from '../../utils/currency'
@@ -20,6 +20,8 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
   const [addedQty, setAddedQty] = useState('')
   const [costPrice, setCostPrice] = useState('')
   const [supplierName, setSupplierName] = useState('')
+  const [paymentType, setPaymentType] = useState<PaymentType>('cash')
+  const [partialPaid, setPartialPaid] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [dateStr, setDateStr] = useState(() => new Date().toISOString().slice(0, 16))
   const [notes, setNotes] = useState('')
@@ -31,6 +33,8 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
       setAddedQty('')
       setCostPrice(String(product.costPrice ?? ''))
       setSupplierName('')
+      setPaymentType('cash')
+      setPartialPaid('')
       setNotes('')
       setDateStr(new Date().toISOString().slice(0, 16))
       setError('')
@@ -71,6 +75,17 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
       return
     }
 
+    let paid = totalCost
+    let debt = 0
+    if (paymentType === 'debt') {
+      paid = 0
+      debt = totalCost
+    } else if (paymentType === 'partial') {
+      const parsed = parseFloat(partialPaid) || 0
+      paid = Math.min(totalCost, Math.max(0, parsed))
+      debt = Math.max(0, totalCost - paid)
+    }
+
     setLoading(true)
     try {
       await addQuickRestock({
@@ -78,7 +93,10 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
         addedQuantity: numAdded,
         newCostPrice: numCost,
         supplierName: supplierName.trim(),
-        paymentMethod,
+        paymentMethod: paymentType === 'debt' ? undefined : paymentMethod,
+        paidAmount: paid,
+        debtAmount: debt,
+        paymentType,
         date: dateStr ? new Date(dateStr) : new Date(),
         notes: notes.trim(),
       })
@@ -233,68 +251,134 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
           </div>
         </div>
 
-        {/* Payment Method */}
+        {/* Payment Status: Cash / Debt / Partial */}
         <div>
           <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>
-            طريقة دفع قيمة البضاعة (المحفظة / الصندوق)
+            حالة الدفع للمورد *
           </label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-            {PAYMENT_METHODS.map((m) => {
-              const active = paymentMethod === m.id
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+            {[
+              { id: 'cash' as PaymentType, label: '💵 نقداً كاش' },
+              { id: 'debt' as PaymentType, label: '📝 آجل (دين)' },
+              { id: 'partial' as PaymentType, label: '⚖️ جزئي' },
+            ].map((t) => {
+              const active = paymentType === t.id
               return (
                 <button
-                  key={m.id}
+                  key={t.id}
                   type="button"
-                  onClick={() => setPaymentMethod(m.id)}
+                  onClick={() => setPaymentType(t.id)}
                   style={{
-                    padding: '8px 10px',
-                    borderRadius: 10,
+                    padding: '8px 4px',
+                    borderRadius: 8,
                     border: active ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
-                    background: active ? 'rgba(59,130,246,0.15)' : 'var(--color-bg-card)',
+                    background: active ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
                     color: active ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: 700,
                     cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 3,
-                    justifyContent: 'center',
+                    fontFamily: 'var(--font-main)',
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>{m.icon}</span>
-                    <span>{m.label}</span>
-                  </div>
-                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
-                    الرصيد: {formatCurrency(balances[m.id])}
-                  </span>
+                  {t.label}
                 </button>
               )
             })}
           </div>
-          {totalCost > 0 && (
-            <div style={{
-              marginTop: 8,
-              padding: '6px 10px',
-              borderRadius: 8,
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid var(--color-border)',
-              fontSize: 11,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              color: 'var(--color-text-secondary)',
-            }}>
-              <span>المتبقي في المحفظة بعد الخصم:</span>
-              <strong style={{
-                color: balances[paymentMethod] - totalCost < 0 ? 'var(--color-danger-light)' : 'var(--color-success-light)'
-              }}>
-                {formatCurrency(balances[paymentMethod] - totalCost)}
+        </div>
+
+        {/* If partial, input for paid amount */}
+        {paymentType === 'partial' && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10,
+            background: 'rgba(255,255,255,0.03)',
+            padding: '10px 12px',
+            borderRadius: 10,
+            border: '1px solid var(--color-border)',
+          }}>
+            <Input
+              label="المبلغ المدفوع كاش ₪ *"
+              placeholder="0.00"
+              value={partialPaid}
+              onChange={(e) => setPartialPaid(e.target.value)}
+              inputMode="decimal"
+              required
+            />
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>المتبقي دين للمورد:</span>
+              <strong style={{ fontSize: 15, color: 'var(--color-danger-light)', marginTop: 2 }}>
+                {formatCurrency(Math.max(0, totalCost - (parseFloat(partialPaid) || 0)))}
               </strong>
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Payment Method (only if there is cash paid) */}
+        {paymentType !== 'debt' && (
+          <div>
+            <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>
+              صندوق / محفظة الدفع
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+              {PAYMENT_METHODS.map((m) => {
+                const active = paymentMethod === m.id
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setPaymentMethod(m.id)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 10,
+                      border: active ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      background: active ? 'rgba(59,130,246,0.15)' : 'var(--color-bg-card)',
+                      color: active ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>{m.icon}</span>
+                      <span>{m.label}</span>
+                    </div>
+                    <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                      الرصيد: {formatCurrency(balances[m.id])}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+            {totalCost > 0 && (
+              <div style={{
+                marginTop: 8,
+                padding: '6px 10px',
+                borderRadius: 8,
+                background: 'rgba(255,255,255,0.03)',
+                border: '1px solid var(--color-border)',
+                fontSize: 11,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                color: 'var(--color-text-secondary)',
+              }}>
+                <span>الخصم من المحفظة:</span>
+                <strong style={{
+                  color: 'var(--color-primary-light)'
+                }}>
+                  {formatCurrency(paymentType === 'cash' ? totalCost : (parseFloat(partialPaid) || 0))}
+                </strong>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Notes */}
         <div>

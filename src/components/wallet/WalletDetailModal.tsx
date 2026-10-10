@@ -4,7 +4,7 @@ import { Modal } from '../ui/Modal'
 import { ConfirmModal } from '../ui/ConfirmModal'
 import { ExpenseModal } from '../expenses/ExpenseModal'
 import { db, getPaymentMethodName, type Expense, type PaymentMethod } from '../../db/db'
-import { buildWalletLedger, type WalletEntryWithRunning } from '../../utils/wallet'
+import { buildWalletLedger, deleteWalletTransfer, type WalletEntryWithRunning } from '../../utils/wallet'
 import { formatCurrency } from '../../utils/currency'
 import { deleteExpense } from '../../hooks/useExpenses'
 import { deletePurchase } from '../../hooks/usePurchases'
@@ -17,7 +17,7 @@ interface WalletDetailModalProps {
 }
 
 interface PendingDelete {
-  kind: 'expense' | 'purchase' | 'collection' | 'sale'
+  kind: 'expense' | 'purchase' | 'collection' | 'sale' | 'transfer'
   refId: number
   title: string
   message: string
@@ -30,6 +30,9 @@ const SOURCE_ICON: Record<WalletEntryWithRunning['source'], string> = {
   collection: '🤝',
   purchase: '📥',
   expense: '💸',
+  transfer: '🔄',
+  refund: '↩️',
+  opening: '🏁',
 }
 
 export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
@@ -40,10 +43,18 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
   const payments = useLiveQuery(() => db.payments.toArray(), []) ?? []
   const purchases = useLiveQuery(() => db.purchases.toArray(), []) ?? []
   const expenses = useLiveQuery(() => db.expenses.toArray(), []) ?? []
+  const transfers = useLiveQuery(() => db.transfers.toArray(), []) ?? []
+  const openingSetting = useLiveQuery(() => db.settings.get('wallet_opening_balances'))
+
+  const openingBalance = useMemo(() => {
+    if (!method || !openingSetting?.value) return 0
+    const obj = openingSetting.value as Record<string, number>
+    return Number(obj[method]) || 0
+  }, [method, openingSetting])
 
   const ledger = useMemo(
-    () => (method ? buildWalletLedger(payments, purchases, expenses, method) : null),
-    [payments, purchases, expenses, method],
+    () => (method ? buildWalletLedger(payments, purchases, expenses, method, transfers, openingBalance) : null),
+    [payments, purchases, expenses, method, transfers, openingBalance],
   )
 
   if (!method || !ledger) return null
@@ -64,8 +75,8 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
         refId: entry.refId,
         title: 'حذف سجل التوريد',
         message: `هل تريد حذف "${entry.title}" (${formatCurrency(entry.amount)})؟`,
-        subMessage: 'تنبيه: يُحذف السجل المالي فقط ولا تُعكس كميات المخزون — عدّل المخزون يدوياً إن لزم.',
-        confirmText: 'حذف السجل فقط',
+        subMessage: 'سيُحذف السجل المالي وتُخصم الكميات الموردة من المخزون تلقائياً.',
+        confirmText: 'تأكيد الحذف',
       })
     } else if (entry.source === 'collection') {
       setConfirm({
@@ -75,6 +86,15 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
         message: `هل تريد حذف سند التحصيل (${formatCurrency(entry.amount)})؟`,
         subMessage: 'سيعود المبلغ إلى دين العميل تلقائياً وينقص رصيد المحفظة.',
         confirmText: 'تأكيد الحذف',
+      })
+    } else if (entry.source === 'transfer') {
+      setConfirm({
+        kind: 'transfer',
+        refId: entry.refId,
+        title: 'إلغاء التحويل المالي',
+        message: `هل تريد إلغاء حركة "${entry.title}" (${formatCurrency(entry.amount)})؟`,
+        subMessage: 'سيعود الرصيد كما كان قبل التحويل في كلا المحفظتين.',
+        confirmText: 'تأكيد الإلغاء',
       })
     } else {
       setConfirm({
@@ -95,6 +115,7 @@ export function WalletDetailModal({ method, onClose }: WalletDetailModalProps) {
       if (confirm.kind === 'expense') await deleteExpense(confirm.refId)
       else if (confirm.kind === 'purchase') await deletePurchase(confirm.refId)
       else if (confirm.kind === 'collection') await deleteCollectionPayment(confirm.refId)
+      else if (confirm.kind === 'transfer') await deleteWalletTransfer(confirm.refId)
       else await deleteInvoice(confirm.refId)
       setConfirm(null)
     } catch (err) {

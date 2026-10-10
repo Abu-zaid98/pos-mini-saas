@@ -120,17 +120,17 @@
   --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.28);
   --shadow-primary: 0 4px 14px rgba(15, 118, 110, 0.28);
 
-  /* Spacing */
-  --nav-height: 68px;
-  --header-height: 64px;
+  /* Spacing & Density (Compact & Efficient) */
+  --nav-height: 56px;
+  --header-height: 52px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --bottom-bar-total-height: calc(var(--nav-height) + var(--safe-bottom));
-  --page-bottom-padding: calc(var(--bottom-bar-total-height) + 8px);
+  --page-bottom-padding: calc(var(--bottom-bar-total-height) + 6px);
   --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 14px;
-  --radius-xl: 18px;
+  --radius-md: 11px;
+  --radius-lg: 13px;
+  --radius-xl: 16px;
   --radius-full: 9999px;
 }
 
@@ -274,10 +274,10 @@ input, textarea, select {
   direction: rtl;
 }
 
-h1 { font-size: 19px; font-weight: 800; line-height: 1.35; }
-h2 { font-size: 16px; font-weight: 800; line-height: 1.4; }
-h3 { font-size: 14px; font-weight: 700; line-height: 1.45; }
-h4 { font-size: 13px; font-weight: 700; line-height: 1.45; }
+h1 { font-size: 18px; font-weight: 800; line-height: 1.35; }
+h2 { font-size: 15px; font-weight: 800; line-height: 1.4; }
+h3 { font-size: 13px; font-weight: 700; line-height: 1.45; }
+h4 { font-size: 12px; font-weight: 700; line-height: 1.45; }
 p  { font-size: 13px; line-height: 1.55; }
 
 /* ==============================
@@ -347,7 +347,7 @@ p  { font-size: 13px; line-height: 1.55; }
 
 /* جذر الشاشة الموحد: الإطار + تباعد رأسي صغير ثابت */
 .page-frame {
-  width: min(100%, 720px);
+  width: min(100%, 840px);
   margin: 0 auto;
   padding: clamp(6px, 1.5vw, 10px) clamp(10px, 2.8vw, 16px);
 }
@@ -481,19 +481,29 @@ p  { font-size: 13px; line-height: 1.55; }
 }
 
 .nav-icon-wrap {
-  width: 36px;
-  height: 28px;
-  border-radius: 10px;
+  width: 32px;
+  height: 24px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .nav-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.1;
+}
+
+.product-card-compact {
+  transform: translateZ(0);
+}
+.product-card-compact:hover {
+  transform: translateY(-2px);
+}
+.product-card-compact:active {
+  transform: scale(0.96);
 }
 
 /* ==============================
@@ -561,7 +571,7 @@ p  { font-size: 13px; line-height: 1.55; }
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 14px;
+  padding: 12px;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
   position: relative;
   overflow: hidden;

@@ -325,7 +325,7 @@ export function ProductsPage() {
               </p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {products.map((p) => {
                 const pType = getProductType(p)
                 const typeMeta = PRODUCT_TYPES.find((t) => t.id === pType)!
@@ -342,22 +342,22 @@ export function ProductsPage() {
                     style={{
                       background: 'var(--color-bg-card)',
                       border: `1px solid ${isOut ? 'rgba(239,68,68,0.35)' : isLow ? 'rgba(245,158,11,0.35)' : 'var(--color-border)'}`,
-                      borderRadius: 16,
-                      padding: '14px 16px',
+                      borderRadius: 12,
+                      padding: '10px 12px',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 12,
+                      gap: 8,
                       boxShadow: 'var(--shadow-sm)',
                     }}
                   >
                     {/* Top Row: Category Icon, Name, Pricing, Badges */}
-                    <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
                       <div style={{
-                        width: 46, height: 46,
+                        width: 38, height: 38,
                         background: 'rgba(255,255,255,0.06)',
-                        borderRadius: 12,
+                        borderRadius: 10,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 24, flexShrink: 0,
+                        fontSize: 20, flexShrink: 0,
                         overflow: 'hidden',
                       }}>
                         {p.image ? (
@@ -368,39 +368,39 @@ export function ProductsPage() {
                       </div>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                          <p style={{ fontSize: 15, fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 3, flexWrap: 'wrap' }}>
+                          <p style={{ fontSize: 14, fontWeight: 800, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {p.name}
                           </p>
                           {isOut && !expired && <Badge variant="danger">نفد</Badge>}
-                          {expired && <Badge variant="danger">⛔ منتهي الصلاحية</Badge>}
+                          {expired && <Badge variant="danger">⛔ منتهي</Badge>}
                           {!isOut && !expired && isLow && <Badge variant="warning">منخفض</Badge>}
                           {nearExpiry && (
                             <Badge variant="warning">
-                              ⏳ ينتهي خلال {expDays} {expDays === 1 ? 'يوم' : 'أيام'}
+                              ⏳ {expDays}{expDays === 1 ? 'ي' : 'أ'}
                             </Badge>
                           )}
                           <Badge variant="purple">{typeMeta.icon} {typeMeta.label}</Badge>
                         </div>
 
-                        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: 16, fontWeight: 900, color: 'var(--color-text-primary)', direction: 'ltr' }}>
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 14, fontWeight: 900, color: 'var(--color-text-primary)', direction: 'ltr' }}>
                             {pType === 'weighted' ? `${p.salePrice.toFixed(2)} ₪/كغ` : `${p.salePrice.toFixed(2)} ₪`}
                           </span>
                           {pType === 'service' && p.openPrice && (
                             <span style={{
-                              fontSize: 11, padding: '2px 8px', borderRadius: 20, fontWeight: 800,
+                              fontSize: 10, padding: '1px 7px', borderRadius: 20, fontWeight: 800,
                               background: 'rgba(139,92,246,0.15)', color: 'var(--color-purple-light)',
                             }}>
                               💲 سعر مفتوح
                             </span>
                           )}
-                          <span style={{ fontSize: 12, color: 'var(--color-success-light)', fontWeight: 600 }}>
+                          <span style={{ fontSize: 11, color: 'var(--color-success-light)', fontWeight: 600 }}>
                             ربح: {profit.toFixed(2)} ₪
                           </span>
                           <span style={{
-                            fontSize: 11,
-                            padding: '2px 8px',
+                            fontSize: 10,
+                            padding: '1px 7px',
                             borderRadius: 20,
                             background: isOut ? 'rgba(239,68,68,0.12)' : isLow ? 'rgba(245,158,11,0.12)' : 'rgba(16,185,129,0.12)',
                             color: isOut ? 'var(--color-danger-light)' : isLow ? 'var(--color-warning-light)' : 'var(--color-success-light)',
@@ -427,8 +427,8 @@ export function ProductsPage() {
                     {/* Bottom Action Bar: Horizontal, wide, and comfortable */}
                     <div style={{
                       display: 'flex',
-                      gap: 8,
-                      paddingTop: 10,
+                      gap: 6,
+                      paddingTop: 8,
                       borderTop: '1px solid var(--color-border)',
                       alignItems: 'center',
                     }}>

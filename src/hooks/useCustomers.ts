@@ -170,14 +170,14 @@ export async function updateInitialDebt(customerId: number, amount: number) {
  * Delete a customer.
  * - If `forceDelete` is false (default) and the customer has outstanding debt,
  *   the function returns { blocked: true } instead of deleting.
- * - If `forceDelete` is true, deletes the customer along with all their invoices
- *   (reverting stock for each one) and all their payment records.
+ * - If `forceDelete` is true, deletes the customer while safely unlinking historical
+ *   sales and payments so cash balances, warehouse inventory, and sales reports remain intact.
  */
 export async function deleteCustomer(
   id: number,
   forceDelete = false
 ): Promise<{ blocked: true } | { blocked: false }> {
-  return db.transaction('rw', [db.customers, db.invoices, db.products, db.payments], async () => {
+  return db.transaction('rw', [db.customers, db.invoices, db.payments], async () => {
     const customer = await db.customers.get(id)
     if (!customer) return { blocked: false }
 
@@ -187,26 +187,32 @@ export async function deleteCustomer(
       return { blocked: true }
     }
 
-    // Delete all payments for this customer
-    await db.payments.where('customerId').equals(id).delete()
-
-    // Delete all invoices for this customer, reverting stock for real products
+    // For invoices: preserve real historical sales records and warehouse inventory.
+    // Unlink the customerId while preserving the customerName on the invoice.
     const invoices = await db.invoices.where('customerId').equals(id).toArray()
     for (const inv of invoices) {
       if (!inv.id) continue
-      // Revert stock only for actual products (productId > 0)
-      for (const item of inv.items) {
-        if (item.productId > 0) {
-          const product = await db.products.get(item.productId)
-          if (product) {
-            await db.products.update(item.productId, {
-              quantity: product.quantity + item.qty,
-              updatedAt: new Date(),
-            })
-          }
-        }
+      const isOnlyDebtEntry = inv.items.length > 0 && inv.items.every((it) => it.productId === 0)
+      if (isOnlyDebtEntry) {
+        // Remove dummy opening-debt invoices
+        await db.invoices.delete(inv.id)
+      } else {
+        // Keep real sale invoice intact for historical accuracy, unlinking customerId
+        await db.invoices.update(inv.id, {
+          customerId: null,
+          customerName: inv.customerName || customer.name,
+        })
       }
-      await db.invoices.delete(inv.id)
+    }
+
+    // For payments: keep cash drawer payments intact to protect cash balance accuracy.
+    const payments = await db.payments.where('customerId').equals(id).toArray()
+    for (const p of payments) {
+      if (p.id) {
+        await db.payments.update(p.id, {
+          customerId: 0,
+        })
+      }
     }
 
     // Delete the customer record itself

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { usePurchases, addPurchaseInvoice, deletePurchase } from '../hooks/usePurchases'
 import { useProducts } from '../hooks/useProducts'
 import { useAccountBalances } from '../hooks/useInvoices'
-import { getPaymentMethodName, PAYMENT_METHODS, type PaymentMethod, type Product } from '../db/db'
+import { getPaymentMethodName, PAYMENT_METHODS, type PaymentMethod, type PaymentType, type Product } from '../db/db'
 import { formatCurrency } from '../utils/currency'
 import { GRAMS_PER_KG, averageCostPerKg, getProductType, stockLabel } from '../utils/units'
 import { Button } from '../components/ui/Button'
@@ -11,6 +11,7 @@ import { BarcodeScanner } from '../components/ui/BarcodeScanner'
 import { ProductForm } from '../components/products/ProductForm'
 import { CustomSelect } from '../components/ui/CustomSelect'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { SupplierPaymentModal } from '../components/purchases/SupplierPaymentModal'
 
 export function PurchasesPage() {
   const purchases = usePurchases()
@@ -19,6 +20,7 @@ export function PurchasesPage() {
 
   const [purchaseToDelete, setPurchaseToDelete] = useState<number | null>(null)
   const [deletingPurchase, setDeletingPurchase] = useState(false)
+  const [payingPurchase, setPayingPurchase] = useState<import('../db/db').Purchase | null>(null)
 
   const [activeTab, setActiveTab] = useState<'history' | 'new'>('history')
   const [search, setSearch] = useState('')
@@ -26,6 +28,8 @@ export function PurchasesPage() {
   // New Invoice Form state
   const [supplierName, setSupplierName] = useState('')
   const [invoiceNumber, setInvoiceNumber] = useState('')
+  const [paymentType, setPaymentType] = useState<PaymentType>('cash')
+  const [partialPaidAmount, setPartialPaidAmount] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [dateStr, setDateStr] = useState(() => new Date().toISOString().slice(0, 16))
   const [notes, setNotes] = useState('')
@@ -128,6 +132,17 @@ export function PurchasesPage() {
       return
     }
 
+    let paid = invoiceTotal
+    let debt = 0
+    if (paymentType === 'debt') {
+      paid = 0
+      debt = invoiceTotal
+    } else if (paymentType === 'partial') {
+      const parsed = parseFloat(partialPaidAmount) || 0
+      paid = Math.min(invoiceTotal, Math.max(0, parsed))
+      debt = Math.max(0, invoiceTotal - paid)
+    }
+
     setSubmitting(true)
     try {
       await addPurchaseInvoice({
@@ -139,7 +154,10 @@ export function PurchasesPage() {
           quantity: getProductType(it.product) === 'weighted' ? Math.round(it.quantity * GRAMS_PER_KG) : it.quantity,
           costPrice: it.costPrice,
         })),
-        paymentMethod,
+        paymentMethod: paymentType === 'debt' ? undefined : paymentMethod,
+        paidAmount: paid,
+        debtAmount: debt,
+        paymentType,
         date: dateStr ? new Date(dateStr) : new Date(),
         notes: notes.trim(),
       })
@@ -148,6 +166,8 @@ export function PurchasesPage() {
       setSelectedItems([])
       setSupplierName('')
       setInvoiceNumber('')
+      setPaymentType('cash')
+      setPartialPaidAmount('')
       setNotes('')
       setDateStr(new Date().toISOString().slice(0, 16))
       setActiveTab('history')
@@ -368,7 +388,11 @@ export function PurchasesPage() {
                           {formatCurrency(purchase.totalAmount)}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                          {getPaymentMethodName(purchase.paymentMethod)}
+                          {purchase.paymentType === 'debt'
+                            ? 'آجل بالكامل 📝'
+                            : purchase.paymentType === 'partial'
+                              ? `مدفوع ${formatCurrency(purchase.paidAmount ?? 0)} (دين ${formatCurrency(purchase.debtAmount ?? 0)})`
+                              : getPaymentMethodName(purchase.paymentMethod)}
                         </div>
                       </div>
                     </div>
@@ -421,8 +445,44 @@ export function PurchasesPage() {
                       </div>
                     )}
 
+                    {purchase.supplierPayments && purchase.supplierPayments.length > 0 && (
+                      <div style={{
+                        fontSize: 11,
+                        color: 'var(--color-text-muted)',
+                        background: 'rgba(255,255,255,0.02)',
+                        padding: '6px 10px',
+                        borderRadius: 8,
+                      }}>
+                        <span>سجل الدفعات: </span>
+                        {purchase.supplierPayments.map((p, pIdx) => (
+                          <span key={pIdx} style={{ marginRight: 6 }}>
+                            [{new Date(p.date).toLocaleDateString('ar-EG')}: {formatCurrency(p.amount)}]
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Actions */}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 2 }}>
+                      {(purchase.debtAmount ?? 0) > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPayingPurchase(purchase)}
+                          style={{
+                            background: 'var(--color-primary-glow)',
+                            border: '1px solid var(--color-border-active)',
+                            color: 'var(--color-primary-light)',
+                            borderRadius: 8,
+                            padding: '5px 12px',
+                            fontSize: 12.5,
+                            fontWeight: 800,
+                            cursor: 'pointer',
+                            fontFamily: 'var(--font-main)',
+                          }}
+                        >
+                          💳 سداد دفعة للمورد ({formatCurrency(purchase.debtAmount || 0)})
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
@@ -513,8 +573,74 @@ export function PurchasesPage() {
               </div>
 
               <div>
+                <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>
+                  حالة الدفع للمورد *
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                  {[
+                    { id: 'cash' as PaymentType, label: '💵 نقداً كاش' },
+                    { id: 'debt' as PaymentType, label: '📝 آجل (دين)' },
+                    { id: 'partial' as PaymentType, label: '⚖️ جزئي' },
+                  ].map((t) => {
+                    const active = paymentType === t.id
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setPaymentType(t.id)}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: 8,
+                          border: active ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                          background: active ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
+                          color: active ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-main)',
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* If partial, input for paid amount */}
+            {paymentType === 'partial' && (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 10,
+                background: 'rgba(255,255,255,0.03)',
+                padding: '10px 12px',
+                borderRadius: 10,
+                border: '1px solid var(--color-border)',
+              }}>
+                <Input
+                  label="المبلغ المدفوع كاش ₪ *"
+                  placeholder="0.00"
+                  value={partialPaidAmount}
+                  onChange={(e) => setPartialPaidAmount(e.target.value)}
+                  inputMode="decimal"
+                  required
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>المتبقي دين للمورد:</span>
+                  <strong style={{ fontSize: 15, color: 'var(--color-danger-light)', marginTop: 2 }}>
+                    {formatCurrency(Math.max(0, invoiceTotal - (parseFloat(partialPaidAmount) || 0)))}
+                  </strong>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Method (only if there is cash paid) */}
+            {paymentType !== 'debt' && (
+              <div>
                 <CustomSelect<PaymentMethod>
-                  label="طريقة الدفع"
+                  label="محفظة / صندوق الدفع"
                   value={paymentMethod}
                   onChange={(val) => setPaymentMethod(val)}
                   options={PAYMENT_METHODS.map((m) => ({
@@ -531,15 +657,17 @@ export function PurchasesPage() {
                   gap: 6,
                   color: 'var(--color-text-muted)'
                 }}>
-                  <span>الرصيد المتاح بالمحفظة:</span>
+                  <span>الخصم من المحفظة:</span>
                   <strong style={{
-                    color: balances[paymentMethod] < invoiceTotal ? 'var(--color-danger-light)' : 'var(--color-success-light)'
+                    color: balances[paymentMethod] < (paymentType === 'cash' ? invoiceTotal : (parseFloat(partialPaidAmount) || 0))
+                      ? 'var(--color-danger-light)'
+                      : 'var(--color-success-light)'
                   }}>
-                    {formatCurrency(balances[paymentMethod])}
+                    {formatCurrency(paymentType === 'cash' ? invoiceTotal : (parseFloat(partialPaidAmount) || 0))}
                   </strong>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Product Picker */}
@@ -980,10 +1108,20 @@ export function PurchasesPage() {
         title="حذف سجل التوريد"
         icon="📦"
         message="هل أنت متأكد من حذف سجل هذه الفاتورة من الأرشيف؟"
-        subMessage="سيتم إزالة السجل من الأرشيف ولن يؤثر الحذف على كميات المخزون الحالية."
+        subMessage="سيتم حذف السجل المالي وخصم الكميات الموردة من المخزون تلقائياً."
         confirmText="تأكيد الحذف"
         cancelText="إلغاء"
       />
+
+      {/* Supplier Debt Payment Modal */}
+      {payingPurchase && (
+        <SupplierPaymentModal
+          open
+          purchase={payingPurchase}
+          onClose={() => setPayingPurchase(null)}
+          onSuccess={() => setPayingPurchase(null)}
+        />
+      )}
     </div>
   )
 }

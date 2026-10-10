@@ -77,6 +77,7 @@ export function SalePage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
   const [partialPaidAmount, setPartialPaidAmount] = useState<string>('')
+  const [cashReceived, setCashReceived] = useState<string>('')
   const [saleNote, setSaleNote] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -129,6 +130,7 @@ export function SalePage() {
     setSaleNote('')
     setSelectedCustomerId(null)
     setPartialPaidAmount('')
+    setCashReceived('')
     setPaymentType('cash')
     setPaymentMethod('cash')
   }
@@ -444,7 +446,7 @@ export function SalePage() {
       style={{
         padding: '12px 14px',
         paddingBottom: cart.length > 0 ? '100px' : undefined,
-        maxWidth: 640,
+        maxWidth: 840,
         margin: '0 auto',
         width: '100%',
         boxSizing: 'border-box',
@@ -770,8 +772,8 @@ export function SalePage() {
           ) : (
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))',
-              gap: 10,
+              gridTemplateColumns: 'repeat(auto-fill, minmax(105px, 1fr))',
+              gap: 8,
             }}>
               {products.map((p) => {
                 const pType = getProductType(p)
@@ -787,11 +789,12 @@ export function SalePage() {
                   <div
                     key={p.id}
                     onClick={() => handleProductClick(p)}
+                    className="product-card-compact"
                     style={{
                       background: inCart ? 'var(--color-primary-glow)' : 'var(--color-bg-card)',
                       border: inCart ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                      borderRadius: 16,
-                      padding: 12,
+                      borderRadius: 12,
+                      padding: '8px 7px 9px',
                       cursor: 'pointer',
                       display: 'flex',
                       flexDirection: 'column',
@@ -799,47 +802,49 @@ export function SalePage() {
                       position: 'relative',
                       userSelect: 'none',
                       transition: 'transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease',
-                      minHeight: 164,
+                      minHeight: 124,
                       boxShadow: inCart ? 'var(--shadow-primary)' : 'var(--shadow-sm)',
                     }}
                   >
                     {inCart && (
                       <div style={{
                         position: 'absolute',
-                        top: 6,
-                        left: 6,
+                        top: 5,
+                        left: 5,
                         background: 'var(--color-primary)',
                         color: 'white',
                         borderRadius: 50,
-                        width: 22,
-                        height: 22,
-                        fontSize: 12,
+                        minWidth: 20,
+                        height: 20,
+                        padding: '0 4px',
+                        fontSize: 11,
                         fontWeight: 800,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
                       }}>
                         {typeof cartQtyBadge === 'number' && cartQtyBadge % 1 !== 0 ? cartQtyBadge.toFixed(2) : cartQtyBadge}
                       </div>
                     )}
 
-                    <div style={{ fontSize: 28, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 4 }}>
                       {p.image ? (
                         <img
                           src={p.image}
                           alt=""
-                          style={{ width: 58, height: 58, borderRadius: 15, objectFit: 'cover', boxShadow: 'var(--shadow-sm)' }}
+                          style={{ width: 42, height: 42, borderRadius: 10, objectFit: 'cover', boxShadow: 'var(--shadow-sm)' }}
                         />
                       ) : (
                         <span style={{
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          width: 58, height: 58,
-                          borderRadius: 15,
+                          width: 42, height: 42,
+                          borderRadius: 10,
                           background: 'var(--brand-gradient-soft)',
                           border: '1px solid var(--color-border)',
-                          fontSize: 28,
+                          fontSize: 22,
                         }}>
                           {catIconMap[p.category] ?? '📦'}
                         </span>
@@ -848,34 +853,41 @@ export function SalePage() {
 
                     <div>
                       <p style={{
-                        fontSize: 13,
+                        fontSize: 12,
                         fontWeight: 700,
-                        lineHeight: 1.3,
+                        lineHeight: 1.25,
                         marginBottom: 4,
+                        textAlign: 'center',
                         overflow: 'hidden',
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical',
+                        minHeight: 28,
                       }}>
                         {p.name}
                       </p>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                         <span style={{
-                          fontSize: 13, fontWeight: 900, color: '#fff',
+                          fontSize: 11.5, fontWeight: 900, color: '#fff',
                           background: 'var(--brand-gradient)',
-                          padding: '3px 10px', borderRadius: 99, direction: 'ltr',
-                          boxShadow: '0 2px 10px rgba(124, 58, 237, 0.35)',
+                          padding: '2px 8px', borderRadius: 99, direction: 'ltr',
+                          boxShadow: '0 2px 8px rgba(124, 58, 237, 0.3)',
                           whiteSpace: 'nowrap',
                         }}>
-                          {pType === 'service' && p.openPrice ? '💲 سعر مفتوح' : priceLabel(p)}
+                          {pType === 'service' && p.openPrice ? '💲 مفتوح' : priceLabel(p)}
                         </span>
                         <span style={{
-                          fontSize: 10,
+                          fontSize: 9.5,
                           color: isOut ? 'var(--color-danger-light)' : nearExpiry ? 'var(--color-warning-light)' : 'var(--color-text-muted)',
-                          fontWeight: nearExpiry ? 800 : 400,
+                          fontWeight: nearExpiry ? 800 : 500,
+                          textAlign: 'center',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          maxWidth: '100%',
                         }}>
-                          {expired ? '⛔ منتهي الصلاحية' : isOut ? 'نفد' : nearExpiry ? '⚠️ صلاحية قريبة' : pType === 'service' ? '🛎️ خدمة' : pType === 'weighted' ? `⚖️ ${stockLabel(p)}` : stockLabel(p)}
+                          {expired ? '⛔ منتهي' : isOut ? 'نفد' : nearExpiry ? '⚠️ قريبة' : pType === 'service' ? '🛎️ خدمة' : pType === 'weighted' ? `⚖️ ${stockLabel(p)}` : stockLabel(p)}
                         </span>
                       </div>
                     </div>
@@ -1264,7 +1276,7 @@ export function SalePage() {
             bottom: 'calc(var(--bottom-bar-total-height, 72px) + 8px)',
             left: '50%',
             transform: 'translateX(-50%)',
-            width: 'min(640px, calc(100% - 20px))',
+            width: 'min(840px, calc(100% - 20px))',
             zIndex: 45,
             background: 'var(--color-bg-elevated)',
             backdropFilter: 'blur(16px)',
@@ -1278,7 +1290,7 @@ export function SalePage() {
         >
           <div
             style={{
-              maxWidth: 640,
+              maxWidth: 840,
               margin: '0 auto',
               display: 'flex',
               flexDirection: 'column',
@@ -1706,6 +1718,135 @@ export function SalePage() {
               </button>
             </div>
           </div>
+
+          {/* Cash Received & Change Calculator (كاش فقط) */}
+          {paymentType === 'cash' && paymentMethod === 'cash' && (
+            <div style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 12,
+              padding: '12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-secondary)' }}>
+                  المبلغ المستلم من العميل (كاش):
+                </label>
+                {cashReceived && (
+                  <button
+                    type="button"
+                    onClick={() => setCashReceived('')}
+                    style={{
+                      background: 'none', border: 'none',
+                      color: 'var(--color-text-muted)', fontSize: 11, cursor: 'pointer',
+                      fontFamily: 'var(--font-main)',
+                    }}
+                  >
+                    مسح ✕
+                  </button>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder={`المبلغ المطلوب: ${formatCurrency(finalTotal)}`}
+                  value={cashReceived}
+                  onChange={(e) => setCashReceived(e.target.value)}
+                  style={{
+                    flex: 1,
+                    padding: '9px 12px',
+                    borderRadius: 10,
+                    background: 'var(--color-bg-card)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text-primary)',
+                    fontSize: 16,
+                    fontWeight: 800,
+                    outline: 'none',
+                    direction: 'ltr',
+                    textAlign: 'right',
+                    fontFamily: 'var(--font-main)',
+                  }}
+                />
+              </div>
+
+              {/* Quick Cash Buttons */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setCashReceived(finalTotal.toString())}
+                  style={{
+                    flex: '1 1 auto',
+                    padding: '6px 10px',
+                    borderRadius: 8,
+                    background: 'rgba(59,130,246,0.15)',
+                    border: '1px solid var(--color-border-active)',
+                    color: 'var(--color-primary-light)',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  المبلغ بالضبط ({formatCurrency(finalTotal)})
+                </button>
+                {[20, 50, 100, 200].map((val) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setCashReceived(val.toString())}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid var(--color-border)',
+                      color: 'var(--color-text-primary)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-main)',
+                    }}
+                  >
+                    {val} ₪
+                  </button>
+                ))}
+              </div>
+
+              {/* Live Change Due / Remaining Display */}
+              {cashReceived !== '' && !isNaN(Number(cashReceived)) && (
+                <div style={{
+                  marginTop: 4,
+                  padding: '8px 12px',
+                  borderRadius: 10,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  background: Number(cashReceived) >= finalTotal ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.12)',
+                  border: `1px solid ${Number(cashReceived) >= finalTotal ? 'rgba(16,185,129,0.4)' : 'rgba(239,68,68,0.3)'}`,
+                }}>
+                  <span style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    color: Number(cashReceived) >= finalTotal ? 'var(--color-success-light)' : 'var(--color-danger-light)',
+                  }}>
+                    {Number(cashReceived) >= finalTotal ? '💵 الباقي للعميل (الفكة):' : '⚠️ المبلغ أقل من الإجمالي بـ:'}
+                  </span>
+                  <span style={{
+                    fontSize: 16,
+                    fontWeight: 900,
+                    direction: 'ltr',
+                    color: Number(cashReceived) >= finalTotal ? 'var(--color-success-light)' : 'var(--color-danger-light)',
+                  }}>
+                    {formatCurrency(Math.abs(Number(cashReceived) - finalTotal))}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Customer Selection — إلزامي للدين/الجزئي، اختياري للنقدي (اسم على الفاتورة) */}
           <div>

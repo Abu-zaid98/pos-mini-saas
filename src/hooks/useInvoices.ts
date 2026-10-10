@@ -144,21 +144,132 @@ export async function createSaleInvoice(data: CreateSaleInput): Promise<Invoice>
   })
 }
 
-export type { AccountBalances } from '../utils/wallet'
+export type { AccountBalances, OpeningBalances } from '../utils/wallet'
 
 export function useAccountBalances() {
   const balances = useLiveQuery(async () => {
-    const [payments, purchases, expenses] = await Promise.all([
+    const [payments, purchases, expenses, transfers, openingSetting] = await Promise.all([
       db.payments.toArray(),
       db.purchases.toArray(),
       db.expenses.toArray(),
+      db.transfers.toArray(),
+      db.settings.get('wallet_opening_balances'),
     ])
 
-    // المعادلة الوحيدة: داخل (+) payments، خارج (−) purchases + expenses
-    return computeBalances(payments, purchases, expenses)
+    const openingBalances = openingSetting?.value as import('../utils/wallet').OpeningBalances | undefined
+
+    // المعادلة: داخل (+) payments + أرصدة افتتاحية، خارج (−) purchases + expenses، مع أثر التحويلات بين المحافظ
+    return computeBalances(payments, purchases, expenses, transfers, openingBalances)
   }, [])
 
   return balances ?? { cash: 0, jawwal_pay: 0, palpay: 0, bop: 0, total: 0 }
+}
+
+export interface RefundItemInput {
+  productId: number
+  name: string
+  qty: number
+  unit?: import('../db/db').SaleUnit
+  price: number
+  refundAmount: number
+  reason?: string
+}
+
+export interface ProcessRefundInput {
+  invoiceId: number
+  items: RefundItemInput[]
+  refundMethod: 'cash' | 'debt'
+  paymentMethod?: PaymentMethod
+  note?: string
+}
+
+/**
+ * معالجة مرتجع مبيعات (جزئي أو كلي) بدقة محاسبية ومخزنية:
+ * 1. إعادة الأصناف المرتجعة للمخزون (مع مراعاة الوحدات والعبوات).
+ * 2. التسوية المالية: إما خروج كاش من المحفظة (استرداد نقدي) أو تخفيض دين العميل.
+ * 3. حفظ سجل المرتجع في الفاتورة مع التاريخ والسبب.
+ */
+export async function refundInvoiceItems(data: ProcessRefundInput): Promise<void> {
+  if (!data.items || data.items.length === 0) {
+    throw new Error('يرجى تحديد الأصناف المراد إرجاعها')
+  }
+
+  const now = new Date()
+
+  return db.transaction('rw', [db.invoices, db.products, db.customers, db.payments], async () => {
+    const invoice = await db.invoices.get(data.invoiceId)
+    if (!invoice) throw new Error('الفاتورة غير موجودة')
+
+    const totalRefundAmount = data.items.reduce((sum, it) => sum + (Number(it.refundAmount) || 0), 0)
+    if (totalRefundAmount <= 0) throw new Error('مبلغ الاسترداد يجب أن يكون أكبر من صفر')
+
+    // 1. إعادة البضاعة للمخزن
+    for (const item of data.items) {
+      if (item.productId > 0) {
+        const originalItem = invoice.items.find((i) => i.productId === item.productId)
+        const product = await db.products.get(item.productId)
+        if (product) {
+          const qtyBase = originalItem?.pack ? packPieces(item.qty, originalItem.pack) : item.qty
+          const unit = originalItem?.pack ? 'piece' : (originalItem ? getItemUnit(originalItem) : 'piece')
+          await db.products.update(item.productId, {
+            quantity: restoreStock(product, qtyBase, unit),
+            updatedAt: now,
+          })
+        }
+      }
+    }
+
+    // 2. التسوية المالية
+    if (data.refundMethod === 'debt') {
+      // تخفيض من دين العميل
+      if (invoice.customerId) {
+        const customer = await db.customers.get(invoice.customerId)
+        if (customer) {
+          await db.customers.update(invoice.customerId, {
+            totalDebt: Math.max(0, (customer.totalDebt || 0) - totalRefundAmount),
+          })
+        }
+      }
+      invoice.debtAmount = Math.max(0, (invoice.debtAmount || 0) - totalRefundAmount)
+    } else {
+      // استرداد نقدي من الصندوق / المحفظة
+      const method = data.paymentMethod || invoice.paymentMethod || 'cash'
+      const methodName = getPaymentMethodName(method)
+      await db.payments.add({
+        customerId: invoice.customerId || 0,
+        invoiceId: invoice.id!,
+        amount: -totalRefundAmount,
+        method,
+        note: `استرداد نقدي عبر ${methodName} لمرتجع فاتورة #${invoice.id}${data.note ? ` (${data.note})` : ''}`,
+        createdAt: now,
+      })
+      invoice.paidAmount = Math.max(0, (invoice.paidAmount || 0) - totalRefundAmount)
+    }
+
+    // 3. تحديث الفاتورة وسجل المرتجعات
+    const newReturns: import('../db/db').ReturnedItem[] = data.items.map((it) => ({
+      productId: it.productId,
+      name: it.name,
+      qty: it.qty,
+      unit: it.unit,
+      price: it.price,
+      refundAmount: it.refundAmount,
+      refundMethod: data.refundMethod,
+      reason: it.reason?.trim() || data.note?.trim() || '',
+      date: now,
+    }))
+
+    const existingReturns = invoice.returnedItems || []
+    const updatedReturns = [...existingReturns, ...newReturns]
+    const updatedRefundedAmount = (invoice.refundedAmount || 0) + totalRefundAmount
+
+    await db.invoices.update(data.invoiceId, {
+      returnedItems: updatedReturns,
+      refundedAmount: updatedRefundedAmount,
+      paidAmount: invoice.paidAmount,
+      debtAmount: invoice.debtAmount,
+    })
+  })
 }
 
 export async function deleteInvoice(invoiceId: number) {

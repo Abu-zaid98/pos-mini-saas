@@ -4,7 +4,7 @@ import { db } from '../db/db'
  * Export all database data as a JSON file download
  */
 export async function exportBackup(): Promise<void> {
-  const [products, customers, invoices, payments, settings, expenses, purchases, productions] = await Promise.all([
+  const [products, customers, invoices, payments, settings, expenses, purchases, productions, transfers] = await Promise.all([
     db.products.toArray(),
     db.customers.toArray(),
     db.invoices.toArray(),
@@ -13,13 +13,14 @@ export async function exportBackup(): Promise<void> {
     db.expenses.toArray(),
     db.purchases.toArray(),
     db.productions.toArray(),
+    db.transfers.toArray(),
   ])
 
   const backup = {
     version: 2,
     exportedAt: new Date().toISOString(),
     storeName: 'ميزان',
-    data: { products, customers, invoices, payments, settings, expenses, purchases, productions },
+    data: { products, customers, invoices, payments, settings, expenses, purchases, productions, transfers },
   }
 
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
@@ -45,9 +46,9 @@ export async function importBackup(file: File): Promise<{ success: boolean; erro
 
     if (!backup.data) throw new Error('ملف النسخة الاحتياطية غير صالح')
 
-    const { products, customers, invoices, payments, settings, expenses, purchases, productions } = backup.data
+    const { products, customers, invoices, payments, settings, expenses, purchases, productions, transfers } = backup.data
 
-    await db.transaction('rw', [db.products, db.customers, db.invoices, db.payments, db.settings, db.expenses, db.purchases, db.productions], async () => {
+    await db.transaction('rw', [db.products, db.customers, db.invoices, db.payments, db.settings, db.expenses, db.purchases, db.productions, db.transfers], async () => {
       if (products?.length) { await db.products.clear(); await db.products.bulkAdd(products) }
       if (customers?.length) { await db.customers.clear(); await db.customers.bulkAdd(customers) }
       if (invoices?.length) { await db.invoices.clear(); await db.invoices.bulkAdd(invoices) }
@@ -56,6 +57,7 @@ export async function importBackup(file: File): Promise<{ success: boolean; erro
       if (expenses?.length) { await db.expenses.clear(); await db.expenses.bulkAdd(expenses) }
       if (purchases?.length) { await db.purchases.clear(); await db.purchases.bulkAdd(purchases) }
       if (productions?.length) { await db.productions.clear(); await db.productions.bulkAdd(productions) }
+      if (transfers?.length) { await db.transfers.clear(); await db.transfers.bulkAdd(transfers) }
     })
 
     return { success: true }

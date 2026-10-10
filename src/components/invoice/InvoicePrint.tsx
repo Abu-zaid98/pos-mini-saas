@@ -135,6 +135,12 @@ export function InvoicePrint({ invoice: inv, store }: { invoice: Invoice; store:
           <span>المدفوع</span>
           <span className="ltr">{formatCurrency(inv.paidAmount)}</span>
         </div>
+        {inv.refundedAmount && inv.refundedAmount > 0 ? (
+          <div className="row discount" style={{ color: 'var(--color-danger-light)', fontWeight: 800 }}>
+            <span>إجمالي المرتجع ↩️</span>
+            <span className="ltr">-{formatCurrency(inv.refundedAmount)}</span>
+          </div>
+        ) : null}
         {inv.debtAmount > 0 ? (
           <div className="row debt">
             <span>المتبقي كدين</span>

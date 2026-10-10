@@ -8,6 +8,8 @@ import { formatLineQty, lineDiscountAmount } from '../utils/units'
 import { Modal } from '../components/ui/Modal'
 import { CustomSelect } from '../components/ui/CustomSelect'
 import { WalletDetailModal } from '../components/wallet/WalletDetailModal'
+import { WalletTransferModal } from '../components/wallet/WalletTransferModal'
+import { WalletOpeningBalanceModal } from '../components/wallet/WalletOpeningBalanceModal'
 import { type Invoice, type PaymentMethod, getPaymentMethodName, db } from '../db/db'
 import { useStoreName } from '../hooks/useStoreName'
 import { useLiveQuery } from 'dexie-react-hooks'
@@ -20,6 +22,8 @@ export function ReportsPage() {
   const [period, setPeriod] = useState<PeriodFilter>('today')
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const [walletMethod, setWalletMethod] = useState<PaymentMethod | null>(null)
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [showOpeningModal, setShowOpeningModal] = useState(false)
 
   const invoices = useInvoices({ dateRange: period })
   const allProducts = useProducts()
@@ -55,7 +59,9 @@ export function ReportsPage() {
         const profit = net - (item.costPrice || 0) * item.qty
         return iSum + profit
       }, 0)
-      return sum + invProfit
+      // خصم الفاتورة الإجمالي يقلل الربح الفعلي
+      const finalInvProfit = invProfit - (inv.discountAmount || 0)
+      return sum + finalInvProfit
     }, 0)
   }, [realInvoices])
 
@@ -275,18 +281,63 @@ export function ReportsPage() {
                 <span style={{ fontSize: 20 }}>💼</span>
                 <h3 style={{ fontSize: 16, fontWeight: 900 }}>أرصدة الخزينة والحسابات</h3>
               </div>
-              <span style={{
-                fontSize: 12,
-                fontWeight: 800,
-                padding: '3px 10px',
-                borderRadius: 50,
-                background: balances.total < 0 ? 'var(--kpi-danger-bg)' : 'rgba(59,130,246,0.15)',
-                color: balances.total < 0 ? 'var(--color-danger-light)' : 'var(--color-primary-light)',
-                border: balances.total < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid transparent',
-                direction: 'ltr',
-              }}>
-                {balances.total < 0 ? '⚠️ عجز: ' : 'المجموع: '}{formatCurrency(balances.total)}
-              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowOpeningModal(true)}
+                  title="تعديل رأس المال والأرصدة الافتتاحية"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    background: 'var(--color-input-bg)',
+                    border: '1px solid var(--color-border)',
+                    color: 'var(--color-text-secondary)',
+                    borderRadius: 8,
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  <span>⚙️</span>
+                  <span>الرصيد الافتتاحي</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowTransferModal(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    background: 'var(--color-primary-glow)',
+                    border: '1px solid var(--color-border-active)',
+                    color: 'var(--color-primary-light)',
+                    borderRadius: 8,
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  <span>🔄</span>
+                  <span>تحويل أموال</span>
+                </button>
+                <span style={{
+                  fontSize: 12,
+                  fontWeight: 800,
+                  padding: '3px 10px',
+                  borderRadius: 50,
+                  background: balances.total < 0 ? 'var(--kpi-danger-bg)' : 'rgba(59,130,246,0.15)',
+                  color: balances.total < 0 ? 'var(--color-danger-light)' : 'var(--color-primary-light)',
+                  border: balances.total < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid transparent',
+                  direction: 'ltr',
+                }}>
+                  {balances.total < 0 ? '⚠️ عجز: ' : 'المجموع: '}{formatCurrency(balances.total)}
+                </span>
+              </div>
             </div>
 
             <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
@@ -414,6 +465,14 @@ export function ReportsPage() {
 
           {walletMethod && (
             <WalletDetailModal method={walletMethod} onClose={() => setWalletMethod(null)} />
+          )}
+
+          {showTransferModal && (
+            <WalletTransferModal open onClose={() => setShowTransferModal(false)} />
+          )}
+
+          {showOpeningModal && (
+            <WalletOpeningBalanceModal open onClose={() => setShowOpeningModal(false)} />
           )}
 
           {/* Period Selector Tabs */}

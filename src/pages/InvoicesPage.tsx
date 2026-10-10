@@ -3,7 +3,8 @@ import { CustomSelect } from '../components/ui/CustomSelect'
 import { Modal } from '../components/ui/Modal'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { InvoicePrint, usePrintInvoice, useStoreInfo } from '../components/invoice/InvoicePrint'
-import { type Invoice, type PaymentMethod, type PaymentType } from '../db/db'
+import { InvoiceReturnModal } from '../components/invoice/InvoiceReturnModal'
+import { db, type Invoice, type PaymentMethod, type PaymentType } from '../db/db'
 import { useCustomers } from '../hooks/useCustomers'
 import { deleteInvoice, updateInvoiceDetails, useInvoices } from '../hooks/useInvoices'
 import { formatCurrency } from '../utils/currency'
@@ -43,11 +44,16 @@ export function InvoicesPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [showReturnModal, setShowReturnModal] = useState(false)
   const [editing, setEditing] = useState<{
     customerId: number | null; paymentType: PaymentType; paymentMethod: PaymentMethod; paidAmount: string; note: string
   } | null>(null)
 
   const visible = useMemo(() => invoices.filter((invoice) => {
+    // استبعاد فواتير الديون الافتتاحية واليدوية (حيث جميع البنود productId === 0)
+    const isRealSale = invoice.items.length === 0 || invoice.items.some((item) => item.productId !== 0)
+    if (!isRealSale) return false
+
     const matchFilter = filter === 'all' || invoice.paymentType === filter
     const query = search.trim().toLowerCase()
     const matchSearch = !query || String(invoice.id).includes(query) || invoice.customerName?.toLowerCase().includes(query) || invoice.items.some((item) => item.name.toLowerCase().includes(query))
@@ -234,8 +240,34 @@ export function InvoicesPage() {
           {visible.map((invoice) => (
             <button key={invoice.id} type="button" onClick={() => openInvoice(invoice)} style={{ width: '100%', border: '1px solid var(--color-border)', background: 'var(--color-bg-card)', color: 'var(--color-text-primary)', borderRadius: 15, padding: 13, cursor: 'pointer', textAlign: 'right', fontFamily: 'var(--font-main)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                <div><div style={{ display: 'flex', gap: 7, alignItems: 'center' }}><strong>فاتورة #{invoice.id}</strong><span className={`badge ${invoice.paymentType === 'cash' ? 'badge-success' : invoice.paymentType === 'debt' ? 'badge-danger' : 'badge-warning'}`}>{typeLabels[invoice.paymentType]}</span></div><div style={{ color: 'var(--color-text-muted)', fontSize: 11, marginTop: 5 }}>{invoice.customerName || 'بيع مباشر'} · {new Date(invoice.createdAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</div></div>
-                <div style={{ textAlign: 'left' }}><strong style={{ direction: 'ltr', display: 'block', fontSize: 15 }}>{formatCurrency(invoice.total)}</strong>{invoice.debtAmount > 0 && <small style={{ color: 'var(--color-danger-light)', direction: 'ltr' }}>دين {formatCurrency(invoice.debtAmount)}</small>}</div>
+                <div>
+                  <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                    <strong>فاتورة #{invoice.id}</strong>
+                    <span className={`badge ${invoice.paymentType === 'cash' ? 'badge-success' : invoice.paymentType === 'debt' ? 'badge-danger' : 'badge-warning'}`}>
+                      {typeLabels[invoice.paymentType]}
+                    </span>
+                    {invoice.refundedAmount && invoice.refundedAmount > 0 ? (
+                      <span style={{
+                        fontSize: 10,
+                        fontWeight: 800,
+                        background: 'rgba(239,68,68,0.12)',
+                        color: 'var(--color-danger-light)',
+                        border: '1px solid rgba(239,68,68,0.25)',
+                        borderRadius: 50,
+                        padding: '1px 7px',
+                      }}>
+                        ↩️ مرتجع {formatCurrency(invoice.refundedAmount)}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: 11, marginTop: 5 }}>
+                    {invoice.customerName || 'بيع مباشر'} · {new Date(invoice.createdAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <strong style={{ direction: 'ltr', display: 'block', fontSize: 15 }}>{formatCurrency(invoice.total)}</strong>
+                  {invoice.debtAmount > 0 && <small style={{ color: 'var(--color-danger-light)', direction: 'ltr' }}>دين {formatCurrency(invoice.debtAmount)}</small>}
+                </div>
               </div>
             </button>
           ))}
@@ -265,18 +297,33 @@ export function InvoicesPage() {
         {viewMode === 'view' ? (
           <>
             <InvoicePrint invoice={selected} store={storeInfo} />
-            <button
-              type="button"
-              onClick={() => printInvoice(selected)}
-              style={{
-                width: '100%', padding: '13px', borderRadius: 12,
-                background: 'var(--brand-gradient)',
-                border: 'none', color: 'white', fontWeight: 800, fontSize: 15,
-                cursor: 'pointer', fontFamily: 'var(--font-main)',
-              }}
-            >
-              🖨️ طباعة الفاتورة
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => printInvoice(selected)}
+                style={{
+                  flex: 2, padding: '13px', borderRadius: 12,
+                  background: 'var(--brand-gradient)',
+                  border: 'none', color: 'white', fontWeight: 800, fontSize: 15,
+                  cursor: 'pointer', fontFamily: 'var(--font-main)',
+                }}
+              >
+                🖨️ طباعة الفاتورة
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowReturnModal(true)}
+                style={{
+                  flex: 1, padding: '13px', borderRadius: 12,
+                  background: 'var(--kpi-danger-bg)',
+                  border: '1px solid var(--kpi-danger-border)',
+                  color: 'var(--color-danger-light)', fontWeight: 800, fontSize: 14,
+                  cursor: 'pointer', fontFamily: 'var(--font-main)',
+                }}
+              >
+                ↩️ إرجاع أصناف
+              </button>
+            </div>
           </>
         ) : (
           <>
@@ -322,6 +369,20 @@ export function InvoicesPage() {
         confirmText="تأكيد الحذف"
         cancelText="إلغاء"
       />
+
+      {/* Invoice Return Modal */}
+      {showReturnModal && selected && (
+        <InvoiceReturnModal
+          open
+          invoice={selected}
+          onClose={() => setShowReturnModal(false)}
+          onSuccess={async () => {
+            setShowReturnModal(false)
+            const updated = await db.invoices.get(selected.id!)
+            if (updated) setSelected(updated)
+          }}
+        />
+      )}
     </div>
   )
 }

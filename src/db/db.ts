@@ -197,6 +197,34 @@ export interface Invoice {
   paymentMethod?: PaymentMethod
   note: string
   createdAt: Date
+  /** الأصناف المرتجعة (إن وُجدت) */
+  returnedItems?: ReturnedItem[]
+  /** إجمالي المبالغ المستردة للمرتجعات */
+  refundedAmount?: number
+}
+
+/** بند مرتجع من فاتورة مبيعات */
+export interface ReturnedItem {
+  productId: number
+  name: string
+  qty: number
+  unit?: SaleUnit
+  price: number
+  refundAmount: number
+  refundMethod: 'cash' | 'debt'
+  reason?: string
+  date: Date
+}
+
+/** حركة تحويل أموال بين محفظتين/صندوقين */
+export interface WalletTransfer {
+  id?: number
+  fromMethod: PaymentMethod
+  toMethod: PaymentMethod
+  amount: number
+  notes?: string
+  date: Date
+  createdAt: Date
 }
 
 export interface Payment {
@@ -253,13 +281,28 @@ export interface PurchaseItem {
   unit?: SaleUnit
 }
 
+export interface SupplierPayment {
+  amount: number
+  paymentMethod: PaymentMethod
+  date: Date
+  notes?: string
+}
+
 export interface Purchase {
   id?: number
   invoiceNumber?: string
   supplierName?: string
   items: PurchaseItem[]
   totalAmount: number
+  /** المبلغ المدفوع فعلياً من المحفظة (للسجلات القديمة فارغ ويُعامل كمدفوع بالكامل) */
+  paidAmount?: number
+  /** المبلغ المتبقي كدين للمورد */
+  debtAmount?: number
+  /** نوع الدفع: cash (نقداً كامل) | debt (آجل بالكامل) | partial (دفع جزئي) */
+  paymentType?: PaymentType
   paymentMethod?: PaymentMethod
+  /** سجل الدفعات المسددة للمورد (الدفعة الأولى والدفعات اللاحقة) */
+  supplierPayments?: SupplierPayment[]
   date: Date
   notes?: string
   createdAt: Date
@@ -278,6 +321,7 @@ export class PosDatabase extends Dexie {
   expenses!: EntityTable<Expense, 'id'>
   purchases!: EntityTable<Purchase, 'id'>
   productions!: EntityTable<Production, 'id'>
+  transfers!: EntityTable<WalletTransfer, 'id'>
 
   constructor() {
     super('MallBilToulPOS')
@@ -352,6 +396,19 @@ export class PosDatabase extends Dexie {
       expenses: '++id, category, date, paymentMethod, createdAt',
       purchases: '++id, supplierName, date, createdAt',
       productions: '++id, productId, date, createdAt',
+    })
+
+    // Version 8: wallet transfers (تحويل بين المحافظ والصناديق)
+    this.version(8).stores({
+      products: '++id, barcode, name, category',
+      customers: '++id, name, phone',
+      invoices: '++id, customerId, createdAt, paymentType, paymentMethod',
+      payments: '++id, customerId, invoiceId, createdAt, method',
+      settings: 'key',
+      expenses: '++id, category, date, paymentMethod, createdAt',
+      purchases: '++id, supplierName, date, createdAt',
+      productions: '++id, productId, date, createdAt',
+      transfers: '++id, fromMethod, toMethod, date, createdAt',
     })
   }
 }
