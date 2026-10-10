@@ -90,7 +90,7 @@ export function ProductsPage() {
             border: 'none',
             background: mainTab === 'inventory' ? 'var(--brand-gradient)' : 'transparent',
             color: mainTab === 'inventory' ? '#fff' : 'var(--color-text-secondary)',
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 800,
             cursor: 'pointer',
             fontFamily: 'var(--font-main)',
@@ -99,10 +99,11 @@ export function ProductsPage() {
             justifyContent: 'center',
             gap: 6,
             transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
           }}
         >
           <span>📦</span>
-          <span>الأصناف والمخزون</span>
+          <span>المخزون</span>
         </button>
 
         <button
@@ -115,7 +116,7 @@ export function ProductsPage() {
             border: 'none',
             background: mainTab === 'purchases' ? 'var(--brand-gradient)' : 'transparent',
             color: mainTab === 'purchases' ? '#fff' : 'var(--color-text-secondary)',
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 800,
             cursor: 'pointer',
             fontFamily: 'var(--font-main)',
@@ -124,10 +125,11 @@ export function ProductsPage() {
             justifyContent: 'center',
             gap: 6,
             transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
           }}
         >
           <span>📥</span>
-          <span>فواتير وسجل المشتريات</span>
+          <span>المشتريات</span>
         </button>
 
         <button
@@ -140,7 +142,7 @@ export function ProductsPage() {
             border: 'none',
             background: mainTab === 'suppliers' ? 'var(--brand-gradient)' : 'transparent',
             color: mainTab === 'suppliers' ? '#fff' : 'var(--color-text-secondary)',
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 800,
             cursor: 'pointer',
             fontFamily: 'var(--font-main)',
@@ -149,6 +151,7 @@ export function ProductsPage() {
             justifyContent: 'center',
             gap: 6,
             transition: 'all 0.15s ease',
+            whiteSpace: 'nowrap',
           }}
         >
           <span>🚚</span>
@@ -476,7 +479,7 @@ export function ProductsPage() {
                           border: '1.5px solid rgba(16,185,129,0.4)',
                           color: 'var(--color-success-light)',
                           fontWeight: 800,
-                          fontSize: 8,
+                          fontSize: 13,
                           cursor: 'pointer',
                           display: 'flex',
                           alignItems: 'center',

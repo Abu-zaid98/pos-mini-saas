@@ -448,7 +448,7 @@ export function CustomersPage() {
                       background: 'linear-gradient(135deg, #10b981, #059669)',
                       border: '1px solid rgba(16,185,129,0.5)',
                       color: '#ffffff',
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 800,
                       cursor: 'pointer',
                       fontFamily: 'var(--font-main)',
@@ -472,7 +472,7 @@ export function CustomersPage() {
                       background: 'rgba(59,130,246,0.15)',
                       border: '1px solid rgba(59,130,246,0.3)',
                       color: 'var(--color-primary-light)',
-                      fontSize: 13,
+                      fontSize: 12,
                       fontWeight: 700,
                       cursor: 'pointer',
                       fontFamily: 'var(--font-main)',
@@ -495,7 +495,7 @@ export function CustomersPage() {
                       background: 'rgba(239,68,68,0.1)',
                       border: '1px solid rgba(239,68,68,0.25)',
                       color: 'var(--color-danger-light)',
-                      fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-main)',
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-main)',
                     }}
                   >
                     + إضافة دين
