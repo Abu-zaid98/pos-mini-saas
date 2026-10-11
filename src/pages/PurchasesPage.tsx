@@ -16,6 +16,7 @@ import { Modal } from '../components/ui/Modal'
 import { SupplierPaymentModal } from '../components/purchases/SupplierPaymentModal'
 import { PurchasePrint } from '../components/purchases/PurchasePrint'
 import { useStoreInfo } from '../components/invoice/InvoicePrint'
+import { printElementById } from '../components/print/printDocument'
 
 export function PurchasesPage() {
   const purchases = usePurchases()
@@ -59,7 +60,12 @@ export function PurchasesPage() {
 
   const handlePrintPurchase = (p: import('../db/db').Purchase) => {
     setPrintPurchase(p)
-    setTimeout(() => window.print(), 120)
+    // الرسم أولاً ثم الطباعة عبر iframe (بدل تخمين setTimeout)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        printElementById('purchase-print-root')
+      })
+    })
   }
 
   const handleSaveMeta = async () => {
@@ -89,6 +95,7 @@ export function PurchasesPage() {
 
   // New Invoice Form state
   const [supplierName, setSupplierName] = useState('')
+  const [customSupplier, setCustomSupplier] = useState(false)
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [paymentType, setPaymentType] = useState<PaymentType>('cash')
   const [partialPaidAmount, setPartialPaidAmount] = useState('')
@@ -261,6 +268,7 @@ export function PurchasesPage() {
       setSelectedItems([])
       setDrafts({})
       setSupplierName('')
+      setCustomSupplier(false)
       setInvoiceNumber('')
       setPaymentType('cash')
       setPartialPaidAmount('')
@@ -657,30 +665,35 @@ export function PurchasesPage() {
 
             <div className="form-grid-two">
               <div>
-                <Input
+                <CustomSelect
                   label="اسم المورد أو الشركة"
-                  placeholder="مثال: شركة سنقرط، شركة المشروبات..."
-                  value={supplierName}
-                  onChange={(e) => setSupplierName(e.target.value)}
+                  placeholder="اختر مورداً أو أدخل جديداً..."
+                  searchable
+                  searchPlaceholder="🔍 ابحث باسم المورد..."
+                  value={customSupplier ? '__new__' : (supplierNames.includes(supplierName.trim()) && supplierName.trim() ? supplierName.trim() : null)}
+                  onChange={(v) => {
+                    if (v === '__new__') {
+                      setCustomSupplier(true)
+                      setSupplierName('')
+                    } else {
+                      setCustomSupplier(false)
+                      setSupplierName(v)
+                    }
+                  }}
+                  options={[
+                    ...supplierNames.map((n) => ({ value: n, label: `🏭 ${n}` })),
+                    { value: '__new__', label: '＋ كتابة اسم جديد...' },
+                  ]}
                 />
-                {supplierNames.length > 0 && (
-                  <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, marginTop: 6 }}>
-                    {supplierNames.map((n) => (
-                      <button
-                        key={n}
-                        type="button"
-                        onClick={() => setSupplierName(n)}
-                        style={{
-                          flexShrink: 0, padding: '4px 12px', borderRadius: 50,
-                          border: supplierName.trim() === n ? '1px solid transparent' : '1px solid var(--color-border)',
-                          background: supplierName.trim() === n ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
-                          color: supplierName.trim() === n ? '#fff' : 'var(--color-text-muted)',
-                          fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-main)',
-                        }}
-                      >
-                        {n}
-                      </button>
-                    ))}
+                {customSupplier && (
+                  <div style={{ marginTop: 8 }}>
+                    <Input
+                      label="اسم المورد الجديد"
+                      placeholder="مثال: شركة النور للتجارة العامة..."
+                      value={supplierName}
+                      onChange={(e) => setSupplierName(e.target.value)}
+                      autoFocus
+                    />
                   </div>
                 )}
               </div>

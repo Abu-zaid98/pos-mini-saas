@@ -36,7 +36,15 @@ export function CustomSelect<T extends string | number>({
   const wrapRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
+  const openWidthRef = useRef(0)
   const selected = options.find((option) => option.value === value)
+
+  // التركيز التلقائي للبحث على الأجهزة بالفأرة فقط — على اللمس يفتح الكيبورد
+  // فيصغّر نافذة العرض ويغلق القائمة فور فتحها
+  const canAutoFocus =
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(pointer: fine)').matches
 
   const close = () => {
     setOpen(false)
@@ -73,6 +81,7 @@ export function CustomSelect<T extends string | number>({
     }
     setQuery('')
     placeMenu()
+    openWidthRef.current = window.innerWidth
     setOpen(true)
   }
 
@@ -82,14 +91,30 @@ export function CustomSelect<T extends string | number>({
       const t = event.target as Node
       if (!menuRef.current?.contains(t) && !wrapRef.current?.contains(t)) close()
     }
-    const onScrollResize = () => close()
+    const onScroll = (event: Event) => {
+      // التمرير داخل قائمة الخيارات نفسها لا يغلقها — فقط تمرير الصفحة خلفها
+      const t = event.target as Node | null
+      if (t && menuRef.current?.contains(t)) return
+      close()
+    }
+    const onResize = () => {
+      // تغيير العرض (تدوير الجهاز) يغلق — أما تغير الارتفاع فقط (فتح/إغلاق
+      // الكيبورد) فيعيد التموضع مع بقاء القائمة والتركيز
+      if (window.innerWidth !== openWidthRef.current) {
+        close()
+        return
+      }
+      placeMenu()
+    }
     document.addEventListener('mousedown', onDown)
-    window.addEventListener('scroll', onScrollResize, true)
-    window.addEventListener('resize', onScrollResize)
+    document.addEventListener('touchstart', onDown as EventListener, { passive: true })
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onResize)
     return () => {
       document.removeEventListener('mousedown', onDown)
-      window.removeEventListener('scroll', onScrollResize, true)
-      window.removeEventListener('resize', onScrollResize)
+      document.removeEventListener('touchstart', onDown as EventListener)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onResize)
     }
   }, [open ])
 
@@ -119,7 +144,7 @@ export function CustomSelect<T extends string | number>({
           {searchable && (
             <div className="custom-select-search">
               <input
-                autoFocus
+                autoFocus={canAutoFocus}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Escape') close() }}

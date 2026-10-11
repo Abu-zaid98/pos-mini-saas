@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useInvoices, useAccountBalances } from '../hooks/useInvoices'
+import { usePurchases } from '../hooks/usePurchases'
 import { useProducts } from '../hooks/useProducts'
 import { useCustomers } from '../hooks/useCustomers'
 import { useExpenses } from '../hooks/useExpenses'
@@ -7,6 +8,7 @@ import { formatCurrency } from '../utils/currency'
 import { formatLineQty, lineDiscountAmount } from '../utils/units'
 import { Modal } from '../components/ui/Modal'
 import { CustomSelect } from '../components/ui/CustomSelect'
+import { usePrintInvoice } from '../components/invoice/InvoicePrint'
 import { WalletDetailModal } from '../components/wallet/WalletDetailModal'
 import { WalletTransferModal } from '../components/wallet/WalletTransferModal'
 import { WalletOpeningBalanceModal } from '../components/wallet/WalletOpeningBalanceModal'
@@ -21,6 +23,7 @@ export function ReportsPage() {
   const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('financial')
   const [period, setPeriod] = useState<PeriodFilter>('today')
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
+  const printSaleInvoice = usePrintInvoice()
   const [walletMethod, setWalletMethod] = useState<PaymentMethod | null>(null)
   const [showTransferModal, setShowTransferModal] = useState(false)
   const [showOpeningModal, setShowOpeningModal] = useState(false)
@@ -34,6 +37,33 @@ export function ReportsPage() {
 
   // All payments (for debt collection tracking)
   const allPayments = useLiveQuery(() => db.payments.toArray(), []) ?? []
+  const allPurchases = usePurchases()
+
+  // مشتريات الفترة (حسب تاريخ الفاتورة — نفس منطق فترات المبيعات)
+  const periodPurchases = useMemo(() => {
+    const now = new Date()
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const startOfWeek = startOfDay - 6 * 24 * 60 * 60 * 1000
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+    return allPurchases.filter((p) => {
+      const t = new Date(p.date).getTime()
+      if (period === 'today') return t >= startOfDay
+      if (period === 'week') return t >= startOfWeek
+      if (period === 'month') return t >= startOfMonth
+      return true
+    })
+  }, [allPurchases, period])
+
+  const purchaseTotals = useMemo(() => {
+    return periodPurchases.reduce(
+      (s, p) => ({
+        total: s.total + (p.totalAmount || 0),
+        paid: s.paid + (p.paidAmount ?? p.totalAmount ?? 0),
+        debt: s.debt + (p.debtAmount ?? 0),
+      }),
+      { total: 0, paid: 0, debt: 0 },
+    )
+  }, [periodPurchases])
 
   // Overall Debt
   const totalOutstandingDebt = useMemo(() => {
@@ -600,6 +630,88 @@ export function ReportsPage() {
             </div>
           </div>
 
+          {/* Purchases in Period — المشتريات حسب الفلتر (قيم + سجل) */}
+          <div style={{
+            background: 'var(--color-bg-card)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 16,
+            padding: 16,
+          }}>
+            <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
+              📥 مشتريات الفترة ({periodPurchases.length})
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+              <div style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--kpi-period-inset)', border: '1px solid var(--color-border)', textAlign: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>إجمالي الشراء</span>
+                <p style={{ fontWeight: 800, fontSize: 15, direction: 'ltr', marginTop: 2 }}>{formatCurrency(purchaseTotals.total)}</p>
+              </div>
+              <div style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--kpi-green-bg)', border: '1px solid var(--kpi-green-border)', textAlign: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--color-success-light)' }}>مدفوع للموردين</span>
+                <p style={{ fontWeight: 800, fontSize: 15, direction: 'ltr', marginTop: 2, color: 'var(--color-success-light)' }}>{formatCurrency(purchaseTotals.paid)}</p>
+              </div>
+              <div style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--kpi-danger-bg)', border: '1px solid var(--kpi-danger-border)', textAlign: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--color-danger-light)' }}>دين موردين</span>
+                <p style={{ fontWeight: 800, fontSize: 15, direction: 'ltr', marginTop: 2, color: 'var(--color-danger-light)' }}>{formatCurrency(purchaseTotals.debt)}</p>
+              </div>
+            </div>
+
+            {periodPurchases.length === 0 ? (
+              <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: '8px 0' }}>
+                لا توجد مشتريات مسجلة في هذه الفترة
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+                {periodPurchases.map((p) => (
+                  <div
+                    key={p.id}
+                    style={{
+                      padding: '10px 12px',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 12,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontWeight: 800, fontSize: 14 }}>🚚 {p.supplierName?.trim() || 'شراء عام'}</span>
+                        {(p.debtAmount || 0) > 0 && (
+                          <span style={{
+                            fontSize: 11, padding: '2px 8px', borderRadius: 50,
+                            background: 'rgba(239,68,68,0.15)', color: 'var(--color-danger-light)', fontWeight: 700,
+                          }}>
+                            دين 📝
+                          </span>
+                        )}
+                      </div>
+                      <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2, display: 'block' }}>
+                        {new Date(p.date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                        {p.invoiceNumber ? ` · #${p.invoiceNumber}` : ''} · {p.items.length} أصناف
+                      </span>
+                    </div>
+
+                    <div style={{ textAlign: 'left' }}>
+                      <div style={{ fontWeight: 800, fontSize: 15, direction: 'ltr' }}>
+                        {formatCurrency(p.totalAmount)}
+                      </div>
+                      {(p.debtAmount || 0) > 0 ? (
+                        <div style={{ fontSize: 11, color: 'var(--color-danger-light)', direction: 'ltr' }}>
+                          مدفوع {formatCurrency(p.paidAmount ?? 0)} · دين {formatCurrency(p.debtAmount || 0)}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 11, color: 'var(--color-success-light)' }}>
+                          ✓ مسددة
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {/* Invoices Log */}
           <div style={{
             background: 'var(--color-bg-card)',
@@ -993,7 +1105,7 @@ export function ReportsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printSaleInvoice(selectedInvoice)}
                 style={{
                   padding: '11px 16px',
                   borderRadius: 12,

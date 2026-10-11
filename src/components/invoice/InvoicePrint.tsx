@@ -11,6 +11,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, getPaymentMethodName, type Invoice } from '../../db/db'
 import { formatCurrency } from '../../utils/currency'
 import { formatLineDiscount, formatLineQty, formatServiceDuration, lineDiscountAmount } from '../../utils/units'
+import { printElementById } from '../print/printDocument'
 
 export interface StoreInfo {
   name: string
@@ -178,8 +179,13 @@ export function InvoicePrintProvider({ children }: { children: React.ReactNode }
 
   const print = useCallback((inv: Invoice) => {
     setInvoice(inv)
-    // مهلة قصيرة لرسم الفاتورة في DOM قبل فتح نافذة الطباعة
-    setTimeout(() => window.print(), 120)
+    // الرسم أولاً ثم الطباعة: requestAnimationFrame يضمن commit الـ DOM
+    // (بدل تخمين setTimeout الذي يطبع فراغاً على الأجهزة البطيئة)
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        printElementById('invoice-print-root')
+      })
+    })
   }, [])
 
   useEffect(() => {

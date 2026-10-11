@@ -12,6 +12,7 @@ import {
   type CustomerLedgerItem,
 } from '../hooks/useCustomers'
 import { Modal } from '../components/ui/Modal'
+import { printElementById } from '../components/print/printDocument'
 import { CustomSelect } from '../components/ui/CustomSelect'
 import { StatementPrintHost, downloadStatementCSV } from '../components/customer/StatementPrint'
 import { formatCurrency } from '../utils/currency'
@@ -902,7 +903,7 @@ export function CustomersPage() {
             <div style={{ display: 'flex', gap: 8 }}>
               <button
                 type="button"
-                onClick={() => window.print()}
+                onClick={() => printElementById('statement-print-root')}
                 style={{
                   flex: 1,
                   padding: '10px 12px',
