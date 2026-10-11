@@ -49,8 +49,8 @@ export interface Product {
 export type ProductType = 'goods' | 'weighted' | 'service'
 
 export const PRODUCT_TYPES: { id: ProductType; label: string; icon: string; desc: string }[] = [
-  { id: 'goods', label: 'سلعة بالحبة', icon: '📦', desc: 'تُباع بالحبة ويُخصم عدد القطع من المخزون' },
-  { id: 'weighted', label: 'سلعة بالوزن', icon: '⚖️', desc: 'سعرها وتكلفتها بالكيلو ومخزونها بالجرام (مثل المكسرات والبهارات)' },
+  { id: 'goods', label: 'بالحبة', icon: '📦', desc: 'تُباع بالحبة ويُخصم عدد القطع من المخزون' },
+  { id: 'weighted', label: 'بالوزن', icon: '⚖️', desc: 'سعرها وتكلفتها بالكيلو ومخزونها بالجرام (مثل المكسرات والبهارات)' },
   { id: 'service', label: 'خدمة', icon: '🛎️', desc: 'بلا مخزون — سعر ثابت' },
 ]
 

@@ -423,7 +423,7 @@ export function ProductsPage() {
                               fontSize: 10, padding: '1px 7px', borderRadius: 20, fontWeight: 800,
                               background: 'rgba(139,92,246,0.15)', color: 'var(--color-purple-light)',
                             }}>
-                              💲 سعر مفتوح
+                              💲 مفتوح
                             </span>
                           )}
                           <span style={{ fontSize: 11, color: 'var(--color-success-light)', fontWeight: 600 }}>

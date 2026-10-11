@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Modal } from '../ui/Modal'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
+import { CustomSelect } from '../ui/CustomSelect'
 import { PAYMENT_METHODS, type Product, type PaymentMethod, type PaymentType } from '../../db/db'
 import { addQuickRestock } from '../../hooks/usePurchases'
 import { useSupplierNames } from '../../hooks/useSuppliers'
@@ -22,6 +23,7 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
   const [addedQty, setAddedQty] = useState('')
   const [costPrice, setCostPrice] = useState('')
   const [supplierName, setSupplierName] = useState('')
+  const [customSupplier, setCustomSupplier] = useState(false)
   const [paymentType, setPaymentType] = useState<PaymentType>('cash')
   const [partialPaid, setPartialPaid] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
@@ -35,6 +37,7 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
       setAddedQty('')
       setCostPrice(String(product.costPrice ?? ''))
       setSupplierName('')
+      setCustomSupplier(false)
       setPaymentType('cash')
       setPartialPaid('')
       setNotes('')
@@ -233,30 +236,35 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
         {/* Supplier & Date */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
-            <Input
+            <CustomSelect
               label="اسم المورد / الشركة"
-              placeholder="مثال: شركة سند..."
-              value={supplierName}
-              onChange={(e) => setSupplierName(e.target.value)}
+              placeholder="اختر مورداً أو أدخل جديداً..."
+              searchable
+              searchPlaceholder="🔍 ابحث باسم المورد..."
+              value={customSupplier ? '__new__' : (supplierNames.includes(supplierName.trim()) && supplierName.trim() ? supplierName.trim() : null)}
+              onChange={(v) => {
+                if (v === '__new__') {
+                  setCustomSupplier(true)
+                  setSupplierName('')
+                } else {
+                  setCustomSupplier(false)
+                  setSupplierName(v)
+                }
+              }}
+              options={[
+                ...supplierNames.map((n) => ({ value: n, label: `🏭 ${n}` })),
+                { value: '__new__', label: '＋ كتابة اسم جديد...' },
+              ]}
             />
-            {supplierNames.length > 0 && (
-              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, marginTop: 6 }}>
-                {supplierNames.map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setSupplierName(n)}
-                    style={{
-                      flexShrink: 0, padding: '4px 12px', borderRadius: 50,
-                      border: supplierName.trim() === n ? '1px solid transparent' : '1px solid var(--color-border)',
-                      background: supplierName.trim() === n ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
-                      color: supplierName.trim() === n ? '#fff' : 'var(--color-text-muted)',
-                      fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-main)',
-                    }}
-                  >
-                    {n}
-                  </button>
-                ))}
+            {customSupplier && (
+              <div style={{ marginTop: 8 }}>
+                <Input
+                  label="اسم المورد الجديد"
+                  placeholder="مثال: شركة النور للتجارة العامة..."
+                  value={supplierName}
+                  onChange={(e) => setSupplierName(e.target.value)}
+                  autoFocus
+                />
               </div>
             )}
           </div>
