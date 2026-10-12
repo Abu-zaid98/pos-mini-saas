@@ -33,6 +33,9 @@ import {
   formatLineQty,
   computeInvoiceRestore,
   returnedLineBase,
+  unitPriceFromKg,
+  pricePerKgFromUnit,
+  qtyFromAmount,
 } from '../units'
 import type { Product, InvoiceItem, ReturnedItem } from '../../db/db'
 
@@ -250,5 +253,36 @@ describe('قطع الوزن (3 × 100 غ)', () => {
     expect(formatLineQty({ qty: 2, unit: 'piece', pack: { label: 'علبة', factor: 12, price: 55 } })).toBe('2 علبة')
     expect(formatLineQty({ qty: 2, unit: 'piece' })).toBe('2 قطعة')
     expect(formatLineQty({ qty: 250, unit: 'g' })).toBe('250 غ')
+  })
+})
+
+describe('البيع بالوزن: تحويل السعر والبيع بالمبلغ', () => {
+  it('سعر الوحدة من سعر الكيلو', () => {
+    expect(unitPriceFromKg(40, 'kg')).toBe(40)
+    expect(unitPriceFromKg(40, 'g')).toBe(0.04)
+    expect(unitPriceFromKg(33.33, 'g')).toBeCloseTo(0.03333, 6)
+    expect(unitPriceFromKg(0, 'g')).toBe(0)
+  })
+  it('سعر الكيلو من سعر الوحدة (عكسية دقيقة بلا كسور عائمة)', () => {
+    expect(pricePerKgFromUnit(40, 'kg')).toBe(40)
+    // 0.04 × 1000 = 40.00000000000001 في JS — يجب أن تُنظّف لـ 40
+    expect(pricePerKgFromUnit(0.04, 'g')).toBe(40)
+    expect(pricePerKgFromUnit(unitPriceFromKg(33.33, 'g'), 'g')).toBe(33.33)
+    expect(pricePerKgFromUnit(unitPriceFromKg(12.5, 'g'), 'g')).toBe(12.5)
+  })
+  it('الوزن المطلوب لتحقيق مبلغ (البيع بالمبلغ)', () => {
+    // 10 ₪ بسعر 40/كغ = 0.25 كغ
+    expect(qtyFromAmount(10, 40)).toBe(0.25)
+    // 10 ₪ بسعر 0.04/غ = 250 غ
+    expect(qtyFromAmount(10, unitPriceFromKg(40, 'g'))).toBe(250)
+    // مبلغ صفر = وزن صفر
+    expect(qtyFromAmount(0, 40)).toBe(0)
+    // سعر صفر لا يقسم عليه
+    expect(qtyFromAmount(10, 0)).toBe(0)
+  })
+  it('دورة كاملة: مبلغ ← وزن ← إجمالي مطابق', () => {
+    const unitPrice = unitPriceFromKg(40, 'g')
+    const qty = qtyFromAmount(7.5, unitPrice)
+    expect(Math.round(qty * unitPrice * 100) / 100).toBe(7.5)
   })
 })

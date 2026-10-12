@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { InvoiceItem, ProductType, SalePack, SaleUnit } from '../db/db'
-import { getItemUnit, lineNet } from '../utils/units'
+import { getItemUnit, lineNet, unitPriceFromKg } from '../utils/units'
 
 export interface CartItem extends InvoiceItem {
   maxStock: number
@@ -46,6 +46,26 @@ export interface AddToCartInput {
 }
 
 const STORAGE_KEY = 'pos_active_cart_v1'
+
+/**
+ * هل يُدمج بندٌ جديد في سطر قائم؟ (منطق نقي قابل للاختبار)
+ * الشروط: نفس الصنف والوحدة والعبوة، بلا "قطع" في أيٍّ منهما، وبنفس السعر.
+ * اشتراط تطابق السعر يمنع أن ترث وزنة بالسعر الافتراضي سعراً متفقاً عليه،
+ * ويمنع خلط أسعار مختلفة في سطر واحد.
+ */
+export function canMergeCartLine(
+  item: Pick<CartItem, 'productId' | 'pack' | 'pieces' | 'price' | 'unit'>,
+  productId: number,
+  unit: SaleUnit,
+  packLabel: string,
+  price: number,
+): boolean {
+  return item.productId === productId &&
+    getItemUnit(item) === unit &&
+    (item.pack?.label ?? '') === packLabel &&
+    !item.pieces &&
+    Math.abs((Number(item.price) || 0) - (Number(price) || 0)) < 1e-9
+}
 
 function genLineId(): string {
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
@@ -123,11 +143,11 @@ export function useCart() {
     const pieces = Math.round(Number(product.pieces) || 0) || undefined
     setCartState((prev) => {
       // الدمج فقط للوزنات المفردة المتطابقة — سطور القطع تبقى مستقلة،
-      // والسطور الفريدة (unique) لا تُدمج أبداً
+      // والسطور الفريدة (unique) لا تُدمج أبداً. ويجب تطابق السعر أيضاً
+      // حتى لا ترث وزنة بالسعر الافتراضي سعراً متفقاً عليه في سطر سابق.
       if (!pieces && !product.unique) {
         const existing = prev.find((item) =>
-          item.productId === product.id && getItemUnit(item) === unit &&
-          (item.pack?.label ?? '') === packKey && !item.pieces
+          canMergeCartLine(item, product.id ?? 0, unit, packKey, price)
         )
         if (existing) {
           return prev.map((item) =>
@@ -252,6 +272,23 @@ export function useCart() {
     )
   }
 
+  /**
+   * تعديل سعر الكيلوغرام لسطر موزون — الواجهة تعرض/تعدّل سعر الكيلو دائماً،
+   * ويُخزّن سعر الوحدة (كغ/غ) بدقة تفادي ضياع كسور الغرام.
+   */
+  const setItemKgPrice = (lineId: string, pricePerKg: number) => {
+    const kg = Math.max(0, Number(pricePerKg) || 0)
+    setCartState((prev) =>
+      prev.map((item) => {
+        if (item.lineId !== lineId) return item
+        const unit = getItemUnit(item)
+        if (unit === 'piece') return item
+        const unitPrice = unitPriceFromKg(kg, unit)
+        return { ...item, price: Math.round(unitPrice * 1e6) / 1e6 }
+      })
+    )
+  }
+
   const setDirectQty = (productId: number, qty: number, unit?: SaleUnit, packLabel?: string | null, lineId?: string | null) => {
     if (qty <= 0) {
       removeFromCart(productId, unit, packLabel, lineId)
@@ -291,6 +328,7 @@ export function useCart() {
     updatePack,
     setItemPieces,
     setItemPrice,
+    setItemKgPrice,
     setItemDiscount,
     setDirectQty,
     removeFromCart,

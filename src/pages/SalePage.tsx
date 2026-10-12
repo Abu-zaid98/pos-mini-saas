@@ -23,6 +23,7 @@ import {
   GRAMS_PER_KG,
   formatLineDiscount,
   formatLineQty,
+  formatQty,
   formatServiceDuration,
   getItemUnit,
   getProductType,
@@ -34,7 +35,10 @@ import {
   packPieces,
   perPieceQty,
   priceLabel,
+  pricePerKgFromUnit,
+  qtyFromAmount,
   stockLabel,
+  unitPriceFromKg,
   unitStep,
   unitShort,
 } from '../utils/units'
@@ -46,7 +50,7 @@ export function SalePage() {
   const [activeCategory, setActiveCategory] = useState('')
 
   // Persistent cart hook
-  const { cart, addToCart, updateQty, updatePack, setItemPieces, setItemPrice, setItemDiscount, setDirectQty, removeFromCart, clearCart } = useCart()
+  const { cart, addToCart, updateQty, updatePack, setItemPieces, setItemPrice, setItemKgPrice, setItemDiscount, setDirectQty, removeFromCart, clearCart } = useCart()
 
   // Inline per-line discount editor (key = productId-unit-pack)
   const [discLineKey, setDiscLineKey] = useState<string | null>(null)
@@ -98,6 +102,12 @@ export function SalePage() {
   const [weightProduct, setWeightProduct] = useState<Product | null>(null)
   const [weightQty, setWeightQty] = useState('0.5')
   const [weightUnit, setWeightUnit] = useState<'kg' | 'g'>('kg')
+  // طريقة الحساب: بالوزن (أدخل الوزن) أو بالمبلغ (أدخل المبلغ فيُحسب الوزن)
+  const [weightMode, setWeightMode] = useState<'weight' | 'price'>('weight')
+  // سعر الكيلو القابل للتعديل — الافتراضي سعر الصنف، ويُسمح بسعر متفق عليه
+  const [weightPricePerKg, setWeightPricePerKg] = useState('')
+  // المبلغ المطلوب في وضع "بالمبلغ"
+  const [weightAmount, setWeightAmount] = useState('')
   // عدد القطع بنفس الوزن: 3 × 100غ
   const [weightPieces, setWeightPieces] = useState(1)
   // وزنات متعددة مختلفة في نفس العملية: 3×100غ + 4×250غ + 1كغ
@@ -107,6 +117,9 @@ export function SalePage() {
     setWeightProduct(p)
     setWeightQty('0.5')
     setWeightUnit('kg')
+    setWeightMode('weight')
+    setWeightPricePerKg(String(p.salePrice))
+    setWeightAmount('')
     setWeightPieces(1)
     setWeighings([])
   }
@@ -165,37 +178,53 @@ export function SalePage() {
     setServicePrice('')
   }
 
-  const weightUnitPrice = (p: Product, unit: 'kg' | 'g') =>
-    unit === 'kg' ? p.salePrice : p.salePrice / GRAMS_PER_KG
-  const weightUnitCost = (p: Product, unit: 'kg' | 'g') =>
-    unit === 'kg' ? p.costPrice : p.costPrice / GRAMS_PER_KG
+  // سعر الكيلو الحالي القابل للتعديل (الافتراضي سعر الصنف — ويُسمح بسعر متفق عليه)
+  const weightKgPrice = Math.max(0, parseFloat(weightPricePerKg) || 0)
+  const weightUnitPrice = (unit: 'kg' | 'g') => unitPriceFromKg(weightKgPrice, unit)
+  const weightUnitCost = (unit: 'kg' | 'g') =>
+    weightProduct ? (unit === 'kg' ? weightProduct.costPrice : weightProduct.costPrice / GRAMS_PER_KG) : 0
+
+  // هل عدّل البائع سعر الكيلو عن سعر الصنف؟ — يصبح السطر مستقلاً حتى لا تندمج أسعار مختلفة
+  const weightPriceOverridden = Boolean(weightProduct) && weightKgPrice !== weightProduct!.salePrice
+
+  const weightQtyNum = parseFloat(weightQty) || 0
+  const weightAmountNum = parseFloat(weightAmount) || 0
+  const weightPiecesCount = Math.max(1, Math.round(weightPieces) || 1)
+  // الوزن الكلي حسب طريقة الحساب — بالمبلغ يُشتق الوزن من السعر
+  const weightCurrentTotal = weightMode === 'price'
+    ? qtyFromAmount(weightAmountNum, weightUnitPrice(weightUnit))
+    : Math.round(weightQtyNum * weightPiecesCount * 1000) / 1000
+  // وزن القطعة الواحدة (يُخزّن في قائمة الوزنات)
+  const weightPerPiece = Math.round((weightCurrentTotal / weightPiecesCount) * 1000) / 1000
+  const weightCurrentAmount = Math.round(weightCurrentTotal * weightUnitPrice(weightUnit) * 100) / 100
+  const weightCanSubmit = Boolean(weightProduct) &&
+    (weightMode === 'price'
+      ? weightAmountNum > 0 && weightUnitPrice(weightUnit) > 0
+      : weightQtyNum > 0)
 
   const confirmWeight = () => {
-    if (!weightProduct) return
-    const qty = parseFloat(weightQty) || 0
-    if (qty <= 0) return
-    const pieces = Math.max(1, Math.round(weightPieces) || 1)
+    if (!weightProduct || !weightCanSubmit) return
     const unit: SaleUnit = weightUnit
     addToCart({
       ...weightProduct,
       kind: 'weighted',
       // الوزن الكلي = وزن القطعة × عددها (100غ × 3 = 300غ)
-      amount: Math.round(qty * pieces * 1000) / 1000,
+      amount: weightCurrentTotal,
       unit,
-      unitPrice: weightUnitPrice(weightProduct, unit),
-      unitCost: weightUnitCost(weightProduct, unit),
-      pieces: pieces > 1 ? pieces : undefined,
+      unitPrice: weightUnitPrice(unit),
+      unitCost: weightUnitCost(unit),
+      pieces: weightPiecesCount > 1 ? weightPiecesCount : undefined,
+      unique: weightPriceOverridden,
     })
     setWeightProduct(null)
   }
 
   // إضافة الوزنة الحالية للقائمة والمتابعة لوزنة أخرى بوزن مختلف
   const pushWeighing = () => {
-    const qty = parseFloat(weightQty) || 0
-    if (qty <= 0) return
-    const pieces = Math.max(1, Math.round(weightPieces) || 1)
-    setWeighings((list) => [...list, { qty, unit: weightUnit, pieces }])
+    if (!weightCanSubmit) return
+    setWeighings((list) => [...list, { qty: weightPerPiece, unit: weightUnit, pieces: weightPiecesCount }])
     setWeightQty('')
+    setWeightAmount('')
     setWeightPieces(1)
   }
 
@@ -203,9 +232,8 @@ export function SalePage() {
   const confirmAllWeighings = () => {
     if (!weightProduct) return
     const batch = [...weighings]
-    const qty = parseFloat(weightQty) || 0
-    if (qty > 0) {
-      batch.push({ qty, unit: weightUnit, pieces: Math.max(1, Math.round(weightPieces) || 1) })
+    if (weightCanSubmit) {
+      batch.push({ qty: weightPerPiece, unit: weightUnit, pieces: weightPiecesCount })
     }
     if (batch.length === 0) return
     for (const w of batch) {
@@ -214,8 +242,8 @@ export function SalePage() {
         kind: 'weighted',
         amount: Math.round(w.qty * w.pieces * 1000) / 1000,
         unit: w.unit,
-        unitPrice: weightUnitPrice(weightProduct, w.unit),
-        unitCost: weightUnitCost(weightProduct, w.unit),
+        unitPrice: weightUnitPrice(w.unit),
+        unitCost: weightUnitCost(w.unit),
         pieces: w.pieces > 1 ? w.pieces : undefined,
         unique: true,
       })
@@ -1025,6 +1053,37 @@ export function SalePage() {
                               }}
                             />
                             <span>₪</span>
+                          </label>
+                        ) : kind === 'weighted' ? (
+                          <label className="sale-cart-service-price">
+                            <span>سعر الكيلو</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              value={pricePerKgFromUnit(item.price, unit)}
+                              onChange={(e) => setItemKgPrice(item.lineId, parseFloat(e.target.value) || 0)}
+                              title="تعديل سعر الكيلو"
+                              aria-label={`سعر كيلو ${item.name}`}
+                              style={{
+                                width: 88,
+                                minHeight: 40,
+                                flexShrink: 0,
+                                boxSizing: 'border-box',
+                                padding: '6px 8px',
+                                borderRadius: 8,
+                                background: 'var(--color-input-bg)',
+                                border: '1px solid var(--color-border)',
+                                color: 'var(--color-text-primary)',
+                                fontSize: 15,
+                                fontWeight: 800,
+                                outline: 'none',
+                                fontFamily: 'var(--font-main)',
+                                direction: 'ltr',
+                                textAlign: 'center',
+                              }}
+                            />
+                            <span>₪/كغ</span>
                           </label>
                         ) : (
                           <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', direction: 'ltr' }}>
@@ -2265,26 +2324,50 @@ export function SalePage() {
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--color-text-secondary)' }}>
-              السعر: <strong style={{ color: 'var(--color-text-primary)' }}>{formatCurrency(weightProduct.salePrice)}/كغ</strong>
+              سعر الصنف: <strong style={{ color: 'var(--color-text-primary)' }}>{formatCurrency(weightProduct.salePrice)}/كغ</strong>
               {' · '}
               المتوفر: <strong style={{ color: 'var(--color-text-primary)' }}>{stockLabel(weightProduct)}</strong>
             </div>
 
-            {/* Unit toggle */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {/* Calculation mode: by weight / by amount */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 14, padding: 4, border: '1px solid var(--color-border)' }}>
+              {([['weight', '⚖️ بالوزن'], ['price', '💰 بالمبلغ']] as const).map(([m, label]) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setWeightMode(m)}
+                  style={{
+                    padding: '10px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: weightMode === m ? 'var(--brand-gradient)' : 'transparent',
+                    color: weightMode === m ? '#fff' : 'var(--color-text-secondary)',
+                    fontWeight: 800,
+                    fontSize: 14,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Unit tabs (kg / g) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, background: 'rgba(255,255,255,0.05)', borderRadius: 14, padding: 4, border: '1px solid var(--color-border)' }}>
               {(['kg', 'g'] as const).map((u) => (
                 <button
                   key={u}
                   type="button"
                   onClick={() => setWeightUnit(u)}
                   style={{
-                    padding: '12px',
-                    borderRadius: 12,
-                    border: weightUnit === u ? '1px solid transparent' : '1px solid var(--color-border)',
-                    background: weightUnit === u ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
-                    color: weightUnit === u ? '#fff' : 'var(--color-text-primary)',
+                    padding: '10px',
+                    borderRadius: 10,
+                    border: 'none',
+                    background: weightUnit === u ? 'var(--brand-gradient)' : 'transparent',
+                    color: weightUnit === u ? '#fff' : 'var(--color-text-secondary)',
                     fontWeight: 800,
-                    fontSize: 16,
+                    fontSize: 14,
                     cursor: 'pointer',
                     fontFamily: 'var(--font-main)',
                   }}
@@ -2294,28 +2377,74 @@ export function SalePage() {
               ))}
             </div>
 
-            {/* Quick chips */}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-              {(weightUnit === 'kg' ? ['0.25', '0.5', '1', '2'] : ['100', '250', '500', '1000']).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => setWeightQty(v)}
+            {/* Editable unit price (per kg) — allows agreed/custom price */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+              background: 'var(--color-bg-card)', border: '1px solid var(--color-border)',
+              borderRadius: 12, padding: '8px 12px',
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>
+                سعر الكيلو
+                {weightPriceOverridden && (
+                  <span style={{ fontSize: 10, color: 'var(--color-warning-light)', marginInlineStart: 6, fontWeight: 800 }}>معدّل</span>
+                )}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={weightPricePerKg}
+                  onChange={(e) => setWeightPricePerKg(e.target.value)}
+                  title="سعر الكيلو — قابل للتعديل (سعر متفق عليه)"
+                  aria-label="سعر الكيلوغرام"
                   style={{
-                    padding: '8px 14px',
-                    borderRadius: 99,
-                    border: weightQty === v ? '1px solid transparent' : '1px solid var(--color-border)',
-                    background: weightQty === v ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
-                    color: weightQty === v ? '#fff' : 'var(--color-text-primary)',
-                    fontWeight: 700,
-                    fontSize: 13,
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-main)',
+                    width: 108, padding: '8px 10px', borderRadius: 8,
+                    background: 'var(--color-input-bg)', border: '1.5px solid var(--color-border)',
+                    color: 'var(--color-text-primary)', fontSize: 16, fontWeight: 800,
+                    textAlign: 'center', outline: 'none', fontFamily: 'var(--font-main)',
                   }}
-                >
-                  {v} {weightUnit === 'kg' ? 'كغ' : 'غ'}
-                </button>
-              ))}
+                />
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>₪/كغ</span>
+                {weightPriceOverridden && (
+                  <button
+                    type="button"
+                    onClick={() => setWeightPricePerKg(String(weightProduct.salePrice))}
+                    title="استرجاع سعر الصنف"
+                    style={{ background: 'none', border: 'none', color: 'var(--color-danger-light)', cursor: 'pointer', fontSize: 14, fontWeight: 800 }}
+                  >↺</button>
+                )}
+              </div>
+            </div>
+
+            {/* Quick chips — weights (by weight) or amounts (by price) */}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              {(weightMode === 'weight'
+                ? (weightUnit === 'kg' ? ['0.25', '0.5', '1', '2'] : ['100', '250', '500', '1000'])
+                : ['5', '10', '20', '50']
+              ).map((v) => {
+                const active = weightMode === 'weight' ? weightQty === v : weightAmount === v
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => (weightMode === 'weight' ? setWeightQty(v) : setWeightAmount(v))}
+                    style={{
+                      padding: '8px 14px',
+                      borderRadius: 99,
+                      border: active ? '1px solid transparent' : '1px solid var(--color-border)',
+                      background: active ? 'var(--brand-gradient)' : 'var(--color-bg-card)',
+                      color: active ? '#fff' : 'var(--color-text-primary)',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-main)',
+                    }}
+                  >
+                    {weightMode === 'weight' ? `${v} ${weightUnit === 'kg' ? 'كغ' : 'غ'}` : `${v} ₪`}
+                  </button>
+                )
+              })}
             </div>
 
             {/* Pieces count: 3 × 100غ */}
@@ -2350,37 +2479,65 @@ export function SalePage() {
                 >+</button>
               </div>
             </div>
-            {weightPieces > 1 && (
+            {weightPiecesCount > 1 && (
               <div style={{ textAlign: 'center', fontSize: 13, fontWeight: 800, color: 'var(--color-primary-light)' }}>
-                {weightPieces} قطع × {weightQty || 0} {weightUnit === 'kg' ? 'كغ' : 'غ'} للقطعة
+                {weightPiecesCount} قطع × {formatQty(weightPerPiece, weightUnit)} للقطعة
               </div>
             )}
 
-            {/* Manual input + live total */}
+            {/* Primary input + live result (weight ⇄ amount) */}
             <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-              <input
-                type="number"
-                min="0"
-                step="any"
-                value={weightQty}
-                onChange={(e) => setWeightQty(e.target.value)}
-                autoFocus
-                style={{
-                  flex: 1,
-                  padding: '12px 14px',
-                  borderRadius: 12,
-                  background: 'var(--color-input-bg)',
-                  border: '1.5px solid var(--color-border)',
-                  color: 'var(--color-text-primary)',
-                  fontSize: 20,
-                  fontWeight: 800,
-                  textAlign: 'center',
-                  outline: 'none',
-                  fontFamily: 'var(--font-main)',
-                }}
-              />
+              {weightMode === 'weight' ? (
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={weightQty}
+                  onChange={(e) => setWeightQty(e.target.value)}
+                  autoFocus
+                  placeholder={`الوزن (${unitShort(weightUnit)})`}
+                  aria-label="الوزن"
+                  style={{
+                    flex: 1,
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    background: 'var(--color-input-bg)',
+                    border: '1.5px solid var(--color-border)',
+                    color: 'var(--color-text-primary)',
+                    fontSize: 20,
+                    fontWeight: 800,
+                    textAlign: 'center',
+                    outline: 'none',
+                    fontFamily: 'var(--font-main)',
+                  }}
+                />
+              ) : (
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  value={weightAmount}
+                  onChange={(e) => setWeightAmount(e.target.value)}
+                  autoFocus
+                  placeholder="المبلغ المطلوب"
+                  aria-label="المبلغ"
+                  style={{
+                    flex: 1,
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    background: 'var(--color-input-bg)',
+                    border: '1.5px solid var(--color-border)',
+                    color: 'var(--color-text-primary)',
+                    fontSize: 20,
+                    fontWeight: 800,
+                    textAlign: 'center',
+                    outline: 'none',
+                    fontFamily: 'var(--font-main)',
+                  }}
+                />
+              )}
               <div style={{
-                minWidth: 110,
+                minWidth: 118,
                 borderRadius: 12,
                 background: 'rgba(16,185,129,0.12)',
                 border: '1px solid rgba(16,185,129,0.3)',
@@ -2390,14 +2547,19 @@ export function SalePage() {
                 justifyContent: 'center',
                 padding: '6px 10px',
               }}>
-                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>الإجمالي</span>
+                <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                  {weightMode === 'weight' ? 'الإجمالي' : 'الوزن'}
+                </span>
                 <span style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-success-light)', direction: 'ltr' }}>
-                  {formatCurrency(
-                    (parseFloat(weightQty) || 0) * weightPieces *
-                    (weightUnit === 'kg' ? weightProduct.salePrice : weightProduct.salePrice / GRAMS_PER_KG)
-                  )}
+                  {weightMode === 'weight'
+                    ? formatCurrency(weightCurrentAmount)
+                    : formatQty(weightCurrentTotal, weightUnit)}
                 </span>
               </div>
+            </div>
+
+            <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 700 }}>
+              السعر المطبّق: {formatCurrency(weightUnitPrice(weightUnit))} لكل {unitShort(weightUnit)}
             </div>
 
             {/* Pending weighings list */}
@@ -2409,7 +2571,7 @@ export function SalePage() {
                 display: 'flex', flexDirection: 'column', gap: 6,
               }}>
                 {weighings.map((w, i) => {
-                  const total = w.qty * w.pieces * weightUnitPrice(weightProduct, w.unit)
+                  const total = w.qty * w.pieces * weightUnitPrice(w.unit)
                   return (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
                       <span style={{ fontWeight: 700 }}>
@@ -2433,7 +2595,7 @@ export function SalePage() {
               <button
                 type="button"
                 onClick={pushWeighing}
-                disabled={!(parseFloat(weightQty) > 0)}
+                disabled={!weightCanSubmit}
                 title="احفظ هذه الوزنة وأضف وزنة أخرى بوزن مختلف"
                 style={{
                   flex: 1,
@@ -2445,7 +2607,7 @@ export function SalePage() {
                   fontWeight: 800,
                   fontSize: 14,
                   cursor: 'pointer',
-                  opacity: parseFloat(weightQty) > 0 ? 1 : 0.5,
+                  opacity: weightCanSubmit ? 1 : 0.5,
                   fontFamily: 'var(--font-main)',
                 }}
               >
@@ -2454,7 +2616,7 @@ export function SalePage() {
               <button
                 type="button"
                 onClick={() => (weighings.length > 0 ? confirmAllWeighings() : confirmWeight())}
-                disabled={!(parseFloat(weightQty) > 0) && weighings.length === 0}
+                disabled={!weightCanSubmit && weighings.length === 0}
                 style={{
                   flex: 2,
                   padding: '13px',
@@ -2465,12 +2627,12 @@ export function SalePage() {
                   fontWeight: 800,
                   fontSize: 15,
                   cursor: 'pointer',
-                  opacity: (parseFloat(weightQty) > 0 || weighings.length > 0) ? 1 : 0.5,
+                  opacity: (weightCanSubmit || weighings.length > 0) ? 1 : 0.5,
                   fontFamily: 'var(--font-main)',
                 }}
               >
                 {weighings.length > 0
-                  ? `✓ تأكيد الكل (${weighings.length + (parseFloat(weightQty) > 0 ? 1 : 0)} وزنات)`
+                  ? `✓ تأكيد الكل (${weighings.length + (weightCanSubmit ? 1 : 0)} وزنات)`
                   : '✓ إضافة للسلة'}
               </button>
             </div>

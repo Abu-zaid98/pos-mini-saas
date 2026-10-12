@@ -225,7 +225,39 @@ export function unitStep(unit: SaleUnit): number {
   return 1
 }
 
+// ── البيع بالوزن: سعر الكيلو ↔ سعر الوحدة، والبيع بالمبلغ ──
+//
+// المصدر الموحد لتسعير الموزون هو "سعر الكيلوغرام" (كما يُدخل في الصنف).
+// أما بند الفاتورة فيخزّن دائماً "سعر الوحدة" ليظل الإجمالي = الكمية × السعر
+// أياً كانت الوحدة (كغ أو غ).
 
+/** سعر الوحدة من سعر الكيلوغرام (كغ = نفس السعر، غ = ÷ 1000) */
+export function unitPriceFromKg(pricePerKg: number, unit: SaleUnit): number {
+  const p = Number(pricePerKg) || 0
+  return unit === 'g' ? p / GRAMS_PER_KG : p
+}
+
+/**
+ * سعر الكيلوغرام من سعر الوحدة (عكس unitPriceFromKg).
+ * تُنظَّف نتيجة الضرب من كسور الفاصلة العائمة (0.04×1000 = 40.00000000000001)
+ */
+export function pricePerKgFromUnit(price: number, unit: SaleUnit): number {
+  const p = Number(price) || 0
+  if (unit !== 'g') return p
+  return Math.round(p * GRAMS_PER_KG * 1e6) / 1e6
+}
+
+/**
+ * الوزن (بوحدة السعر نفسها) المطلوب لتحقيق مبلغ معيّن — البيع بالمبلغ.
+ * إجمالي السطر = الكمية × سعر الوحدة ⇒ الكمية = المبلغ ÷ سعر الوحدة
+ * تُرجع 0 عند غياب سعر صالح (لا قسمة على صفر).
+ */
+export function qtyFromAmount(amount: number, unitPrice: number): number {
+  const a = Math.max(0, Number(amount) || 0)
+  const p = Number(unitPrice) || 0
+  if (p <= 0) return 0
+  return Math.round((a / p) * 1000) / 1000
+}
 
 /** متوسط التكلفة المرجح بعد دفعة: (مخزون قديم×تكلفته + إنتاج×تكلفته) / الإجمالي
  * إذا كان المخزون القديم سالباً (بيع فوق المتاح) تُعتمد تكلفة التوريد الجديد فقط

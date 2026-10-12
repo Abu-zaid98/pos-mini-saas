@@ -4,7 +4,7 @@
  * كان يظهر سعر التكلفة (3) بدل البيع (5)
  */
 import { describe, it, expect } from 'vitest'
-import { applyPackChange, type CartItem } from '../useCart'
+import { applyPackChange, canMergeCartLine, type CartItem } from '../useCart'
 
 function pieceLine(): CartItem {
   return {
@@ -60,5 +60,44 @@ describe('تبديل العبوة حبة <-> كرتونة', () => {
     expect(packed.price).toBe(60)
     // 60/20 = 3 اشتقاق قديم — موثق كسلوك احتياطي فقط
     expect(applyPackChange(packed, null).price).toBe(3)
+  })
+})
+
+describe('دمج سطور السلة (canMergeCartLine)', () => {
+  const weighted = (over: Partial<CartItem> = {}): CartItem => ({
+    productId: 7,
+    name: 'مكسرات',
+    qty: 0.5,
+    unit: 'kg',
+    price: 40,
+    costPrice: 30,
+    maxStock: 5000,
+    kind: 'weighted',
+    lineId: 'w1',
+    ...over,
+  })
+
+  it('نفس الصنف والوحدة والسعر → يُدمج', () => {
+    expect(canMergeCartLine(weighted(), 7, 'kg', '', 40)).toBe(true)
+  })
+  it('سعر مختلف → لا يُدمج (لا تُخلط الأسعار)', () => {
+    expect(canMergeCartLine(weighted({ price: 45 }), 7, 'kg', '', 40)).toBe(false)
+  })
+  it('سطر بسعر متفق عليه لا يجذب وزنة بالسعر الافتراضي', () => {
+    // السطر معدّل (50) والجديد افتراضي (40) → سطران منفصلان
+    expect(canMergeCartLine(weighted({ price: 50 }), 7, 'kg', '', 40)).toBe(false)
+  })
+  it('وحدة مختلفة (كغ مقابل غ) → لا يُدمج', () => {
+    expect(canMergeCartLine(weighted({ unit: 'g', price: 0.04 }), 7, 'kg', '', 40)).toBe(false)
+  })
+  it('وجود قطع (تجميع أوزان) → لا يُدمج', () => {
+    expect(canMergeCartLine(weighted({ pieces: 3 }), 7, 'kg', '', 40)).toBe(false)
+  })
+  it('صنف أو عبوة مختلفة → لا يُدمج', () => {
+    expect(canMergeCartLine(weighted(), 8, 'kg', '', 40)).toBe(false)
+    expect(canMergeCartLine(weighted({ pack: { label: 'علبة', factor: 12, price: 55 } }), 7, 'kg', '', 55)).toBe(false)
+  })
+  it('مقارنة السعر العشري بدقة (0.04 لغ)', () => {
+    expect(canMergeCartLine(weighted({ unit: 'g', price: 0.04 }), 7, 'g', '', 0.04)).toBe(true)
   })
 })
