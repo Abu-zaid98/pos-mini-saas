@@ -7,7 +7,7 @@ import { useCart } from '../hooks/useCart'
 import { BarcodeScanner } from '../components/ui/BarcodeScanner'
 import { CategoryManagerModal } from '../components/products/CategoryManagerModal'
 import { ProductForm } from '../components/products/ProductForm'
-import { Modal } from '../components/ui/Modal'
+import { Modal, Tabs, SearchBar, Icon } from '../components/ui'
 import { CustomSelect } from '../components/ui/CustomSelect'
 import { formatCurrency } from '../utils/currency'
 import {
@@ -502,189 +502,54 @@ export function SalePage() {
         </div>
       )}
 
-      {/* Top Search + Barcode & Switch Tabs — ريسبونزف: البحث أولاً والتنقل بعرض كامل تحته */}
+      {/* Top Search + Barcode & Switch Tabs */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
+        gap: 10,
         width: '100%',
+        marginBottom: 12,
       }}>
-      <div style={{
-        display: 'flex',
-        gap: 6,
-        alignItems: 'center',
-        width: '100%',
-      }}>
-
         {/* Search */}
-        <div style={{
-          flex: '1 1 180px',
-          minWidth: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          background: 'rgba(255,255,255,0.05)',
-          border: '1.5px solid var(--color-border)',
-          borderRadius: 50,
-          padding: '6px 12px',
-          boxSizing: 'border-box',
-          minHeight: 42,
-        }}>
-          <span style={{ fontSize: 16 }}>🔍</span>
-
-          <input
-            style={{
-              flex: 1,
-              minWidth: 0,
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: 'var(--color-text-primary)',
-              fontFamily: 'var(--font-main)',
-              fontSize: 14,
-            }}
-            placeholder="ابحث عن منتج أو باركود..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-
-          {search && (
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="ابحث عن منتج أو باركود..."
+          actions={
             <button
-              onClick={() => setSearch('')}
+              type="button"
+              onClick={() => setScannerOpen(true)}
+              title="مسح باركود بالكاميرا"
               style={{
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                color: 'var(--color-text-muted)',
-                fontSize: 16,
-                padding: 0,
-                flexShrink: 0,
+                color: 'var(--color-primary-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 4,
               }}
             >
-              ✕
+              <Icon name="camera" size={20} />
             </button>
-          )}
-        </div>
+          }
+        />
 
-        {/* Barcode Scanner */}
-        <button
-          onClick={() => setScannerOpen(true)}
-          title="مسح باركود بالكاميرا"
-          style={{
-            width: 44,
-            height: 42,
-            background: 'rgba(59,130,246,0.15)',
-            border: '1.5px solid rgba(59,130,246,0.35)',
-            borderRadius: 12,
-            cursor: 'pointer',
-            fontSize: 18,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            minHeight: 42,
-          }}
-        >
-          📷
-        </button>
-      </div>
-
-        {/* Tab switch between Catalog and Cart — full width, never clipped */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 4,
-          background: 'var(--color-btn-ghost-bg)',
-          borderRadius: 14,
-          padding: 4,
-          border: '1px solid var(--color-border)',
-          width: '100%',
-          boxSizing: 'border-box',
-          minHeight: 48,
-        }}>
-
-          {/* Catalog Tab */}
-          <button
-            onClick={() => setActiveTab('catalog')}
-            style={{
-              width: '100%',
-              padding: '9px 10px',
-              borderRadius: 10,
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 800,
-              fontSize: 13,
-              fontFamily: 'var(--font-main)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-              background:
-                activeTab === 'catalog'
-                  ? 'var(--brand-gradient)'
-                  : 'transparent',
-              color:
-                activeTab === 'catalog'
-                  ? 'white'
-                  : 'var(--color-text-muted)',
-              transition: 'all 0.15s ease',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            📦 المنتجات
-          </button>
-
-          {/* Cart Tab */}
-          <button
-            onClick={() => setActiveTab('cart')}
-            style={{
-              width: '100%',
-              padding: '9px 10px',
-              borderRadius: 10,
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 800,
-              fontSize: 13,
-              fontFamily: 'var(--font-main)',
-              background:
-                activeTab === 'cart'
-                  ? 'var(--brand-gradient)'
-                  : 'transparent',
-              color:
-                activeTab === 'cart'
-                  ? 'white'
-                  : 'var(--color-text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-              transition: 'all 0.15s ease',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            🛒 السلة
-
-            {totalCartCount > 0 && (
-              <span style={{
-                background:
-                  activeTab === 'cart'
-                    ? 'white'
-                    : 'var(--brand-gradient)',
-                color:
-                  activeTab === 'cart'
-                    ? '#0b625b'
-                    : 'white',
-                fontSize: 11,
-                fontWeight: 800,
-                borderRadius: 50,
-                padding: '1px 6px',
-              }}>
-                {totalCartCount}
-              </span>
-            )}
-          </button>
-
-        </div>
+        {/* Tab switch between Catalog and Cart */}
+        <Tabs
+          tabs={[
+            { value: 'catalog', label: 'المنتجات', icon: 'package' },
+            {
+              value: 'cart',
+              label: 'السلة',
+              icon: 'cart',
+              badge: totalCartCount > 0 ? totalCartCount : undefined,
+            },
+          ]}
+          value={activeTab}
+          onChange={(tab) => setActiveTab(tab as 'catalog' | 'cart')}
+        />
       </div>
 
       {/* VIEW 1: CATALOG TAB */}

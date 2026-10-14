@@ -17,6 +17,7 @@ import { SupplierPaymentModal } from '../components/purchases/SupplierPaymentMod
 import { PurchasePrint } from '../components/purchases/PurchasePrint'
 import { useStoreInfo } from '../components/invoice/InvoicePrint'
 import { printElementById } from '../components/print/printDocument'
+import { Icon, Tabs, StatCard, EmptyState, SearchBar } from '../components/ui'
 
 export function PurchasesPage() {
   const purchases = usePurchases()
@@ -284,156 +285,74 @@ export function PurchasesPage() {
   }
 
   return (
-    <div className="page-frame">
+    <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Top Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 14,
-          padding: '12px 10px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 20, marginBottom: 4 }}>📥</div>
-          <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-primary-light)' }}>
-            {purchases.length}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-            عمليات الشراء
-          </div>
-        </div>
-
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 14,
-          padding: '12px 10px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 20, marginBottom: 4 }}>📦</div>
-          <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-purple)' }}>
-            {totalItemsCount}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-            إجمالي القطع المشتراة
-          </div>
-        </div>
-
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 14,
-          padding: '12px 10px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 20, marginBottom: 4 }}>💰</div>
-          <div style={{ fontSize: 15, fontWeight: 900, color: '#f59e0b' }}>
-            {formatCurrency(totalSpent)}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
-            إجمالي المشتريات
-          </div>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        <StatCard
+          label="المشتريات"
+          value={formatCurrency(totalSpent)}
+          variant="brand"
+          ltr
+        />
+        <StatCard
+          label="الفواتير"
+          value={purchases.length}
+          variant="info"
+        />
+        <StatCard
+          label="القطع الموردة"
+          value={totalItemsCount}
+          variant="success"
+        />
       </div>
 
       {/* Tabs */}
-      <div style={{
-        display: 'flex',
-        background: 'var(--color-btn-ghost-bg)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 14,
-        padding: 4,
-        marginBottom: 12,
-        gap: 4,
-      }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab('history')}
-          style={{
-            flex: 1,
-            padding: '10px',
-            borderRadius: 10,
-            border: 'none',
-            background: activeTab === 'history' ? 'var(--brand-gradient)' : 'transparent',
-            color: activeTab === 'history' ? '#fff' : 'var(--color-text-secondary)',
-            fontSize: 11,
-            fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          📜 سجل المشتريات ({purchases.length})
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('new')}
-          style={{
-            flex: 1,
-            padding: '10px',
-            borderRadius: 10,
-            border: 'none',
-            background: activeTab === 'new' ? 'var(--brand-gradient)' : 'transparent',
-            color: activeTab === 'new' ? '#fff' : 'var(--color-text-secondary)',
-            fontSize: 11,
-            fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
-        >
-          ➕ فاتورة شراء جديدة
-        </button>
-      </div>
+      <Tabs
+        tabs={[
+          { value: 'history', label: 'سجل المشتريات', icon: 'document', badge: purchases.length },
+          { value: 'new', label: 'فاتورة شراء جديدة', icon: 'plus' },
+        ]}
+        value={activeTab}
+        onChange={(tab) => setActiveTab(tab as 'history' | 'new')}
+      />
 
       {/* TAB 1: HISTORY */}
       {activeTab === 'history' && (
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Search bar */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            background: 'var(--color-bg-card)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 50,
-            padding: '10px 16px',
-            marginBottom: 16,
-          }}>
-            <span style={{ fontSize: 16 }}>🔍</span>
-            <input
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: 'var(--color-text-primary)',
-                fontFamily: 'var(--font-main)',
-                fontSize: 14,
-              }}
-              placeholder="ابحث باسم الصنف، المورد، رقم الفاتورة..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-            {search && (
-              <button
-                onClick={() => setSearch('')}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)' }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="ابحث باسم الصنف، المورد، رقم الفاتورة..."
+          />
 
           {filteredPurchases.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">📦</div>
-              <p style={{ fontSize: 16, fontWeight: 700 }}>
-                {search ? 'لا توجد فواتير مطابقة لبحثك' : 'لا توجد فواتير مشتريات مسجلة بعد'}
-              </p>
-              <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                {search ? 'جرّب كلمة بحث أخرى' : 'اضغط على "فاتورة شراء جديدة" أو زر "توريد" بجانب أي صنف في صفحة المنتجات'}
-              </p>
-            </div>
+            <EmptyState
+              icon="package"
+              title={search ? 'لا توجد فواتير مطابقة لبحثك' : 'لا توجد فواتير مشتريات مسجلة بعد'}
+              description={search ? 'جرّب كلمة بحث أخرى أو امسح شريط البحث' : 'اضغط على "فاتورة شراء جديدة" أو زر "توريد" لتسجيل بضاعة واردة'}
+              action={
+                search ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => setSearch('')}
+                  >
+                    مسح البحث
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-sm"
+                    onClick={() => setActiveTab('new')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Icon name="plus" size={15} />
+                    <span>فاتورة شراء جديدة</span>
+                  </button>
+                )
+              }
+            />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {filteredPurchases.map((purchase) => {
@@ -466,7 +385,7 @@ export function PurchasesPage() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 18 }}>📥</span>
+                          <Icon name="document" size={18} color="var(--color-primary-light)" />
                           <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-primary)' }}>
                             {purchase.supplierName || 'شراء عام'}
                           </span>
@@ -482,18 +401,22 @@ export function PurchasesPage() {
                             </span>
                           )}
                         </div>
-                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                          📅 {dateFormatted} — 🕒 {timeFormatted}
+                        <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Icon name="calendar" size={13} />
+                          <span>{dateFormatted}</span>
+                          <span>—</span>
+                          <Icon name="clock" size={13} />
+                          <span>{timeFormatted}</span>
                         </div>
                       </div>
 
                       <div style={{ textAlign: 'left' }}>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-primary-light)' }}>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-primary-light)', direction: 'ltr' }}>
                           {formatCurrency(purchase.totalAmount)}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                           {purchase.paymentType === 'debt'
-                            ? 'آجل بالكامل 📝'
+                            ? 'آجل بالكامل'
                             : purchase.paymentType === 'partial'
                               ? `مدفوع ${formatCurrency(purchase.paidAmount ?? 0)} (دين ${formatCurrency(purchase.debtAmount ?? 0)})`
                               : getPaymentMethodName(purchase.paymentMethod)}
@@ -527,7 +450,7 @@ export function PurchasesPage() {
                               {it.productName}
                             </span>
                             <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginRight: 8 }}>
-                              (المخزون: {it.unit === 'kg' ? `${Math.round((it.oldQuantity / GRAMS_PER_KG) * 1000) / 1000} كغ` : it.oldQuantity} ➔ <strong style={{ color: 'var(--color-success-light)' }}>{it.unit === 'kg' ? `${Math.round((it.newQuantity / GRAMS_PER_KG) * 1000) / 1000} كغ` : it.newQuantity}</strong>)
+                              (المخزون: {it.unit === 'kg' ? `${Math.round((it.oldQuantity / GRAMS_PER_KG) * 1000) / 1000} كغ` : it.oldQuantity} ← <strong style={{ color: 'var(--color-success-light)' }}>{it.unit === 'kg' ? `${Math.round((it.newQuantity / GRAMS_PER_KG) * 1000) / 1000} كغ` : it.newQuantity}</strong>)
                             </span>
                           </div>
 
@@ -544,8 +467,9 @@ export function PurchasesPage() {
                     </div>
 
                     {purchase.notes && (
-                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                        💬 ملاحظات: {purchase.notes}
+                      <div style={{ fontSize: 12, color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Icon name="chat" size={13} />
+                        <span>ملاحظات: {purchase.notes}</span>
                       </div>
                     )}
 
@@ -576,14 +500,18 @@ export function PurchasesPage() {
                           border: '1px solid var(--color-border-active)',
                           color: 'var(--color-primary-light)',
                           borderRadius: 8,
-                          padding: '5px 12px',
+                          padding: '6px 12px',
                           fontSize: 12.5,
                           fontWeight: 800,
                           cursor: 'pointer',
                           fontFamily: 'var(--font-main)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
                         }}
                       >
-                        👁️ عرض / طباعة / تعديل
+                        <Icon name="eye" size={14} />
+                        <span>عرض / طباعة / تعديل</span>
                       </button>
                       {(purchase.debtAmount ?? 0) > 0 && (
                         <button
@@ -594,14 +522,18 @@ export function PurchasesPage() {
                             border: '1px solid var(--color-border-active)',
                             color: 'var(--color-primary-light)',
                             borderRadius: 8,
-                            padding: '5px 12px',
+                            padding: '6px 12px',
                             fontSize: 12.5,
                             fontWeight: 800,
                             cursor: 'pointer',
                             fontFamily: 'var(--font-main)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
                           }}
                         >
-                          💳 سداد دفعة للمورد ({formatCurrency(purchase.debtAmount || 0)})
+                          <Icon name="card" size={14} />
+                          <span>سداد للمورد ({formatCurrency(purchase.debtAmount || 0)})</span>
                         </button>
                       )}
                       <button
@@ -614,14 +546,18 @@ export function PurchasesPage() {
                           border: 'none',
                           color: 'var(--color-danger-light)',
                           borderRadius: 8,
-                          padding: '5px 12px',
+                          padding: '6px 12px',
                           fontSize: 12.5,
                           fontWeight: 700,
                           cursor: 'pointer',
                           fontFamily: 'var(--font-main)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
                         }}
                       >
-                        🗑️ حذف من الأرشيف
+                        <Icon name="trash" size={14} />
+                        <span>حذف</span>
                       </button>
                     </div>
                   </div>

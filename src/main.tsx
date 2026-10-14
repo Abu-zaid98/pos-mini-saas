@@ -15,6 +15,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { InvoicesPage } from './pages/InvoicesPage'
 import { PurchasesPage } from './pages/PurchasesPage'
 import { ExpensesPage } from './pages/ExpensesPage'
+import { SuppliersPage } from './pages/SuppliersPage'
 
 // لوحة التحكم تُحمّل عند الطلب فقط — لا تُثقل فتح الكاشير (code-splitting)
 // (ملف admin.css يُستورد داخل AdminApp فيُحمّل مع نفس الشريحة)
@@ -104,6 +105,7 @@ function PosApp() {
         <Route path="/" element={<SalePage />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/purchases" element={<PurchasesPage />} />
+        <Route path="/suppliers" element={<SuppliersPage />} />
         <Route path="/customers" element={<CustomersPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/reports" element={<ReportsPage />} />

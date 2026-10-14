@@ -6,6 +6,7 @@ import { formatCurrency } from '../utils/currency'
 import { supplierKey, useSuppliers, addSupplier, updateSupplier, deleteSupplier, registerSupplierName, type SupplierCard } from '../hooks/useSuppliers'
 import { usePurchases } from '../hooks/usePurchases'
 import type { Purchase } from '../db/db'
+import { Icon, SearchBar, StatCard, EmptyState, SectionHeader } from '../components/ui'
 
 export function SuppliersPage() {
   const [search, setSearch] = useState('')
@@ -107,140 +108,263 @@ export function SuppliersPage() {
 
   return (
     <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Top Header Card */}
       <section className="card" style={{ padding: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <div>
-            <h2 style={{ fontSize: 17, fontWeight: 900 }}>الموردون</h2>
-            <p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 2 }}>
-              حساباتك مع الموردين — ما اشتريته وما سددته وما بقي عليك.
-            </p>
-          </div>
-          <button type="button" className="btn btn-primary btn-sm" onClick={openAdd}>
-            + مورد جديد
-          </button>
+        <SectionHeader
+          title="الموردون"
+          action={
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={openAdd}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Icon name="plus" size={16} />
+              <span>مورد جديد</span>
+            </button>
+          }
+        />
+        <div style={{ marginTop: 12 }}>
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="ابحث باسم المورد أو رقمه..."
+          />
         </div>
-        <div className="input-search"><span>🔍</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="اسم المورد أو رقمه..." /></div>
       </section>
 
+      {/* Stats Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <div className="card" style={{ padding: 14, textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>المتبقي عليك للموردين</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: totalDebt > 0 ? 'var(--color-danger-light)' : 'var(--color-success-light)', direction: 'ltr', marginTop: 4 }}>
-            {formatCurrency(totalDebt)}
-          </div>
-        </div>
-        <div className="card" style={{ padding: 14, textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>عدد الموردين</div>
-          <div style={{ fontSize: 20, fontWeight: 900, marginTop: 4 }}>{suppliers.length}</div>
-        </div>
+        <StatCard
+          label="المتبقي للموردين"
+          value={formatCurrency(totalDebt)}
+          variant={totalDebt > 0 ? 'danger' : 'success'}
+          ltr
+        />
+        <StatCard
+          label="عدد الموردين"
+          value={suppliers.length}
+          variant="brand"
+        />
       </div>
 
+      {/* Suppliers List */}
       {suppliers.length === 0 ? (
-        <div className="empty-state">
-          <div className="empty-icon">🚚</div>
-          <p>لا يوجد موردون بعد — أضف مورداً أو سجّل فاتورة شراء باسمه</p>
-        </div>
+        <EmptyState
+          icon="box"
+          title="لا يوجد موردون بعد"
+          description={search ? `لم نجد أي مورد مطابق لـ "${search}"` : 'أضف مورداً أو سجّل فاتورة شراء باسمه ليظهر هنا'}
+          action={
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={openAdd}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Icon name="plus" size={15} />
+              <span>إضافة مورد جديد</span>
+            </button>
+          }
+        />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {suppliers.map((s) => (
             <button
               key={s.registered ? `r-${s.id}` : `u-${s.key}`}
               type="button"
               onClick={() => setDetail(s)}
               style={{
-                width: '100%', border: '1px solid var(--color-border)', background: 'var(--color-bg-card)',
-                color: 'var(--color-text-primary)', borderRadius: 15, padding: 13, cursor: 'pointer',
-                textAlign: 'right', fontFamily: 'var(--font-main)',
+                width: '100%',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-bg-card)',
+                color: 'var(--color-text-primary)',
+                borderRadius: 16,
+                padding: '14px 16px',
+                cursor: 'pointer',
+                textAlign: 'right',
+                fontFamily: 'var(--font-main)',
+                boxShadow: 'var(--shadow-sm)',
+                transition: 'all 0.15s ease',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <strong style={{ fontSize: 15 }}>{s.name}</strong>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <strong style={{ fontSize: 15, color: 'var(--color-text-primary)' }}>{s.name}</strong>
                     {s.registered
                       ? <span className="badge badge-success">مسجل</span>
                       : <span className="badge badge-warning">من الفواتير</span>}
                     {s.totalDebt > 0 && <span className="badge badge-danger">عليه {formatCurrency(s.totalDebt)}</span>}
                   </div>
-                  <div style={{ color: 'var(--color-text-muted)', fontSize: 11, marginTop: 5 }}>
-                    {s.invoices} فواتير · مشتريات {formatCurrency(s.totalAmount)} · مدفوع {formatCurrency(s.totalPaid)}
-                    {s.phone ? ` · ${s.phone}` : ''}
+                  <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span>{s.invoices} فواتير</span>
+                    <span>·</span>
+                    <span>مشتريات {formatCurrency(s.totalAmount)}</span>
+                    <span>·</span>
+                    <span style={{ color: 'var(--color-success-light)' }}>مدفوع {formatCurrency(s.totalPaid)}</span>
+                    {s.phone ? (
+                      <>
+                        <span>·</span>
+                        <span style={{ direction: 'ltr' }}>{s.phone}</span>
+                      </>
+                    ) : null}
                   </div>
                 </div>
-                <span style={{ color: 'var(--color-text-muted)', flexShrink: 0 }}>›</span>
+                <span style={{ color: 'var(--color-text-muted)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                  <Icon name="chevron-left" size={18} />
+                </span>
               </div>
             </button>
           ))}
         </div>
       )}
 
-      {/* Detail sheet */}
+      {/* Supplier Detail Sheet */}
       {liveDetail && (
-        <Modal open onClose={() => setDetail(null)} title={`🚚 ${liveDetail.name}`} type="sheet">
+        <Modal
+          open
+          onClose={() => setDetail(null)}
+          title={liveDetail.name}
+          type="sheet"
+        >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* Actions Toolbar */}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               {liveDetail.phone && (
-                <a href={`https://wa.me/${liveDetail.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ background: '#25D366', color: 'white', textDecoration: 'none' }}>
-                  💬 واتساب
+                <a
+                  href={`https://wa.me/${liveDetail.phone.replace(/\D/g, '')}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-sm"
+                  style={{
+                    background: '#25D366',
+                    color: 'white',
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontWeight: 800,
+                  }}
+                >
+                  <Icon name="chat" size={16} />
+                  <span>واتساب</span>
                 </a>
               )}
               {!liveDetail.registered ? (
-                <button type="button" className="btn btn-primary btn-sm" onClick={() => handleRegister(liveDetail)}>
-                  ✓ تسجيل كمورد رسمي
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => handleRegister(liveDetail)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Icon name="check" size={16} />
+                  <span>تسجيل كمورد رسمي</span>
                 </button>
               ) : (
                 <>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(liveDetail)}>
-                    ✏️ تعديل
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => openEdit(liveDetail)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Icon name="pencil" size={15} />
+                    <span>تعديل</span>
                   </button>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setDeleteBlocked(''); setDeleteTarget(liveDetail) }}>
-                    🗑️ حذف
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => { setDeleteBlocked(''); setDeleteTarget(liveDetail) }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--color-danger-light)' }}
+                  >
+                    <Icon name="trash" size={15} />
+                    <span>حذف</span>
                   </button>
                 </>
               )}
             </div>
+
             {liveDetail.notes && (
-              <p style={{ fontSize: 13, color: 'var(--color-text-secondary)', margin: 0 }}>📝 {liveDetail.notes}</p>
+              <p style={{
+                fontSize: 13,
+                color: 'var(--color-text-secondary)',
+                margin: 0,
+                background: 'var(--color-input-bg)',
+                padding: '10px 14px',
+                borderRadius: 12,
+                border: '1px solid var(--color-border)',
+              }}>
+                {liveDetail.notes}
+              </p>
             )}
 
+            {/* Financial Overview 3-Stat Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, textAlign: 'center' }}>
-              <div style={{ background: 'var(--color-input-bg)', borderRadius: 10, padding: '8px 4px' }}>
-                <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>مشتريات</div>
-                <strong style={{ fontSize: 13, direction: 'ltr', display: 'block' }}>{formatCurrency(liveDetail.totalAmount)}</strong>
+              <div style={{ background: 'var(--color-input-bg)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '10px 6px' }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 700 }}>مشتريات</div>
+                <strong style={{ fontSize: 14, direction: 'ltr', display: 'block', marginTop: 4 }}>
+                  {formatCurrency(liveDetail.totalAmount)}
+                </strong>
               </div>
-              <div style={{ background: 'var(--kpi-green-bg)', borderRadius: 10, padding: '8px 4px' }}>
-                <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>سددت</div>
-                <strong style={{ fontSize: 13, direction: 'ltr', display: 'block', color: 'var(--color-success-light)' }}>{formatCurrency(liveDetail.totalPaid)}</strong>
+              <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 12, padding: '10px 6px' }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 700 }}>سددت</div>
+                <strong style={{ fontSize: 14, direction: 'ltr', display: 'block', color: 'var(--color-success-light)', marginTop: 4 }}>
+                  {formatCurrency(liveDetail.totalPaid)}
+                </strong>
               </div>
-              <div style={{ background: liveDetail.totalDebt > 0 ? 'var(--kpi-danger-bg)' : 'var(--color-input-bg)', borderRadius: 10, padding: '8px 4px' }}>
-                <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>بقي عليك</div>
-                <strong style={{ fontSize: 13, direction: 'ltr', display: 'block', color: liveDetail.totalDebt > 0 ? 'var(--color-danger-light)' : 'var(--color-success-light)' }}>{formatCurrency(liveDetail.totalDebt)}</strong>
+              <div style={{
+                background: liveDetail.totalDebt > 0 ? 'rgba(239, 68, 68, 0.12)' : 'var(--color-input-bg)',
+                border: liveDetail.totalDebt > 0 ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid var(--color-border)',
+                borderRadius: 12,
+                padding: '10px 6px',
+              }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 700 }}>بقي عليك</div>
+                <strong style={{
+                  fontSize: 14,
+                  direction: 'ltr',
+                  display: 'block',
+                  color: liveDetail.totalDebt > 0 ? 'var(--color-danger-light)' : 'var(--color-success-light)',
+                  marginTop: 4,
+                }}>
+                  {formatCurrency(liveDetail.totalDebt)}
+                </strong>
               </div>
             </div>
 
-            <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>فواتير الشراء ({detailPurchases.length})</h3>
+            {/* Invoices list */}
+            <h3 style={{ fontSize: 14, fontWeight: 800, margin: '6px 0 0' }}>
+              فواتير الشراء ({detailPurchases.length})
+            </h3>
             {detailPurchases.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center' }}>لا توجد فواتير لهذا المورد بعد</p>
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center', padding: '16px 0' }}>
+                لا توجد فواتير لهذا المورد بعد
+              </p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 360, overflowY: 'auto' }}>
                 {detailPurchases.map((p: Purchase) => (
-                  <div key={p.id} style={{ border: '1px solid var(--color-border)', background: 'var(--color-bg-card)', borderRadius: 12, padding: 10 }}>
+                  <div key={p.id} style={{ border: '1px solid var(--color-border)', background: 'var(--color-bg-card)', borderRadius: 14, padding: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                       <div>
-                        <strong style={{ fontSize: 13 }}>#{p.invoiceNumber || p.id}</strong>
+                        <strong style={{ fontSize: 14 }}>#{p.invoiceNumber || p.id}</strong>
                         <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginInlineStart: 8 }}>
                           {new Date(p.date).toLocaleDateString('ar-EG')} · {p.items.length} أصناف
                         </span>
                       </div>
-                      <strong style={{ direction: 'ltr', fontSize: 14 }}>{formatCurrency(p.totalAmount)}</strong>
+                      <strong style={{ direction: 'ltr', fontSize: 15 }}>{formatCurrency(p.totalAmount)}</strong>
                     </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 6, gap: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, gap: 8 }}>
                       <span style={{ fontSize: 12, color: (p.debtAmount || 0) > 0 ? 'var(--color-danger-light)' : 'var(--color-success-light)', fontWeight: 700 }}>
-                        {(p.debtAmount || 0) > 0 ? `متبقٍ: ${formatCurrency(p.debtAmount || 0)}` : '✓ مسددة'}
+                        {(p.debtAmount || 0) > 0 ? `متبقٍ: ${formatCurrency(p.debtAmount || 0)}` : 'مسددة بالكامل'}
                       </span>
                       {(p.debtAmount || 0) > 0 && (
-                        <button type="button" className="btn btn-primary btn-sm" onClick={() => setPayingPurchase(p)}>
-                          💳 سداد
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          onClick={() => setPayingPurchase(p)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                        >
+                          <Icon name="card" size={15} />
+                          <span>سداد</span>
                         </button>
                       )}
                     </div>
@@ -262,32 +386,57 @@ export function SuppliersPage() {
         />
       )}
 
-      {/* Add / Edit supplier */}
+      {/* Add / Edit supplier modal */}
       {formOpen && (
-        <Modal open onClose={() => setFormOpen(false)} title={editingId ? '✏️ تعديل المورد' : '＋ مورد جديد'} type="box">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <Modal
+          open
+          onClose={() => setFormOpen(false)}
+          title={editingId ? 'تعديل بيانات المورد' : 'إضافة مورد جديد'}
+          type="box"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {formError && (
               <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', color: 'var(--color-danger-light)', fontSize: 13, fontWeight: 600 }}>
-                ⚠ {formError}
+                {formError}
               </div>
             )}
             <div className="input-wrap">
               <label className="input-label">اسم المورد *</label>
-              <input className="input" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="مثال: شركة النور للتجارة" autoFocus />
+              <input
+                className="input"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+                placeholder="مثال: شركة النور للتجارة"
+                autoFocus
+              />
             </div>
             <div className="input-wrap">
               <label className="input-label">رقم الهاتف / واتساب</label>
-              <input className="input" type="tel" value={formPhone} onChange={(e) => setFormPhone(e.target.value)} placeholder="05xxxxxxxx" style={{ direction: 'ltr', textAlign: 'right' }} />
+              <input
+                className="input"
+                type="tel"
+                value={formPhone}
+                onChange={(e) => setFormPhone(e.target.value)}
+                placeholder="05xxxxxxxx"
+                style={{ direction: 'ltr', textAlign: 'right' }}
+              />
             </div>
             <div className="input-wrap">
               <label className="input-label">ملاحظات</label>
-              <input className="input" value={formNotes} onChange={(e) => setFormNotes(e.target.value)} placeholder="مثال: مندوب المنطقة الشمالية" />
+              <input
+                className="input"
+                value={formNotes}
+                onChange={(e) => setFormNotes(e.target.value)}
+                placeholder="مثال: مندوب المنطقة الشمالية"
+              />
             </div>
             <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: 0 }}>
               تنبيه: الفواتير مرتبطة بالاسم — إعادة تسمية مورد له فواتير تفصلها عن سجله.
             </p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setFormOpen(false)}>إلغاء</button>
+            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+              <button type="button" className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setFormOpen(false)}>
+                إلغاء
+              </button>
               <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={handleSave} disabled={saving}>
                 {saving ? 'جارٍ الحفظ...' : editingId ? 'حفظ التعديلات' : 'إضافة المورد'}
               </button>
@@ -296,6 +445,7 @@ export function SuppliersPage() {
         </Modal>
       )}
 
+      {/* Delete Supplier Confirmation Modal */}
       <ConfirmModal
         open={deleteTarget !== null}
         onClose={() => { setDeleteTarget(null); setDeleteBlocked('') }}

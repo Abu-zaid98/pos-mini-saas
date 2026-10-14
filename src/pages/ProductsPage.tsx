@@ -1,19 +1,16 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useProducts, deleteProduct } from '../hooks/useProducts'
 import { useCategories } from '../hooks/useCategories'
 import { ProductForm } from '../components/products/ProductForm'
 import { CategoryManagerModal } from '../components/products/CategoryManagerModal'
 import { QuickRestockModal } from '../components/products/QuickRestockModal'
-import { PurchasesPage } from './PurchasesPage'
-import { SuppliersPage } from './SuppliersPage'
 import { BarcodeScanner } from '../components/ui/BarcodeScanner'
-import { Badge } from '../components/ui/Badge'
+import { Badge, StatCard, SearchBar, EmptyState, Icon } from '../components/ui'
 import type { Product } from '../db/db'
 import { PRODUCT_TYPES } from '../db/db'
 import { getProductType, isLowStock, isOutOfStock, stockLabel, isExpired, isNearExpiry, daysToExpiry, formatServiceDuration } from '../utils/units'
 
 export function ProductsPage() {
-  const [mainTab, setMainTab] = useState<'inventory' | 'purchases' | 'suppliers'>('inventory')
   const [search, setSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState('')
   const [formOpen, setFormOpen] = useState(false)
@@ -24,11 +21,6 @@ export function ProductsPage() {
   const [scannedBarcode, setScannedBarcode] = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState<Product | null>(null)
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
-
-  // التبديل بين التبويبات يبدأ دائماً من الأعلى — وإلا يقفز تبويب قصير (كالإنتاج) لمنتصف الفراغ
-  useEffect(() => {
-    document.querySelector('.page-content')?.scrollTo({ top: 0 })
-  }, [mainTab])
 
   const categoriesList = useCategories()
   const catIconMap = useMemo(() => {
@@ -70,157 +62,40 @@ export function ProductsPage() {
 
   return (
     <div className="page-frame">
-      {/* Top Segmented Hub Switcher */}
-      <div style={{
-        display: 'flex',
-        background: 'var(--color-btn-ghost-bg)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 14,
-        padding: 4,
-        marginBottom: 16,
-        gap: 6,
-      }}>
-        <button
-          type="button"
-          onClick={() => setMainTab('inventory')}
-          style={{
-            flex: 1,
-            padding: '10px 14px',
-            borderRadius: 10,
-            border: 'none',
-            background: mainTab === 'inventory' ? 'var(--brand-gradient)' : 'transparent',
-            color: mainTab === 'inventory' ? '#fff' : 'var(--color-text-secondary)',
-            fontSize: 11,
-            fontWeight: 800,
-            cursor: 'pointer',
-            fontFamily: 'var(--font-main)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <span>📦</span>
-          <span>المخزون</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMainTab('purchases')}
-          style={{
-            flex: 1,
-            padding: '10px 14px',
-            borderRadius: 10,
-            border: 'none',
-            background: mainTab === 'purchases' ? 'var(--brand-gradient)' : 'transparent',
-            color: mainTab === 'purchases' ? '#fff' : 'var(--color-text-secondary)',
-            fontSize: 11,
-            fontWeight: 800,
-            cursor: 'pointer',
-            fontFamily: 'var(--font-main)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <span>📥</span>
-          <span>المشتريات</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMainTab('suppliers')}
-          style={{
-            flex: 1,
-            padding: '10px 14px',
-            borderRadius: 10,
-            border: 'none',
-            background: mainTab === 'suppliers' ? 'var(--brand-gradient)' : 'transparent',
-            color: mainTab === 'suppliers' ? '#fff' : 'var(--color-text-secondary)',
-            fontSize: 11,
-            fontWeight: 800,
-            cursor: 'pointer',
-            fontFamily: 'var(--font-main)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            transition: 'all 0.15s ease',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <span>🚚</span>
-          <span>الموردون</span>
-        </button>
-      </div>
-
-      {mainTab === 'purchases' ? (
-        <PurchasesPage />
-      ) : mainTab === 'suppliers' ? (
-        <SuppliersPage />
-      ) : (
-        <>
-          {/* Stats bar */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, marginBottom: 14 }}>
-            {[
-              { label: 'إجمالي المنتجات', value: products.length, icon: '📦', color: '#3b82f6' },
-              { label: 'مخزون منخفض', value: lowStockCount, icon: '⚠️', color: '#f59e0b' },
-              { label: 'تنبيه صلاحية', value: expiryCount, icon: '⏳', color: '#ef4444' },
-              { label: 'قيمة المخزون', value: `${totalValue.toFixed(0)} ₪`, icon: '💰', color: '#10b981', small: true },
-            ].map((s) => (
-              <div key={s.label} style={{
-                background: 'var(--color-bg-card)',
-                border: '1px solid var(--color-border)',
-                borderRadius: 12,
-                padding: '10px 8px',
-                textAlign: 'center',
-              }}>
-                <div style={{ fontSize: 18, marginBottom: 2 }}>{s.icon}</div>
-                <div style={{ fontSize: s.small ? 13 : 16, fontWeight: 800, color: s.color }}>{s.value}</div>
-                <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2, lineHeight: 1.2 }}>{s.label}</div>
-              </div>
-            ))}
+      {/* Stats bar */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, margin: '14px 0' }}>
+            <StatCard label="إجمالي المنتجات" value={products.length} icon="package" variant="info" />
+            <StatCard label="مخزون منخفض" value={lowStockCount} icon="warning" variant="warning" />
+            <StatCard label="تنبيه صلاحية" value={expiryCount} icon="clock" variant="danger" />
+            <StatCard label="قيمة المخزون" value={`${totalValue.toFixed(0)} ₪`} icon="banknotes" variant="success" />
           </div>
 
           {/* Full-width Search bar */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            background: 'var(--color-bg-card)',
-            border: '1.5px solid var(--color-border)',
-            borderRadius: 14,
-            padding: '10px 16px',
-            marginBottom: 10,
-          }}>
-            <span style={{ fontSize: 16 }}>🔍</span>
-            <input
-              style={{
-                flex: 1,
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                color: 'var(--color-text-primary)',
-                fontFamily: 'var(--font-main)',
-                fontSize: 14,
-              }}
-              placeholder="ابحث باسم المنتج أو الباركود..."
+          <div style={{ marginBottom: 12 }}>
+            <SearchBar
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={setSearch}
+              placeholder="ابحث باسم المنتج أو الباركود..."
+              actions={
+                <button
+                  type="button"
+                  onClick={() => setScannerOpen(true)}
+                  title="مسح باركود بالكاميرا"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: 'var(--color-primary-light)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: 4,
+                  }}
+                >
+                  <Icon name="camera" size={20} />
+                </button>
+              }
             />
-            {search && (
-              <button
-                onClick={() => { setSearch(''); setScannedBarcode('') }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: 18 }}
-              >
-                ✕
-              </button>
-            )}
           </div>
 
           {/* Action Row */}
@@ -246,7 +121,7 @@ export function ProductsPage() {
                 fontFamily: 'var(--font-main)',
               }}
             >
-              <span>+</span>
+              <Icon name="plus" size={16} />
               <span>إضافة منتج جديد</span>
             </button>
 
@@ -266,11 +141,11 @@ export function ProductsPage() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 4,
+                gap: 5,
                 fontFamily: 'var(--font-main)',
               }}
             >
-              <span>📷</span>
+              <Icon name="camera" size={16} />
               <span>باركود</span>
             </button>
 
@@ -290,11 +165,11 @@ export function ProductsPage() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: 4,
+                gap: 5,
                 fontFamily: 'var(--font-main)',
               }}
             >
-              <span>⚙️</span>
+              <Icon name="tag" size={15} />
               <span>الأقسام</span>
             </button>
           </div>
@@ -346,15 +221,34 @@ export function ProductsPage() {
 
           {/* Product list */}
           {products.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon">🏷️</div>
-              <p style={{ fontSize: 16, fontWeight: 700 }}>
-                {search ? 'لا توجد نتائج' : 'لا توجد منتجات بعد'}
-              </p>
-              <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
-                {search ? 'جرّب كلمة بحث مختلفة' : 'اضغط على "+ إضافة منتج جديد" لإضافة أول صنف'}
-              </p>
-            </div>
+            <EmptyState
+              icon="package"
+              title={search ? 'لا توجد نتائج بحث' : 'لا توجد منتجات مسجلة بعد'}
+              description={search ? 'جرّب كلمة بحث مختلفة أو امسح الفلتر' : 'اضغط على زر "إضافة منتج جديد" أعلاه للبدء بإضافة الأصناف'}
+              action={
+                <button
+                  type="button"
+                  onClick={() => { setEditProduct(null); setScannedBarcode(''); setFormOpen(true) }}
+                  style={{
+                    background: 'var(--brand-gradient)',
+                    border: 'none',
+                    borderRadius: 10,
+                    padding: '8px 18px',
+                    color: '#fff',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  <Icon name="plus" size={16} />
+                  <span>إضافة منتج جديد</span>
+                </button>
+              }
+            />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {products.map((p) => {
@@ -488,7 +382,7 @@ export function ProductsPage() {
                           fontFamily: 'var(--font-main)',
                         }}
                       >
-                        <span>📥</span>
+                        <Icon name="arrow-down" size={15} strokeWidth={2.2} />
                         <span>توريد كمية</span>
                       </button>
                       )}
@@ -514,7 +408,7 @@ export function ProductsPage() {
                           fontFamily: 'var(--font-main)',
                         }}
                       >
-                        <span>✏️</span>
+                        <Icon name="pencil" size={14} />
                         <span>تعديل</span>
                       </button>
 
@@ -530,14 +424,13 @@ export function ProductsPage() {
                           border: '1px solid rgba(239,68,68,0.25)',
                           color: 'var(--color-danger-light)',
                           cursor: 'pointer',
-                          fontSize: 16,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           flexShrink: 0,
                         }}
                       >
-                        🗑️
+                        <Icon name="trash" size={16} />
                       </button>
                     </div>
                   </div>
@@ -545,8 +438,6 @@ export function ProductsPage() {
               })}
             </div>
           )}
-        </>
-      )}
 
       {/* Delete confirm */}
       {deleteConfirm && (
@@ -564,7 +455,20 @@ export function ProductsPage() {
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🗑️</div>
+            <div
+              style={{
+                width: 60,
+                height: 60,
+                borderRadius: 18,
+                background: 'rgba(239, 68, 68, 0.14)',
+                border: '1px solid rgba(239, 68, 68, 0.28)',
+                display: 'grid',
+                placeItems: 'center',
+                margin: '0 auto 14px',
+              }}
+            >
+              <Icon name="trash" size={28} color="var(--color-danger)" />
+            </div>
             <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>حذف المنتج؟</h3>
             <p style={{ fontSize: 14, color: 'var(--color-text-muted)', marginBottom: 20 }}>
               سيتم حذف "<strong style={{ color: 'var(--color-text-primary)' }}>{deleteConfirm.name}</strong>" نهائياً

@@ -3,6 +3,7 @@ import { lic, isPublicKeyConfigured, type LicenseResult, type LocalSubscriptionD
 import { PWAInstallBanner } from "./pwa/PWAInstallBanner";
 import { PWAInstallSheet } from "./pwa/PWAInstallSheet";
 import { getStoredTheme, toggleTheme, type Theme } from "../utils/theme";
+import { Icon } from "./ui/Icon";
 
 interface LicenseGuardProps {
   children: React.ReactNode;
@@ -17,20 +18,34 @@ interface RenewalInfo {
 
 function LicenseBrandMark() {
   return (
-    <img
-      src="/logo.jpeg"
-      alt="ميزان"
+    <div
       style={{
-        width: 64,
-        height: 64,
-        borderRadius: 12,
-        objectFit: "contain",
-        background: "#ffffff",
-        border: "1px solid rgba(148, 163, 184, 0.2)",
-        display: "block",
+        width: 68,
+        height: 68,
+        borderRadius: 20,
+        background: "linear-gradient(135deg, rgba(13, 148, 136, 0.22), rgba(20, 184, 166, 0.06))",
+        border: "1px solid rgba(20, 184, 166, 0.35)",
+        boxShadow: "0 8px 24px rgba(13, 148, 136, 0.15)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
         margin: "0 auto 16px",
+        overflow: "hidden",
       }}
-    />
+    >
+      <img
+        src="/logo.jpeg"
+        alt="ميزان"
+        style={{
+          width: 54,
+          height: 54,
+          borderRadius: 14,
+          objectFit: "contain",
+          background: "#ffffff",
+          display: "block",
+        }}
+      />
+    </div>
   );
 }
 
@@ -75,6 +90,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
   // Login form state
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState("");
 
@@ -293,7 +309,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 18 }}>⏳</span>
+              <Icon name="clock" size={18} />
               <span>
                 اشتراكك ينتهي خلال{" "}
                 <span style={{ textDecoration: "underline", fontWeight: 900 }}>
@@ -311,18 +327,18 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
                 style={{
                   background: "#ffffff",
                   color: "#92400e",
-                  padding: "5px 12px",
+                  padding: "6px 12px",
                   borderRadius: 8,
                   fontSize: 12,
                   fontWeight: 800,
                   textDecoration: "none",
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 4,
+                  gap: 6,
                   boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                 }}
               >
-                <span>💬</span>
+                <Icon name="chat" size={15} />
                 <span>تجديد الاشتراك</span>
               </a>
 
@@ -338,9 +354,11 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
                   padding: "4px 8px",
                   cursor: "pointer",
                   fontSize: 12,
+                  display: "flex",
+                  alignItems: "center",
                 }}
               >
-                ✕
+                <Icon name="close" size={14} />
               </button>
             </div>
           </div>
@@ -367,7 +385,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ fontSize: 18 }}>⚠️</span>
+              <Icon name="warning" size={18} />
               <span>
                 أنت تعمل حالياً في <strong>فترة السماح</strong> المؤقتة (متبقي{" "}
                 <span style={{ textDecoration: "underline", fontWeight: 900 }}>
@@ -385,18 +403,18 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
                 style={{
                   background: "#ffffff",
                   color: "#92400e",
-                  padding: "5px 12px",
+                  padding: "6px 12px",
                   borderRadius: 8,
                   fontSize: 12,
                   fontWeight: 800,
                   textDecoration: "none",
                   display: "inline-flex",
                   alignItems: "center",
-                  gap: 4,
+                  gap: 6,
                   boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
                 }}
               >
-                <span>💬</span>
+                <Icon name="chat" size={15} />
                 <span>تجديد الاشتراك</span>
               </a>
 
@@ -412,9 +430,11 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
                   padding: "4px 8px",
                   cursor: "pointer",
                   fontSize: 12,
+                  display: "flex",
+                  alignItems: "center",
                 }}
               >
-                ✕
+                <Icon name="close" size={14} />
               </button>
             </div>
           </div>
@@ -470,12 +490,11 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 32,
               margin: "0 auto 16px",
               boxShadow: "0 8px 24px rgba(239, 68, 68, 0.2)",
             }}
           >
-            🔒
+            <Icon name="lock" size={32} color="#f87171" />
           </div>
 
           <span
@@ -551,7 +570,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
                 boxShadow: "0 4px 14px rgba(34, 197, 94, 0.35)",
               }}
             >
-              <span style={{ fontSize: 18 }}>💬</span>
+              <Icon name="chat" size={18} />
               <span>تجديد الاشتراك عبر واتساب</span>
             </a>
 
@@ -574,7 +593,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
                 gap: 6,
               }}
             >
-              <span>🔄</span>
+              <Icon name="refresh" size={16} />
               <span>{recheckLoading ? "جارٍ التحقق..." : "تم التجديد؟ اضغط لإعادة الفحص"}</span>
             </button>
 
@@ -638,11 +657,10 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 32,
               margin: "0 auto 16px",
             }}
           >
-            ⏰
+            <Icon name="clock" size={32} color="#fbbf24" />
           </div>
 
           <h1 style={{ fontSize: 20, fontWeight: 900, margin: "0 0 10px 0" }}>
@@ -673,9 +691,14 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
               fontWeight: 800,
               border: "none",
               cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
             }}
           >
-            🔄 إعادة الفحص بعد ضبط الوقت
+            <Icon name="refresh" size={18} />
+            <span>إعادة الفحص بعد ضبط الوقت</span>
           </button>
         </div>
       </div>
@@ -721,11 +744,10 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 32,
               margin: "0 auto 16px",
             }}
           >
-            📱
+            <Icon name="phone" size={32} color="#a78bfa" />
           </div>
 
           <h1 style={{ fontSize: 20, fontWeight: 900, margin: "0 0 10px 0" }}>
@@ -778,9 +800,14 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
                 fontWeight: 800,
                 border: "none",
                 cursor: recheckLoading ? "not-allowed" : "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
               }}
             >
-              <span>{recheckLoading ? "جارٍ التحقق..." : "🔄 إعادة الفحص"}</span>
+              <Icon name="refresh" size={18} />
+              <span>{recheckLoading ? "جارٍ التحقق..." : "إعادة الفحص"}</span>
             </button>
 
             <button
@@ -809,92 +836,141 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
     <div
       className="license-activation-screen"
       style={{
-        background: "var(--color-bg-base, #0b1120)",
+        background: "radial-gradient(circle at 50% 15%, rgba(13, 148, 136, 0.12) 0%, transparent 65%), var(--color-bg-base, #0b1120)",
         color: "var(--color-text-primary, #f9fafb)",
         fontFamily: "var(--font-main, system-ui, -apple-system, sans-serif)",
         direction: "rtl",
       }}
     >
-      <button
-        type="button"
-        onClick={handleToggleTheme}
-        aria-label={theme === "dark" ? "التبديل إلى الثيم الفاتح" : "التبديل إلى الثيم الداكن"}
-        title={theme === "dark" ? "التبديل إلى الثيم الفاتح" : "التبديل إلى الثيم الداكن"}
-        style={{
-          position: "absolute",
-          top: "max(40px, calc(env(safe-area-inset-top, 0px) + 24px))",
-          left: 28,
-          zIndex: 20,
-          width: 42,
-          height: 42,
-          minHeight: 42,
-          padding: 0,
-          borderRadius: 10,
-          border: "1px solid var(--color-border)",
-          background: "var(--color-bg-card)",
-          color: "var(--color-text-primary)",
-          fontSize: 20,
-          fontFamily: "var(--font-main)",
-          cursor: "pointer",
-          display: "grid",
-          placeItems: "center",
-        }}
-      >
-        {theme === "dark" ? "☀" : "☾"}
-      </button>
+      {/* Scrollable inner wrapper — handles vertical centering when content fits, scroll when it doesn't */}
+      <div className="license-activation-inner">
 
-      {/* Background glow accent */}
-      <div
-        className="license-activation-glow"
-        style={{
-          position: "absolute",
-          height: 500,
-          background: "radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)",
-          borderRadius: "50%",
-          top: "-150px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          pointerEvents: "none",
-        }}
-      />
+        {/* Background glow — non-scrollable decorative element */}
+        <div
+          className="license-activation-glow"
+          style={{
+            position: "fixed",
+            height: 480,
+            background: "radial-gradient(circle, rgba(13, 148, 136, 0.18) 0%, rgba(20, 184, 166, 0.05) 50%, transparent 70%)",
+            borderRadius: "50%",
+            top: "-140px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            pointerEvents: "none",
+          }}
+        />
 
-      <div
-        className="license-activation-card"
-        style={{
-          background: "var(--color-bg-card, #111827)",
-          border: "1px solid var(--color-border, #1f2937)",
-          borderRadius: 20,
-          boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.45)",
-          width: "100%",
-          maxWidth: 460,
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        {/* Brand header */}
-        <div style={{ textAlign: "center", marginBottom: 26 }}>
-          <img
-            src="/logo.jpeg"
-            alt="ميزان"
+        {/* Centered content column — max-width 440px centered */}
+        <div className="license-activation-content">
+        {/* Top bar with System Status & Theme Switcher — perfectly aligned with card */}
+        <div
+          style={{
+            width: "100%",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 14,
+            padding: "0 4px",
+            boxSizing: "border-box",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 7, color: "var(--color-text-muted, #94a3b8)", fontSize: 12.5, fontWeight: 700 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#10b981", display: "inline-block", boxShadow: "0 0 8px #10b981" }} />
+            <span>نظام ميزان POS</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleTheme}
+            aria-label={theme === "dark" ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن"}
+            title={theme === "dark" ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن"}
             style={{
-              width: 108,
-              height: 108,
-              borderRadius: 16,
-              objectFit: "contain",
-              display: "block",
-              margin: "0 auto 14px",
-              background: "#ffffff",
-              border: "1px solid rgba(148, 163, 184, 0.2)",
+              padding: "6px 14px",
+              borderRadius: 12,
+              border: "1px solid var(--color-border)",
+              background: "var(--color-bg-card)",
+              color: "var(--color-text-primary)",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              fontSize: 12.5,
+              fontWeight: 700,
+              fontFamily: "var(--font-main)",
+              boxShadow: "var(--shadow-sm)",
+              transition: "background 0.2s, border-color 0.2s",
             }}
-          />
+          >
+            <Icon name={theme === "dark" ? "sun" : "moon"} size={16} color={theme === "dark" ? "#fbbf24" : "#94a3b8"} />
+            <span>{theme === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}</span>
+          </button>
+        </div>
 
-          <h1 style={{ fontSize: 23, fontWeight: 900, margin: "0 0 8px 0", color: "var(--color-text-primary, #f9fafb)" }}>
+        <div
+          className="license-activation-card"
+          style={{
+            background: "var(--color-bg-card, #111827)",
+            border: "1px solid var(--color-border, #1f2937)",
+            borderRadius: 24,
+            boxShadow: "0 25px 60px -15px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04)",
+            width: "100%",
+            boxSizing: "border-box",
+          }}
+        >
+        {/* Brand header */}
+        <div style={{ textAlign: "center", marginBottom: 22 }}>
+          <div
+            style={{
+              width: 74,
+              height: 74,
+              borderRadius: 22,
+              background: "linear-gradient(135deg, rgba(13, 148, 136, 0.22), rgba(20, 184, 166, 0.06))",
+              border: "1px solid rgba(20, 184, 166, 0.35)",
+              boxShadow: "0 10px 28px rgba(13, 148, 136, 0.18)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 12px",
+            }}
+          >
+            <img
+              src="/logo.jpeg"
+              alt="ميزان"
+              style={{
+                width: 58,
+                height: 58,
+                borderRadius: 16,
+                objectFit: "contain",
+                background: "#ffffff",
+                display: "block",
+              }}
+            />
+          </div>
+
+          <h1 style={{ fontSize: 24, fontWeight: 900, margin: "0 0 6px 0", color: "var(--color-text-primary, #f9fafb)", letterSpacing: "-0.02em" }}>
             ميزان
           </h1>
-          <h2 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 8px 0", color: "var(--color-text-secondary, #cbd5e1)" }}>
-            تفعيل ترخيص النظام
-          </h2>
-          <p style={{ fontSize: 14, color: "var(--color-text-muted, #94a3b8)", margin: 0, lineHeight: 1.7 }}>
+
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px 12px",
+              borderRadius: 999,
+              background: "rgba(13, 148, 136, 0.12)",
+              border: "1px solid rgba(20, 184, 166, 0.3)",
+              color: "var(--color-primary-light, #2dd4bf)",
+              fontSize: 12.5,
+              fontWeight: 800,
+              marginBottom: 8,
+            }}
+          >
+            <Icon name="shield" size={14} />
+            <span>تفعيل ترخيص النظام</span>
+          </div>
+
+          <p style={{ fontSize: 13, color: "var(--color-text-muted, #94a3b8)", margin: 0, lineHeight: 1.65 }}>
             أدخل بيانات المشترك الخاصة بك للتفعيل. يتطلب التفعيل اتصالاً بالإنترنت لمرة واحدة فقط، وبعدها يعمل النظام بدون إنترنت بالكامل.
           </p>
         </div>
@@ -902,28 +978,43 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
         {/* First-time account request */}
         <div
           style={{
-            background: "rgba(16, 185, 129, 0.1)",
-            border: "1px solid rgba(52, 211, 153, 0.3)",
-            borderRadius: 14,
+            background: "linear-gradient(135deg, rgba(13, 148, 136, 0.1), rgba(16, 185, 129, 0.05))",
+            border: "1px solid rgba(20, 184, 166, 0.25)",
+            borderRadius: 16,
             padding: "14px 16px",
-            marginBottom: 20,
+            marginBottom: 18,
           }}
         >
-          <p style={{ fontSize: 14, fontWeight: 800, margin: "0 0 4px", color: "var(--color-text-primary, #f9fafb)" }}>
-            أول مرة تستخدم النظام؟
-          </p>
-          <p style={{ fontSize: 12, lineHeight: 1.6, margin: "0 0 12px", color: "var(--color-text-secondary, #cbd5e1)" }}>
-            تواصل معنا لإنشاء حساب تجريبي أو طلب اشتراك جديد، وسنرسل لك بيانات الدخول.
+          <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
+            <div
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 7,
+                background: "rgba(13, 148, 136, 0.2)",
+                display: "grid",
+                placeItems: "center",
+                color: "var(--color-primary-light, #2dd4bf)",
+              }}
+            >
+              <Icon name="info" size={14} />
+            </div>
+            <p style={{ fontSize: 13.5, fontWeight: 800, margin: 0, color: "var(--color-text-primary, #f9fafb)" }}>
+              أول مرة تستخدم النظام؟
+            </p>
+          </div>
+          <p style={{ fontSize: 12, lineHeight: 1.6, margin: "0 0 10px", color: "var(--color-text-secondary, #cbd5e1)" }}>
+            تواصل معنا لإنشاء حساب تجريبي أو طلب اشتراك جديد وسنرسل لك بيانات الدخول فوراً.
           </p>
           <a
             href={lic.signupLink()}
             target="_blank"
             rel="noreferrer"
             style={{
-              minHeight: 46,
-              padding: "10px 12px",
+              minHeight: 42,
+              padding: "9px 12px",
               borderRadius: 11,
-              background: "#0f9f6e",
+              background: "linear-gradient(135deg, #10b981 0%, #059669 100%)",
               color: "#ffffff",
               fontSize: 13,
               fontWeight: 800,
@@ -931,13 +1022,14 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 7,
+              gap: 8,
               textAlign: "center",
               boxSizing: "border-box",
+              boxShadow: "0 3px 10px rgba(16, 185, 129, 0.25)",
             }}
           >
-            <span>💬</span>
-            <span>حساب تجريبي أو اشتراك عبر واتساب</span>
+            <Icon name="chat" size={16} />
+            <span>طلب حساب تجريبي أو اشتراك عبر واتساب</span>
           </a>
         </div>
 
@@ -953,9 +1045,15 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
               fontSize: 12,
               marginBottom: 16,
               lineHeight: 1.6,
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 8,
             }}
           >
-            ⚠️ <strong>ملاحظة للمطور:</strong> يرجى التأكد من لصق المفتاح العام <code>(JWK)</code> المنسوخ من لوحة التحكم في <code>src/lib/license.ts</code> أو في ملف <code>.env</code> (VITE_LIC_PUBLIC_KEY).
+            <Icon name="warning" size={16} />
+            <div>
+              <strong>ملاحظة للمطور:</strong> يرجى التأكد من لصق المفتاح العام <code>(JWK)</code> المنسوخ من لوحة التحكم في <code>src/lib/license.ts</code> أو في ملف <code>.env</code> (VITE_LIC_PUBLIC_KEY).
+            </div>
           </div>
         )}
 
@@ -971,79 +1069,154 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
               fontSize: 13,
               marginBottom: 16,
               lineHeight: 1.6,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
             }}
           >
-            ⚠️ {loginError}
+            <Icon name="warning" size={16} />
+            <span>{loginError}</span>
           </div>
         )}
 
         {/* Activation Form */}
-        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
             <label
               style={{
                 display: "block",
-                fontSize: 14,
+                fontSize: 13.5,
                 fontWeight: 700,
                 color: "var(--color-text-secondary, #cbd5e1)",
-                marginBottom: 7,
+                marginBottom: 6,
               }}
             >
               اسم المستخدم (المشترك):
             </label>
-            <input
-              type="text"
-              required
-              autoFocus
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="مثال: ahmed"
-              style={{
-                width: "100%",
-                padding: "14px 16px",
-                borderRadius: 14,
-                background: "rgba(255, 255, 255, 0.05)",
-                border: "1px solid var(--color-border, #374151)",
-                color: "var(--color-text-primary, #ffffff)",
-                fontSize: 15,
-                outline: "none",
-                boxSizing: "border-box",
-                fontFamily: "var(--font-main)",
-              }}
-            />
+            <div style={{ position: "relative" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  right: 14,
+                  transform: "translateY(-50%)",
+                  color: "var(--color-text-muted, #94a3b8)",
+                  pointerEvents: "none",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <Icon name="user" size={17} />
+              </div>
+              <input
+                type="text"
+                required
+                autoFocus
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="مثال: ahmed"
+                style={{
+                  width: "100%",
+                  padding: "12px 42px 12px 14px",
+                  borderRadius: 13,
+                  background: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid var(--color-border, #374151)",
+                  color: "var(--color-text-primary, #ffffff)",
+                  fontSize: 14.5,
+                  outline: "none",
+                  boxSizing: "border-box",
+                  fontFamily: "var(--font-main)",
+                  transition: "border-color 0.2s, box-shadow 0.2s",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--color-primary, #0d9488)"
+                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(13, 148, 136, 0.2)"
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "var(--color-border, #374151)"
+                  e.currentTarget.style.boxShadow = "none"
+                }}
+              />
+            </div>
           </div>
 
           <div>
             <label
               style={{
                 display: "block",
-                fontSize: 14,
+                fontSize: 13.5,
                 fontWeight: 700,
                 color: "var(--color-text-secondary, #cbd5e1)",
-                marginBottom: 7,
+                marginBottom: 6,
               }}
             >
               كلمة المرور:
             </label>
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              style={{
-                width: "100%",
-                padding: "14px 16px",
-                borderRadius: 14,
-                background: "rgba(255, 255, 255, 0.05)",
-                border: "1px solid var(--color-border, #374151)",
-                color: "var(--color-text-primary, #ffffff)",
-                fontSize: 15,
-                outline: "none",
-                boxSizing: "border-box",
-                fontFamily: "var(--font-main)",
-              }}
-            />
+            <div style={{ position: "relative" }}>
+              <div
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  right: 14,
+                  transform: "translateY(-50%)",
+                  color: "var(--color-text-muted, #94a3b8)",
+                  pointerEvents: "none",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <Icon name="lock" size={17} />
+              </div>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                style={{
+                  width: "100%",
+                  padding: "12px 42px 12px 42px",
+                  borderRadius: 13,
+                  background: "rgba(255, 255, 255, 0.05)",
+                  border: "1px solid var(--color-border, #374151)",
+                  color: "var(--color-text-primary, #ffffff)",
+                  fontSize: 14.5,
+                  outline: "none",
+                  boxSizing: "border-box",
+                  fontFamily: "var(--font-main)",
+                  transition: "border-color 0.2s, box-shadow 0.2s",
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = "var(--color-primary, #0d9488)"
+                  e.currentTarget.style.boxShadow = "0 0 0 3px rgba(13, 148, 136, 0.2)"
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = "var(--color-border, #374151)"
+                  e.currentTarget.style.boxShadow = "none"
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: 12,
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  color: "var(--color-text-muted, #94a3b8)",
+                  cursor: "pointer",
+                  padding: 4,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name="eye" size={17} />
+              </button>
+            </div>
           </div>
 
           <button
@@ -1051,29 +1224,34 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
             disabled={loginLoading}
             style={{
               width: "100%",
-              padding: "15px",
-              borderRadius: 14,
+              padding: "14px",
+              minHeight: 48,
+              borderRadius: 13,
               background: "var(--brand-gradient)",
               color: "#ffffff",
               fontSize: 15,
               fontWeight: 800,
               border: "none",
               cursor: loginLoading ? "not-allowed" : "pointer",
-              boxShadow: "0 6px 20px rgba(59, 130, 246, 0.4)",
-              marginTop: 8,
+              boxShadow: "0 6px 20px rgba(13, 148, 136, 0.35)",
+              marginTop: 6,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               gap: 8,
               fontFamily: "var(--font-main)",
+              opacity: loginLoading ? 0.8 : 1,
             }}
           >
             {loginLoading ? (
-              <span>جارٍ التحقق والتفعيل...</span>
+              <>
+                <Icon name="refresh" size={18} />
+                <span>جارٍ التحقق والتفعيل...</span>
+              </>
             ) : (
               <>
                 <span>تفعيل والدخول للنظام</span>
-                <span>➔</span>
+                <Icon name="arrow-left" size={18} />
               </>
             )}
           </button>
@@ -1082,13 +1260,13 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
         {/* Renewal for existing subscribers */}
         <div
           style={{
-            marginTop: 22,
-            paddingTop: 16,
+            marginTop: 20,
+            paddingTop: 14,
             borderTop: "1px solid var(--color-border, #1f2937)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            fontSize: 12,
+            fontSize: 12.5,
           }}
         >
           <span style={{ color: "var(--color-text-muted, #94a3b8)" }}>
@@ -1099,21 +1277,22 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
             target="_blank"
             rel="noreferrer"
             style={{
-              color: "#4ade80",
+              color: "var(--color-primary-light, #2dd4bf)",
               fontWeight: 800,
               textDecoration: "none",
               display: "flex",
               alignItems: "center",
-              gap: 4,
+              gap: 6,
             }}
           >
-            <span>💬</span>
+            <Icon name="chat" size={15} />
             <span>تواصل عبر واتساب</span>
           </a>
         </div>
-      </div>
+      </div>{/* end license-activation-card */}
+      </div>{/* end license-activation-content */}
 
-      {/* PWA install banner on the activation screen + full guide fallback */}
+      {/* PWA install banner — outside scrollable content, stays at bottom */}
       <PWAInstallBanner
         storageKey="pos_pwa_prompt"
         className="license-install-banner"
@@ -1126,6 +1305,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
         storageKey="pos_pwa_prompt"
         appName={lic.appName}
       />
+      </div>{/* end license-activation-inner */}
     </div>
   );
 }
@@ -1206,18 +1386,15 @@ function RenewalPopup({ info, onClose }: { info: RenewalInfo; onClose: () => voi
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              fontSize: 36,
-              fontWeight: 900,
-              color: "#059669",
               margin: "0 auto 12px",
               boxShadow: "0 10px 30px rgba(0, 0, 0, 0.25)",
               animation: "lic-check-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.1s both",
             }}
           >
-            ✓
+            <Icon name="check" size={36} color="#059669" />
           </div>
           <h2 style={{ color: "#fff", fontSize: 21, fontWeight: 900, margin: "0 0 4px" }}>
-            تم تجديد اشتراكك بنجاح 🎉
+            تم تجديد اشتراكك بنجاح
           </h2>
           <p style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, margin: 0, fontWeight: 600 }}>
             أهلاً بعودتك — نتمنى لك مبيعات موفقة
@@ -1238,23 +1415,26 @@ function RenewalPopup({ info, onClose }: { info: RenewalInfo; onClose: () => voi
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 13, color: "var(--color-text-muted, #94a3b8)", fontWeight: 700 }}>
-                ⏱ المدة المضافة
+              <span style={{ fontSize: 13, color: "var(--color-text-muted, #94a3b8)", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="clock" size={15} />
+                <span>المدة المضافة</span>
               </span>
               <span style={{ fontSize: 15, fontWeight: 900, color: "#34d399" }}>+ {addedLabel}</span>
             </div>
             <div style={{ height: 1, background: "var(--color-border, #1f2937)" }} />
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 13, color: "var(--color-text-muted, #94a3b8)", fontWeight: 700 }}>
-                📅 الانتهاء الجديد
+              <span style={{ fontSize: 13, color: "var(--color-text-muted, #94a3b8)", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="receipt" size={15} />
+                <span>الانتهاء الجديد</span>
               </span>
               <span style={{ fontSize: 13, fontWeight: 800, color: "var(--color-text-primary, #f9fafb)" }}>
                 {new Date(info.newExpiryMs).toLocaleDateString("ar", { dateStyle: "medium" })}
               </span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 13, color: "var(--color-text-muted, #94a3b8)", fontWeight: 700 }}>
-                📊 المتبقي الآن
+              <span style={{ fontSize: 13, color: "var(--color-text-muted, #94a3b8)", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                <Icon name="chart" size={15} />
+                <span>المتبقي الآن</span>
               </span>
               <span style={{ fontSize: 13, fontWeight: 800, color: "var(--color-text-primary, #f9fafb)" }}>
                 {info.daysLeft} يوم
@@ -1280,7 +1460,7 @@ function RenewalPopup({ info, onClose }: { info: RenewalInfo; onClose: () => voi
               fontFamily: "inherit",
             }}
           >
-            ممتاز، شكراً ✨
+            ممتاز، شكراً
           </button>
         </div>
       </div>
@@ -1332,7 +1512,7 @@ function UpdateToast({ text, onClose }: { text: string; onClose: () => void }) {
           boxShadow: "0 12px 32px rgba(0, 0, 0, 0.45)",
         }}
       >
-        <span style={{ fontSize: 22 }}>🔔</span>
+        <Icon name="bell" size={20} color="#93c5fd" />
         <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: "#e0e7ff", lineHeight: 1.6 }}>
           {text}
         </span>
@@ -1350,9 +1530,12 @@ function UpdateToast({ text, onClose }: { text: string; onClose: () => void }) {
             cursor: "pointer",
             fontSize: 13,
             flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
           }}
         >
-          ✕
+          <Icon name="close" size={14} />
         </button>
       </div>
       <style>{`

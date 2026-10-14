@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { verifyPassword, resetToDefaultPassword, hasPassword, setPassword } from '../utils/auth'
 import { getStoredTheme, toggleTheme, type Theme } from '../utils/theme'
-import { Modal } from '../components/ui/Modal'
-import { Button } from '../components/ui/Button'
+import { Modal, Button, Icon } from '../components/ui'
 
 interface LoginScreenProps {
   onSuccess: () => void
@@ -260,7 +259,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
             boxShadow: 'var(--shadow-sm)',
           }}
         >
-          <span>{theme === 'dark' ? '☀️' : '🌙'}</span>
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={15} />
           <span style={{ fontSize: 12 }}>{theme === 'dark' ? 'فاتح' : 'داكن'}</span>
         </button>
       </div>
@@ -314,17 +313,20 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
           {isFirstSetup ? (
             <>
               <div style={{
-                display: 'inline-block',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
                 background: 'rgba(59,130,246,0.15)',
                 border: '1px solid rgba(59,130,246,0.35)',
                 color: 'var(--color-primary-light)',
-                padding: '4px 10px',
+                padding: '4px 12px',
                 borderRadius: 20,
                 fontSize: 11,
                 fontWeight: 800,
                 marginBottom: 6,
               }}>
-                👋 مرحباً بك — أول تشغيل للنظام
+                <Icon name="info" size={13} />
+                <span>مرحباً بك — أول تشغيل للنظام</span>
               </div>
               <h1 style={{ fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px', color: 'var(--color-text-primary)', margin: 0 }}>
                 {setupStep === 'enter' ? 'أنشئ رمز دخولك الجديد' : 'تأكيد الرمز الجديد'}
@@ -393,9 +395,14 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
               margin: 0,
               textAlign: 'center',
               animation: 'fadeIn 0.2s ease',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
             }}
           >
-            ⚠ {error}
+            <Icon name="warning" size={14} />
+            <span>{error}</span>
           </p>
         )}
       </div>
@@ -463,7 +470,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
                 t.style.background = isDel ? 'rgba(239,68,68,0.1)' : 'var(--color-bg-card)'
               }}
             >
-              {key}
+              {isDel ? <Icon name="arrow-left" size={20} /> : key}
             </button>
           )
         })}
@@ -554,7 +561,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
               gap: 5,
             }}
           >
-            <span>🔒</span>
+            <Icon name="lock" size={13} />
             <span>إعادة تعيين كلمة المرور</span>
           </button>
         )}
@@ -584,7 +591,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
               gap: 5,
             }}
           >
-            <span>↩️</span>
+            <Icon name="refresh" size={13} />
             <span>تعديل الرمز</span>
           </button>
         )}
@@ -609,7 +616,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
           }}
           title="تواصل عبر واتساب"
         >
-          <span>💬</span>
+          <Icon name="phone" size={13} />
           <span>واتساب</span>
         </button>
       </div>
@@ -656,7 +663,7 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
       <Modal
         open={resetConfirmOpen}
         onClose={() => setResetConfirmOpen(false)}
-        title="🔒 إعادة تعيين كلمة المرور"
+        title="إعادة تعيين كلمة المرور"
         type="box"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>

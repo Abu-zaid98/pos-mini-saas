@@ -8,6 +8,7 @@ import { usePWAUpdate } from '../hooks/usePWAUpdate'
 import { db } from '../db/db'
 import { Modal } from '../components/ui/Modal'
 import { lic, type LicenseResult } from '../lib/license'
+import { Icon } from '../components/ui'
 
 export function SettingsPage() {
   const [storeName, setStoreName] = useState('ميزان')
@@ -325,10 +326,13 @@ export function SettingsPage() {
         gap: 10,
       }}>
         <div>
-          <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>
-            🎨 مظهر التطبيق (الثيم)
-          </h3>
-          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="sun" size={18} color="var(--color-primary-light)" />
+            <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
+              مظهر التطبيق (الثيم)
+            </h3>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
             التبديل بين الثيم الداكن والفاتح المريح للعين
           </p>
         </div>
@@ -356,10 +360,11 @@ export function SettingsPage() {
               fontFamily: 'var(--font-main)',
               display: 'flex',
               alignItems: 'center',
-              gap: 4,
+              gap: 6,
             }}
           >
-            🌙 داكن
+            <Icon name="moon" size={15} />
+            <span>داكن</span>
           </button>
           <button
             type="button"
@@ -376,10 +381,11 @@ export function SettingsPage() {
               fontFamily: 'var(--font-main)',
               display: 'flex',
               alignItems: 'center',
-              gap: 4,
+              gap: 6,
             }}
           >
-            ☀️ فاتح
+            <Icon name="sun" size={15} />
+            <span>فاتح</span>
           </button>
         </div>
       </div>
@@ -397,9 +403,12 @@ export function SettingsPage() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
-              📲 تثبيت التطبيق على الجهاز
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="download" size={18} color="var(--color-primary-light)" />
+              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
+                تثبيت التطبيق على الجهاز
+              </h3>
+            </div>
             <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
               تنزيل التطبيق للعمل كبرنامج مستقل على شاشة هاتفك أو حاسوبك بدون شريط المتصفح
             </p>
@@ -429,7 +438,7 @@ export function SettingsPage() {
             alignItems: 'center',
             gap: 12,
           }}>
-            <span style={{ fontSize: 26 }}>✅</span>
+            <Icon name="check" size={24} color="var(--color-success-light)" />
             <div>
               <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--color-success-light)' }}>
                 التطبيق مثبت بالفعل على هذا الجهاز
@@ -462,7 +471,7 @@ export function SettingsPage() {
                 transition: 'all 0.18s ease',
               }}
             >
-              <span style={{ fontSize: 20 }}>📲</span>
+              <Icon name="download" size={18} />
               <span>تثبيت التطبيق على الهاتف </span>
             </button>
 
@@ -481,7 +490,7 @@ export function SettingsPage() {
                 fontFamily: 'var(--font-main)',
               }}
             >
-              📖 كيف يتم تثبيت التطبيق على آيفون أو أندرويد يدوياً؟
+              كيف يتم تثبيت التطبيق على آيفون أو أندرويد يدوياً؟
             </button>
 
             {/* Manual update check + force refresh */}
@@ -590,7 +599,10 @@ export function SettingsPage() {
           color: 'var(--color-text-primary)',
           listStyle: 'none',
         }}>
-          <span>🛡️ حماية بيانات الهاتف <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-text-muted)' }}>(خيارات متقدمة)</span></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="shield" size={18} color="var(--color-primary-light)" />
+            <span>حماية بيانات الهاتف <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-text-muted)' }}>(خيارات متقدمة)</span></span>
+          </div>
           <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>عرض ▾</span>
         </summary>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
@@ -616,7 +628,7 @@ export function SettingsPage() {
                   {storageEstimate.usageMB} ميجابايت <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>/ {storageEstimate.quotaMB} ميجابايت سعة مخصصة</span>
                 </div>
               </div>
-              <span style={{ fontSize: 24 }}>📱</span>
+              <Icon name="phone" size={24} color="var(--color-primary-light)" />
             </div>
           )}
 
@@ -625,10 +637,13 @@ export function SettingsPage() {
               <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>
                 حالة الحماية الدائمة:
               </div>
-              <div style={{ fontSize: 12, color: isPersistent ? 'var(--color-success-light)' : 'var(--color-warning-light)', marginTop: 2 }}>
-                {isPersistent
-                  ? '✓ مفعّلة: بياناتك محمية ولن تُمسح تلقائياً'
-                  : '⚠️ غير مفعّلة: فعّلها لحماية بياناتك من المسح التلقائي'}
+              <div style={{ fontSize: 12, color: isPersistent ? 'var(--color-success-light)' : 'var(--color-warning-light)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name={isPersistent ? 'check' : 'warning'} size={14} color={isPersistent ? 'var(--color-success-light)' : '#fbbf24'} />
+                <span>
+                  {isPersistent
+                    ? 'مفعّلة: بياناتك محمية ولن تُمسح تلقائياً'
+                    : 'غير مفعّلة: فعّلها لحماية بياناتك من المسح التلقائي'}
+                </span>
               </div>
             </div>
 
@@ -641,7 +656,7 @@ export function SettingsPage() {
                   const ok = await requestPersistence()
                   setPersistLoading(false)
                   if (ok) {
-                    alert('✅ تم تفعيل التخزين الدائم وحماية قاعدة البيانات بنجاح!')
+                    alert('تم تفعيل التخزين الدائم وحماية قاعدة البيانات بنجاح!')
                   } else {
                     alert('لم يتم منح الإذن التلقائي، قم بتثبيت التطبيق على الشاشة الرئيسية ليتم تفعيله بأعلى درجة أمان.')
                   }
@@ -656,9 +671,13 @@ export function SettingsPage() {
                   fontWeight: 700,
                   cursor: 'pointer',
                   fontFamily: 'var(--font-main)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
-                {persistLoading ? 'جارٍ التفعيل...' : '🛡️ تفعيل الحماية الدائمة'}
+                <Icon name="shield" size={15} />
+                <span>{persistLoading ? 'جارٍ التفعيل...' : 'تفعيل الحماية الدائمة'}</span>
               </button>
             )}
           </div>
@@ -673,10 +692,14 @@ export function SettingsPage() {
         padding: 18,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 800 }}>⚙️ بيانات المتجر والنظام</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="store" size={18} color="var(--color-primary-light)" />
+            <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>بيانات المتجر والنظام</h3>
+          </div>
           {saveSuccess && (
-            <span style={{ fontSize: 13, color: 'var(--color-success-light)', fontWeight: 700 }}>
-              تم الحفظ بنجاح ✓
+            <span style={{ fontSize: 13, color: 'var(--color-success-light)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Icon name="check" size={14} />
+              <span>تم الحفظ بنجاح</span>
             </span>
           )}
         </div>
@@ -799,10 +822,14 @@ export function SettingsPage() {
         padding: 18,
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ fontSize: 16, fontWeight: 800 }}>🧾 مظهر الفاتورة المطبوعة</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="printer" size={18} color="var(--color-primary-light)" />
+            <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>مظهر الفاتورة المطبوعة</h3>
+          </div>
           {saveSuccess && (
-            <span style={{ fontSize: 13, color: 'var(--color-success-light)', fontWeight: 700 }}>
-              تم الحفظ بنجاح ✓
+            <span style={{ fontSize: 13, color: 'var(--color-success-light)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Icon name="check" size={14} />
+              <span>تم الحفظ بنجاح</span>
             </span>
           )}
         </div>
@@ -811,7 +838,7 @@ export function SettingsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
             <div>
               <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
-                الهاتف  (يظهر أعلى الفاتورة):
+                الهاتف (يظهر أعلى الفاتورة):
               </label>
               <input
                 type="tel"
@@ -828,7 +855,7 @@ export function SettingsPage() {
             </div>
             <div>
               <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
-                العنوان :
+                العنوان:
               </label>
               <input
                 type="text"
@@ -875,7 +902,8 @@ export function SettingsPage() {
         </form>
       </div>
 
-      {/* Security / Password */}      <div style={{
+      {/* Security / Password */}
+      <div style={{
         background: 'var(--color-bg-card)',
         border: '1px solid var(--color-border)',
         borderRadius: 16,
@@ -885,8 +913,11 @@ export function SettingsPage() {
         alignItems: 'center',
       }}>
         <div>
-          <h3 style={{ fontSize: 15, fontWeight: 800 }}>🔒 قفل التطبيق وكلمة المرور</h3>
-          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="lock" size={18} color="var(--color-primary-light)" />
+            <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>قفل التطبيق وكلمة المرور</h3>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
             {hasExistingPassword ? 'تم تعيين كلمة مرور مشفرة' : 'لم يتم تعيين كلمة مرور بعد'}
           </p>
         </div>
@@ -921,14 +952,17 @@ export function SettingsPage() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              🛡️ ترخيص النظام والاشتراك
-            </h3>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Icon name="shield" size={18} color="var(--color-primary-light)" />
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
+                ترخيص النظام والاشتراك
+              </h3>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
               {licenseInfo?.ok
                 ? (licenseInfo.grace
-                  ? `⚠️ فترة سماح مؤقتة: متبقي ${licenseInfo.graceDaysLeft} يوم`
-                  : `✓ الاشتراك نشط وموثق أوفلاين: متبقي ${licenseInfo.daysLeft} يوم`)
+                  ? `فترة سماح مؤقتة: متبقي ${licenseInfo.graceDaysLeft} يوم`
+                  : `الاشتراك نشط وموثق أوفلاين: متبقي ${licenseInfo.daysLeft} يوم`)
                 : 'الترخيص غير مفعّل أو بانتظار التجديد'}
             </p>
           </div>
@@ -948,9 +982,13 @@ export function SettingsPage() {
                 fontWeight: 700,
                 cursor: licenseRefreshing ? 'not-allowed' : 'pointer',
                 fontFamily: 'var(--font-main)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
               }}
             >
-              {licenseRefreshing ? 'جارٍ الفحص...' : '🔄 تحديث الترخيص'}
+              <Icon name="refresh" size={14} />
+              <span>{licenseRefreshing ? 'جارٍ الفحص...' : 'تحديث الترخيص'}</span>
             </button>
             <a
               href={lic.renewLink()}
@@ -967,11 +1005,11 @@ export function SettingsPage() {
                 textDecoration: 'none',
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
+                gap: 6,
                 fontFamily: 'var(--font-main)',
               }}
             >
-              <span>💬</span>
+              <Icon name="chat" size={15} />
               <span>تجديد</span>
             </a>
           </div>
@@ -1025,10 +1063,13 @@ export function SettingsPage() {
         alignItems: 'center',
       }}>
         <div>
-          <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-danger-light)' }}>
-            🚪 تسجيل الخروج
-          </h3>
-          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="lock" size={18} color="var(--color-danger-light)" />
+            <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-danger-light)', margin: 0 }}>
+              تسجيل الخروج
+            </h3>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
             قفل التطبيق والعودة لشاشة إدخال رمز المرور (PIN)
           </p>
         </div>
@@ -1051,7 +1092,7 @@ export function SettingsPage() {
             boxShadow: '0 4px 12px rgba(239,68,68,0.25)',
           }}
         >
-          <span>🔒</span>
+          <Icon name="lock" size={15} />
           <span>تسجيل خروج</span>
         </button>
       </div>
@@ -1071,7 +1112,10 @@ export function SettingsPage() {
           alignItems: 'center',
           listStyle: 'none',
         }}>
-          <span style={{ fontSize: 15, fontWeight: 800 }}>💾 النسخ الاحتياطي <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-text-muted)' }}>(خيارات متقدمة)</span></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="download" size={18} color="var(--color-primary-light)" />
+            <span style={{ fontSize: 15, fontWeight: 800 }}>النسخ الاحتياطي <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-text-muted)' }}>(خيارات متقدمة)</span></span>
+          </div>
           <span style={{
             fontSize: 12,
             padding: '3px 8px',
@@ -1105,10 +1149,10 @@ export function SettingsPage() {
               fontFamily: 'var(--font-main)',
             }}
           >
-            <span style={{ fontSize: 22 }}>⬇️</span>
+            <Icon name="download" size={20} color="var(--color-primary-light)" />
             <div>
-              <p style={{ fontSize: 14, fontWeight: 700 }}>حفظ نسخة احتياطية</p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>تحميل ملف نسخة كامل يحتوي المنتجات والديون والفواتير</p>
+              <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>حفظ نسخة احتياطية</p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '2px 0 0' }}>تحميل ملف نسخة كامل يحتوي المنتجات والديون والفواتير</p>
             </div>
           </button>
 
@@ -1128,10 +1172,10 @@ export function SettingsPage() {
               fontFamily: 'var(--font-main)',
             }}
           >
-            <span style={{ fontSize: 22 }}>⬆️</span>
+            <Icon name="upload" size={20} color="var(--color-success-light)" />
             <div>
-              <p style={{ fontSize: 14, fontWeight: 700 }}>استرجاع نسخة سابقة</p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>اختر ملف النسخة لاسترجاع كل السجلات السابقة</p>
+              <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>استرجاع نسخة سابقة</p>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '2px 0 0' }}>اختر ملف النسخة لاسترجاع كل السجلات السابقة</p>
             </div>
           </button>
         </div>

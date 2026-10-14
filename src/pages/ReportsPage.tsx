@@ -5,9 +5,8 @@ import { useProducts } from '../hooks/useProducts'
 import { useCustomers } from '../hooks/useCustomers'
 import { useExpenses } from '../hooks/useExpenses'
 import { formatCurrency } from '../utils/currency'
-import { formatLineQty, lineDiscountAmount } from '../utils/units'
-import { Modal } from '../components/ui/Modal'
-import { CustomSelect } from '../components/ui/CustomSelect'
+import { formatLineQty, getProductType, isLowStock, isOutOfStock, lineDiscountAmount } from '../utils/units'
+import { Modal, Tabs, StatCard } from '../components/ui'
 import { usePrintInvoice } from '../components/invoice/InvoicePrint'
 import { WalletDetailModal } from '../components/wallet/WalletDetailModal'
 import { WalletTransferModal } from '../components/wallet/WalletTransferModal'
@@ -166,9 +165,13 @@ export function ReportsPage() {
       .slice(0, 5)
   }, [allCustomers])
 
-  // Inventory Alerts
+  // Inventory Alerts — الخدمات لا تدخل في تنبيهات النقص (بلا مخزون)
   const lowStockProducts = useMemo(() => {
-    return allProducts.filter((p) => p.quantity <= p.lowStockAlert)
+    return allProducts.filter((p) => {
+      const t = getProductType(p)
+      if (t === 'service') return false
+      return isOutOfStock(p) || isLowStock(p)
+    })
   }, [allProducts])
 
   // Share WhatsApp for selected invoice
@@ -204,94 +207,34 @@ export function ReportsPage() {
 
   // Period selector helper element
   const renderPeriodSelector = () => (
-    <CustomSelect
-      label="📅 الفترة"
+    <Tabs
+      tabs={[
+        { value: 'today', label: 'اليوم' },
+        { value: 'week', label: 'آخر 7 أيام' },
+        { value: 'month', label: 'هذا الشهر' },
+        { value: 'all', label: 'كل الفترات' },
+      ]}
       value={period}
       onChange={(v) => setPeriod(v as PeriodFilter)}
-      options={[
-        { value: 'today' as PeriodFilter, label: 'اليوم' },
-        { value: 'week' as PeriodFilter, label: 'آخر 7 أيام' },
-        { value: 'month' as PeriodFilter, label: 'هذا الشهر' },
-        { value: 'all' as PeriodFilter, label: 'الكل' },
-      ]}
     />
   )
 
   return (
     <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* TOP SEGMENTED REPORT TABS */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-        gap: 6,
-        background: 'var(--color-bg-card)',
-        padding: 5,
-        borderRadius: 16,
-        border: '1px solid var(--color-border)',
-        boxShadow: 'var(--shadow-sm)',
-      }}>
-        <button
-          type="button"
-          onClick={() => setReportSubTab('financial')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            padding: '10px 4px',
-            borderRadius: 12,
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: 800,
-            fontSize: 13,
-            fontFamily: 'var(--font-main)',
-            background: reportSubTab === 'financial' ? 'var(--brand-gradient)' : 'transparent',
-            color: reportSubTab === 'financial' ? 'white' : 'var(--color-text-muted)',
-            transition: 'all 0.18s ease',
-            boxShadow: reportSubTab === 'financial' ? 'var(--shadow-primary)' : 'none',
-          }}
-        >
-          <span>📊</span>
-          <span>المالية والأرباح</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setReportSubTab('inventory_debt')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            padding: '10px 4px',
-            borderRadius: 12,
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: 800,
-            fontSize: 13,
-            fontFamily: 'var(--font-main)',
-            background: reportSubTab === 'inventory_debt' ? 'var(--brand-gradient)' : 'transparent',
-            color: reportSubTab === 'inventory_debt' ? 'white' : 'var(--color-text-muted)',
-            transition: 'all 0.18s ease',
-            boxShadow: reportSubTab === 'inventory_debt' ? 'var(--shadow-primary)' : 'none',
-          }}
-        >
-          <span>📦</span>
-          <span>حركة وحالة المخزن</span>
-          {lowStockProducts.length > 0 && (
-            <span style={{
-              fontSize: 10,
-              padding: '1px 5px',
-              borderRadius: 8,
-              background: 'rgba(239,68,68,0.2)',
-              color: 'var(--color-danger-light)',
-              fontWeight: 900,
-            }}>
-              {lowStockProducts.length}
-            </span>
-          )}
-        </button>
-      </div>
+      <Tabs
+        tabs={[
+          { value: 'financial', label: 'المالية والأرباح', icon: 'chart-bar' },
+          {
+            value: 'inventory_debt',
+            label: 'حركة وحالة المخزن',
+            icon: 'package',
+            badge: lowStockProducts.length > 0 ? lowStockProducts.length : undefined,
+          },
+        ]}
+        value={reportSubTab}
+        onChange={(v) => setReportSubTab(v as ReportSubTab)}
+      />
 
       {/* ============================================================ */}
       {/* TAB 1: FINANCIAL & PROFITS */}
@@ -514,90 +457,39 @@ export function ReportsPage() {
           {renderPeriodSelector()}
 
           {/* 4 Financial KPI Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            {/* Sales */}
-            <div style={{
-              background: 'var(--kpi-blue-bg)',
-              border: '1px solid var(--kpi-blue-border)',
-              borderRadius: 16,
-              padding: 16,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 600 }}>💵 مبيعاتي</span>
-                <span style={{ fontSize: 18 }}>💵</span>
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--color-primary-light)', direction: 'ltr', textAlign: 'right' }}>
-                {formatCurrency(totalSales)}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                مجموع ما بعته ({realInvoices.length} فواتير)
-              </div>
-            </div>
-
-            {/* Sales Gross Profit */}
-            <div style={{
-              background: 'var(--kpi-cyan-bg)',
-              border: '1px solid var(--kpi-cyan-border)',
-              borderRadius: 16,
-              padding: 16,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 600 }}>📈 ربح البضاعة</span>
-                <span style={{ fontSize: 18 }}>📈</span>
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#38bdf8', direction: 'ltr', textAlign: 'right' }}>
-                {formatCurrency(grossSalesProfit)}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                فرق سعر البيع عن التكلفة
-              </div>
-            </div>
-
-            {/* Operating Expenses */}
-            <div style={{
-              background: 'var(--kpi-red-bg)',
-              border: '1px solid var(--kpi-red-border)',
-              borderRadius: 16,
-              padding: 16,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 600 }}>💸 مصاريفي</span>
-                <span style={{ fontSize: 18 }}>💸</span>
-              </div>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#fb7185', direction: 'ltr', textAlign: 'right' }}>
-                {formatCurrency(totalExpenses)}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                كهرباء وإيجار ورواتب... ({expenses.length})
-              </div>
-            </div>
-
-            {/* Real Net Profit */}
-            <div style={{
-              background: realNetProfit >= 0
-                ? 'var(--kpi-green-bg)'
-                : 'var(--kpi-danger-bg)',
-              border: `1.5px solid ${realNetProfit >= 0 ? 'var(--kpi-green-border)' : 'var(--kpi-danger-border)'}`,
-              borderRadius: 16,
-              padding: 16,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 700 }}>💰 صافي ربحي</span>
-                <span style={{ fontSize: 18 }}>💰</span>
-              </div>
-              <div style={{
-                fontSize: 22,
-                fontWeight: 900,
-                color: realNetProfit >= 0 ? 'var(--color-success-light)' : 'var(--color-danger-light)',
-                direction: 'ltr',
-                textAlign: 'right'
-              }}>
-                {formatCurrency(realNetProfit)}
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 4 }}>
-                ربح البضاعة ناقص مصاريفي
-              </div>
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+            <StatCard
+              label="مبيعاتي"
+              value={formatCurrency(totalSales)}
+              sub={`مجموع ما بعته (${realInvoices.length} فواتير)`}
+              icon="banknotes"
+              variant="info"
+              ltr
+            />
+            <StatCard
+              label="ربح البضاعة"
+              value={formatCurrency(grossSalesProfit)}
+              sub="فرق سعر البيع عن التكلفة"
+              icon="chart-bar"
+              variant="brand"
+              ltr
+            />
+            <StatCard
+              label="مصاريفي"
+              value={formatCurrency(totalExpenses)}
+              sub={`كهرباء وإيجار ورواتب... (${expenses.length})`}
+              icon="credit-card"
+              variant="danger"
+              ltr
+            />
+            <StatCard
+              label="صافي ربحي"
+              value={formatCurrency(realNetProfit)}
+              sub="ربح البضاعة ناقص مصاريفي"
+              icon="tag"
+              variant={realNetProfit >= 0 ? 'success' : 'danger'}
+              ltr
+            />
           </div>
 
           {/* Period Collections Breakdown */}
@@ -799,63 +691,30 @@ export function ReportsPage() {
           {renderPeriodSelector()}
 
           {/* Activity & Debt KPIs */}
-          <div className="summary-grid-three" style={{ display: 'grid', gap: 10 }}>
-            {/* Outstanding Debts */}
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(30,41,59,0.5))',
-              border: '1px solid rgba(239,68,68,0.3)',
-              borderRadius: 16,
-              padding: 14,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>الديون المعلقة</span>
-                <span style={{ fontSize: 16 }}>⚠️</span>
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-danger-light)', direction: 'ltr', textAlign: 'right' }}>
-                {formatCurrency(totalOutstandingDebt)}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                على {allCustomers.length} عميل
-              </div>
-            </div>
-
-            {/* Collected Debts in Period */}
-            <div style={{
-              background: 'linear-gradient(135deg, rgba(16,185,129,0.1), rgba(30,41,59,0.5))',
-              border: '1px solid rgba(16,185,129,0.25)',
-              borderRadius: 16,
-              padding: 14,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>ديون محصلة</span>
-                <span style={{ fontSize: 16 }}>✅</span>
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-success-light)', direction: 'ltr', textAlign: 'right' }}>
-                {formatCurrency(collectedDebtInPeriod)}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                تحصيل (سيولة)
-              </div>
-            </div>
-
-            {/* Sales Invoices Count */}
-            <div style={{
-              background: 'var(--color-bg-card)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 16,
-              padding: 14,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>عدد العمليات</span>
-                <span style={{ fontSize: 16 }}>🧾</span>
-              </div>
-              <div style={{ fontSize: 18, fontWeight: 900, color: 'var(--color-text-primary)' }}>
-                {realInvoices.length}
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--color-text-muted)', marginTop: 2 }}>
-                عملية بيع
-              </div>
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+            <StatCard
+              label="الديون المعلقة"
+              value={formatCurrency(totalOutstandingDebt)}
+              sub={`على ${allCustomers.length} عميل`}
+              icon="warning"
+              variant="danger"
+              ltr
+            />
+            <StatCard
+              label="ديون محصلة"
+              value={formatCurrency(collectedDebtInPeriod)}
+              sub="تحصيل (سيولة)"
+              icon="check"
+              variant="success"
+              ltr
+            />
+            <StatCard
+              label="عدد العمليات"
+              value={realInvoices.length}
+              sub="عملية بيع"
+              icon="receipt"
+              variant="brand"
+            />
           </div>
 
           {/* Top Selling Products */}

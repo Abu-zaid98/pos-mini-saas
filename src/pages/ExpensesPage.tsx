@@ -1,9 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button } from '../components/ui/Button'
-import { CustomSelect } from '../components/ui/CustomSelect'
-import { ConfirmModal } from '../components/ui/ConfirmModal'
+import { Button, Modal, ConfirmModal, CustomSelect, StatCard, SearchBar, SectionHeader, EmptyState, Icon } from '../components/ui'
 import { ExpenseModal } from '../components/expenses/ExpenseModal'
-import { Modal } from '../components/ui/Modal'
 import { getPaymentMethodName, PAYMENT_METHODS } from '../db/db'
 import {
   DEFAULT_EXPENSE_CATEGORIES,
@@ -154,34 +151,46 @@ export function ExpensesPage() {
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 14, background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 18, boxShadow: '0 12px 26px rgba(22, 101, 52, 0.28)' }}>💸</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 42, height: 42, borderRadius: 14, background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 8px 20px rgba(19, 127, 120, 0.3)' }}>
+                <Icon name="credit-card" size={22} />
+              </div>
               <div>
-                <h2 style={{ margin: 0, color: 'var(--color-text-primary)' }}>المصاريف</h2>
-                <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 12 }}>سجل المصروفات والفلاتر</p>
+                <h2 style={{ margin: 0, color: 'var(--color-text-primary)', fontSize: 18, fontWeight: 800 }}>المصاريف والنفقات</h2>
+                <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 12 }}>سجل المصروفات اليومية والفلاتر</p>
               </div>
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Button variant="ghost" onClick={() => setCategoryManagerOpen(true)}>إدارة الأنواع</Button>
-            <Button variant="primary" onClick={() => setExpenseModalOpen(true)}>+ إضافة مصروف</Button>
+            <Button variant="primary" onClick={() => setExpenseModalOpen(true)}>
+              <Icon name="plus" size={15} />
+              <span>إضافة مصروف</span>
+            </Button>
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
-          <div className="card" style={{ padding: 12 }}>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>إجمالي المصاريف</div>
-            <div style={{ fontSize: 22, fontWeight: 800, marginTop: 6, color: 'var(--color-primary-light)' }}>{formatMoney(totalSpent)}</div>
-          </div>
-          <div className="card" style={{ padding: 12 }}>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>عدد السجلات المعروضة</div>
-            <div style={{ fontSize: 22, fontWeight: 800, marginTop: 6, color: 'var(--color-success-light)' }}>{filteredExpenses.length}</div>
-          </div>
-          <div className="card" style={{ padding: 12 }}>
-            <div style={{ color: 'var(--color-text-muted)', fontSize: 11 }}>أنواع نشطة</div>
-            <div style={{ fontSize: 22, fontWeight: 800, marginTop: 6, color: 'var(--color-warning-light)' }}>{totalCategories}</div>
-          </div>
+          <StatCard
+            label="إجمالي المصاريف"
+            value={formatMoney(totalSpent)}
+            icon="banknotes"
+            variant="danger"
+            ltr
+          />
+          <StatCard
+            label="عدد السجلات المعروضة"
+            value={filteredExpenses.length}
+            icon="receipt"
+            variant="info"
+          />
+          <StatCard
+            label="أنواع نشطة"
+            value={totalCategories}
+            icon="squares-2x2"
+            variant="brand"
+          />
         </div>
       </div>
 
@@ -218,26 +227,30 @@ export function ExpensesPage() {
           />
         </div>
 
-        <div className="input-search" style={{ width: '100%' }}>
-          <span>🔎</span>
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="ابحث في البيان أو النوع أو الملاحظات..."
-            aria-label="بحث في سجلات المصاريف"
-          />
-        </div>
+        <SearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="ابحث في البيان أو النوع أو الملاحظات..."
+        />
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)' }}>سجلات المصاريف</h3>
-          <span className="badge badge-muted">{filteredExpenses.length} سجل</span>
-        </div>
+        <SectionHeader
+          title="سجلات المصاريف"
+          action={<span className="badge badge-muted">{filteredExpenses.length} سجل</span>}
+        />
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {filteredExpenses.length === 0 ? (
-            <div style={{ padding: 28, textAlign: 'center', color: 'var(--color-text-muted)', border: '1px dashed var(--color-border)', borderRadius: 12 }}>
-              لا توجد مصاريف تطابق الفلاتر المحددة.
-            </div>
+            <EmptyState
+              icon="credit-card"
+              title="لا توجد مصاريف مطابقة"
+              description="لا توجد مصاريف تطابق الفلاتر المحددة حالياً. يمكنك تسجيل مصروف جديد بسهولة."
+              action={
+                <Button variant="primary" onClick={() => setExpenseModalOpen(true)}>
+                  <Icon name="plus" size={15} />
+                  <span>إضافة مصروف جديد</span>
+                </Button>
+              }
+            />
           ) : filteredExpenses.map((expense) => {
             const category = categories.find((item) => item.name === expense.category)
             return (

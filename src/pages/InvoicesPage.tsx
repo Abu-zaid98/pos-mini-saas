@@ -9,16 +9,25 @@ import { useCustomers } from '../hooks/useCustomers'
 import { deleteInvoice, updateInvoiceDetails, useInvoices } from '../hooks/useInvoices'
 import { formatCurrency } from '../utils/currency'
 import { formatLineDiscount, formatLineQty, lineDiscountAmount } from '../utils/units'
+import { Icon, SearchBar, Tabs, StatCard, EmptyState, SectionHeader } from '../components/ui'
 
 type InvoiceFilter = 'all' | PaymentType
 type InvoicePeriod = 'today' | 'yesterday' | 'week' | 'month' | 'all' | 'custom'
 
-const quickPeriods: [Exclude<InvoicePeriod, 'custom'>, string][] = [
-  ['today', 'اليوم'],
-  ['yesterday', 'أمس'],
-  ['week', 'آخر 7 أيام'],
-  ['month', 'هذا الشهر'],
-  ['all', 'الكل'],
+const periodTabs = [
+  { value: 'all', label: 'الكل' },
+  { value: 'today', label: 'اليوم' },
+  { value: 'yesterday', label: 'أمس' },
+  { value: 'week', label: 'آخر 7 أيام' },
+  { value: 'month', label: 'هذا الشهر' },
+  { value: 'custom', label: 'مخصص' },
+]
+
+const filterTabs = [
+  { value: 'all', label: 'الكل' },
+  { value: 'cash', label: 'مكتمل' },
+  { value: 'partial', label: 'جزئي' },
+  { value: 'debt', label: 'ديون' },
 ]
 
 function startOfDay(d: Date): number {
@@ -26,7 +35,9 @@ function startOfDay(d: Date): number {
 }
 
 const typeLabels: Record<PaymentType, string> = {
-  cash: 'نقدي / مكتمل', debt: 'دين كامل', partial: 'دفع جزئي',
+  cash: 'نقدي / مكتمل',
+  debt: 'دين كامل',
+  partial: 'دفع جزئي',
 }
 
 export function InvoicesPage() {
@@ -46,7 +57,11 @@ export function InvoicesPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [showReturnModal, setShowReturnModal] = useState(false)
   const [editing, setEditing] = useState<{
-    customerId: number | null; paymentType: PaymentType; paymentMethod: PaymentMethod; paidAmount: string; note: string
+    customerId: number | null
+    paymentType: PaymentType
+    paymentMethod: PaymentMethod
+    paidAmount: string
+    note: string
   } | null>(null)
 
   const visible = useMemo(() => invoices.filter((invoice) => {
@@ -56,7 +71,10 @@ export function InvoicesPage() {
 
     const matchFilter = filter === 'all' || invoice.paymentType === filter
     const query = search.trim().toLowerCase()
-    const matchSearch = !query || String(invoice.id).includes(query) || invoice.customerName?.toLowerCase().includes(query) || invoice.items.some((item) => item.name.toLowerCase().includes(query))
+    const matchSearch = !query ||
+      String(invoice.id).includes(query) ||
+      invoice.customerName?.toLowerCase().includes(query) ||
+      invoice.items.some((item) => item.name.toLowerCase().includes(query))
 
     const t = new Date(invoice.createdAt).getTime()
     const now = new Date()
@@ -77,7 +95,11 @@ export function InvoicesPage() {
   }), [invoices, filter, search, period, fromDate, toDate])
 
   const totals = useMemo(() => visible.reduce(
-    (s, inv) => ({ total: s.total + (inv.total || 0), paid: s.paid + (inv.paidAmount || 0), debt: s.debt + (inv.debtAmount || 0) }),
+    (s, inv) => ({
+      total: s.total + (inv.total || 0),
+      paid: s.paid + (inv.paidAmount || 0),
+      debt: s.debt + (inv.debtAmount || 0),
+    }),
     { total: 0, paid: 0, debt: 0 },
   ), [visible])
 
@@ -175,186 +197,439 @@ export function InvoicesPage() {
 
   return (
     <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Header section with Search */}
       <section className="card" style={{ padding: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-          <div><h2 style={{ fontSize: 17, fontWeight: 900 }}>سجل الفواتير</h2><p style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 2 }}>كل الفواتير محفوظة هنا ويمكن مراجعتها وتعديلها.</p></div>
-          <span className="badge badge-primary">{visible.length} / {invoices.length} فاتورة</span>
+        <SectionHeader
+          title="سجل الفواتير"
+          action={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="badge badge-primary">{visible.length} / {invoices.length}</span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={exportCsv}
+                disabled={visible.length === 0}
+                title="تصدير الفواتير المعروضة كملف CSV"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <Icon name="download" size={15} />
+                <span>تصدير</span>
+              </button>
+            </div>
+          }
+        />
+        <div style={{ marginTop: 12 }}>
+          <SearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="ابحث برقم الفاتورة، العميل أو اسم المنتج..."
+          />
         </div>
-        <div className="input-search"><span>🔍</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="رقم فاتورة، عميل أو منتج..." /></div>
       </section>
 
-      <section className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <CustomSelect
-            label="📅 الفترة"
-            value={period === 'custom' ? 'custom' : period}
-            onChange={(v) => {
-              if (v === 'custom') { setPeriod('custom'); return }
-              setPeriod(v as InvoicePeriod); setFromDate(''); setToDate('')
+      {/* Filter & Period Controls */}
+      <section className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 8 }}>الفترة الزمنية</div>
+          <Tabs
+            tabs={periodTabs}
+            value={period}
+            onChange={(p) => {
+              setPeriod(p as InvoicePeriod)
+              if (p !== 'custom') {
+                setFromDate('')
+                setToDate('')
+              }
             }}
-            options={[
-              ...quickPeriods.map(([value, label]) => ({ value, label })),
-              { value: 'custom' as InvoicePeriod, label: '↔ فترة مخصصة' },
-            ]}
-          />
-          <CustomSelect
-            label="🧾 نوع الدفع"
-            value={filter}
-            onChange={(v) => setFilter(v as InvoiceFilter)}
-            options={[
-              { value: 'all' as InvoiceFilter, label: 'الكل' },
-              { value: 'cash' as InvoiceFilter, label: 'مكتملة' },
-              { value: 'partial' as InvoiceFilter, label: 'جزئي' },
-              { value: 'debt' as InvoiceFilter, label: 'ديون' },
-            ]}
           />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div className="input-wrap"><label className="input-label">من تاريخ</label><input className="input" type="date" value={fromDate} max={toDate || undefined} onChange={(e) => { setFromDate(e.target.value); setPeriod('custom') }} /></div>
-          <div className="input-wrap"><label className="input-label">إلى تاريخ</label><input className="input" type="date" value={toDate} min={fromDate || undefined} onChange={(e) => { setToDate(e.target.value); setPeriod('custom') }} /></div>
-        </div>
+
         {period === 'custom' && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: 'var(--color-primary-light)', fontWeight: 700 }}>
-              ↔ فترة مخصصة: {fromDate || 'البداية'} → {toDate || 'اليوم'}
-            </span>
-            <button type="button" onClick={() => { setPeriod('all'); setFromDate(''); setToDate('') }} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font-main)' }}>
-              مسح الفترة
-            </button>
+          <div style={{
+            background: 'var(--color-input-bg)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 14,
+            padding: 12,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div className="input-wrap">
+                <label className="input-label">من تاريخ</label>
+                <input
+                  className="input"
+                  type="date"
+                  value={fromDate}
+                  max={toDate || undefined}
+                  onChange={(e) => setFromDate(e.target.value)}
+                />
+              </div>
+              <div className="input-wrap">
+                <label className="input-label">إلى تاريخ</label>
+                <input
+                  className="input"
+                  type="date"
+                  value={toDate}
+                  min={fromDate || undefined}
+                  onChange={(e) => setToDate(e.target.value)}
+                />
+              </div>
+            </div>
+            {(fromDate || toDate) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--color-primary-light)', fontWeight: 700 }}>
+                  الفترة: {fromDate || 'البداية'} ← {toDate || 'اليوم'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setFromDate(''); setToDate('') }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-text-muted)',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  مسح التاريخ
+                </button>
+              </div>
+            )}
           </div>
         )}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch', flexWrap: 'wrap' }}>
-          <div style={{ flex: 1, minWidth: 180, display: 'flex', gap: 8, background: 'var(--color-input-bg)', border: '1px solid var(--color-border)', borderRadius: 12, padding: '8px 12px', fontSize: 12, fontWeight: 700, color: 'var(--color-text-secondary)' }}>
-            <span>💰 {formatCurrency(totals.total)}</span>
-            <span style={{ color: 'var(--color-success-light)' }}>مقبوض {formatCurrency(totals.paid)}</span>
-            {totals.debt > 0 && <span style={{ color: 'var(--color-danger-light)' }}>دين {formatCurrency(totals.debt)}</span>}
-          </div>
-          <button type="button" className="btn btn-success btn-sm" onClick={exportCsv} disabled={visible.length === 0} title="تصدير الفواتير المعروضة كملف CSV">
-            ⬇️ تصدير ({visible.length})
-          </button>
+
+        <div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 8 }}>نوع الدفع</div>
+          <Tabs
+            tabs={filterTabs}
+            value={filter}
+            onChange={(f) => setFilter(f as InvoiceFilter)}
+          />
         </div>
       </section>
 
-      {visible.length === 0 ? <div className="empty-state"><div className="empty-icon">🧾</div><p>لا توجد فواتير مطابقة</p></div> : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
-          {visible.map((invoice) => (
-            <button key={invoice.id} type="button" onClick={() => openInvoice(invoice)} style={{ width: '100%', border: '1px solid var(--color-border)', background: 'var(--color-bg-card)', color: 'var(--color-text-primary)', borderRadius: 15, padding: 13, cursor: 'pointer', textAlign: 'right', fontFamily: 'var(--font-main)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                <div>
-                  <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
-                    <strong>فاتورة #{invoice.id}</strong>
-                    <span className={`badge ${invoice.paymentType === 'cash' ? 'badge-success' : invoice.paymentType === 'debt' ? 'badge-danger' : 'badge-warning'}`}>
-                      {typeLabels[invoice.paymentType]}
-                    </span>
-                    {invoice.refundedAmount && invoice.refundedAmount > 0 ? (
-                      <span style={{
-                        fontSize: 10,
-                        fontWeight: 800,
-                        background: 'rgba(239,68,68,0.12)',
-                        color: 'var(--color-danger-light)',
-                        border: '1px solid rgba(239,68,68,0.25)',
-                        borderRadius: 50,
-                        padding: '1px 7px',
-                      }}>
-                        ↩️ مرتجع {formatCurrency(invoice.refundedAmount)}
+      {/* KPI Stat Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+        <StatCard
+          label="المبيعات"
+          value={formatCurrency(totals.total)}
+          variant="brand"
+          ltr
+        />
+        <StatCard
+          label="المقبوض"
+          value={formatCurrency(totals.paid)}
+          variant="success"
+          ltr
+        />
+        <StatCard
+          label="الديون"
+          value={formatCurrency(totals.debt)}
+          variant={totals.debt > 0 ? 'danger' : 'default'}
+          ltr
+        />
+      </div>
+
+      {/* Invoice List */}
+      {visible.length === 0 ? (
+        <EmptyState
+          icon="receipt"
+          title="لا توجد فواتير مطابقة"
+          description={search ? `لم نجد أي فاتورة مطابقة لبحثك "${search}"` : 'لم يتم تسجيل فواتير في هذه الفترة'}
+          action={
+            (search || period !== 'all' || filter !== 'all') ? (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setSearch('')
+                  setPeriod('all')
+                  setFilter('all')
+                  setFromDate('')
+                  setToDate('')
+                }}
+              >
+                إعادة ضبط الفلاتر
+              </button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {visible.map((invoice) => {
+            const isCash = invoice.paymentType === 'cash'
+            const isDebt = invoice.paymentType === 'debt'
+            return (
+              <button
+                key={invoice.id}
+                type="button"
+                onClick={() => openInvoice(invoice)}
+                style={{
+                  width: '100%',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-bg-card)',
+                  color: 'var(--color-text-primary)',
+                  borderRadius: 16,
+                  padding: '14px 16px',
+                  cursor: 'pointer',
+                  textAlign: 'right',
+                  fontFamily: 'var(--font-main)',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'all 0.15s ease',
+                  position: 'relative',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <strong style={{ fontSize: 15, color: 'var(--color-text-primary)' }}>فاتورة #{invoice.id}</strong>
+                      <span className={`badge ${isCash ? 'badge-success' : isDebt ? 'badge-danger' : 'badge-warning'}`}>
+                        {typeLabels[invoice.paymentType]}
                       </span>
-                    ) : null}
+                      {invoice.refundedAmount && invoice.refundedAmount > 0 ? (
+                        <span style={{
+                          fontSize: 10.5,
+                          fontWeight: 800,
+                          background: 'rgba(239,68,68,0.12)',
+                          color: 'var(--color-danger-light)',
+                          border: '1px solid rgba(239,68,68,0.25)',
+                          borderRadius: 50,
+                          padding: '1px 8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}>
+                          <Icon name="arrow-left" size={11} />
+                          <span>مرتجع {formatCurrency(invoice.refundedAmount)}</span>
+                        </span>
+                      ) : null}
+                    </div>
+                    <div style={{ color: 'var(--color-text-muted)', fontSize: 12, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                        {invoice.customerName || 'بيع مباشر'}
+                      </span>
+                      <span>·</span>
+                      <span>
+                        {new Date(invoice.createdAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                      <span>·</span>
+                      <span>{invoice.items.length} أصناف</span>
+                    </div>
                   </div>
-                  <div style={{ color: 'var(--color-text-muted)', fontSize: 11, marginTop: 5 }}>
-                    {invoice.customerName || 'بيع مباشر'} · {new Date(invoice.createdAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+
+                  <div style={{ textAlign: 'left', flexShrink: 0 }}>
+                    <strong style={{ direction: 'ltr', display: 'block', fontSize: 16, color: 'var(--color-text-primary)' }}>
+                      {formatCurrency(invoice.total)}
+                    </strong>
+                    {invoice.debtAmount > 0 && (
+                      <small style={{ color: 'var(--color-danger-light)', direction: 'ltr', display: 'block', fontWeight: 800, fontSize: 11 }}>
+                        دين {formatCurrency(invoice.debtAmount)}
+                      </small>
+                    )}
                   </div>
                 </div>
-                <div style={{ textAlign: 'left' }}>
-                  <strong style={{ direction: 'ltr', display: 'block', fontSize: 15 }}>{formatCurrency(invoice.total)}</strong>
-                  {invoice.debtAmount > 0 && <small style={{ color: 'var(--color-danger-light)', direction: 'ltr' }}>دين {formatCurrency(invoice.debtAmount)}</small>}
-                </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            )
+          })}
         </div>
       )}
 
-      {selected && editing && <Modal open onClose={() => setSelected(null)} title={viewMode === 'view' ? `فاتورة #${selected.id}` : `تعديل فاتورة #${selected.id}`} type="sheet"><div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {/* View / Edit tabs */}
-        <div style={{ display: 'flex', background: 'var(--color-btn-ghost-bg)', border: '1px solid var(--color-border)', borderRadius: 14, padding: 4, gap: 4 }}>
-          {([['view', '🧾 عرض وطباعة'], ['edit', '✏️ تعديل الدفع']] as const).map(([mode, label]) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setViewMode(mode)}
-              style={{
-                flex: 1, padding: '10px', borderRadius: 10, border: 'none',
-                background: viewMode === mode ? 'var(--brand-gradient)' : 'transparent',
-                color: viewMode === mode ? 'white' : 'var(--color-text-secondary)',
-                fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-main)',
-              }}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+      {/* Invoice Details & Edit Modal */}
+      {selected && editing && (
+        <Modal
+          open
+          onClose={() => setSelected(null)}
+          title={viewMode === 'view' ? `فاتورة #${selected.id}` : `تعديل فاتورة #${selected.id}`}
+          type="sheet"
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* View / Edit Mode Switcher */}
+            <Tabs
+              tabs={[
+                { value: 'view', label: 'عرض وطباعة', icon: 'receipt' },
+                { value: 'edit', label: 'تعديل الدفع', icon: 'pencil' },
+              ]}
+              value={viewMode}
+              onChange={(m) => setViewMode(m as 'view' | 'edit')}
+            />
 
-        {viewMode === 'view' ? (
-          <>
-            <InvoicePrint invoice={selected} store={storeInfo} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => printInvoice(selected)}
-                style={{
-                  flex: 2, padding: '13px', borderRadius: 12,
-                  background: 'var(--brand-gradient)',
-                  border: 'none', color: 'white', fontWeight: 800, fontSize: 15,
-                  cursor: 'pointer', fontFamily: 'var(--font-main)',
-                }}
-              >
-                🖨️ طباعة الفاتورة
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowReturnModal(true)}
-                style={{
-                  flex: 1, padding: '13px', borderRadius: 12,
-                  background: 'var(--kpi-danger-bg)',
-                  border: '1px solid var(--kpi-danger-border)',
-                  color: 'var(--color-danger-light)', fontWeight: 800, fontSize: 14,
-                  cursor: 'pointer', fontFamily: 'var(--font-main)',
-                }}
-              >
-                ↩️ إرجاع أصناف
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-        <div style={{ background: 'var(--color-input-bg)', borderRadius: 12, padding: 12, fontSize: 13 }}>
-          {selected.items.map((item, index) => (
-            <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-              <span>
-                {item.name} × {item.pack ? `${item.qty} ${item.pack.label}` : formatLineQty(item)}
-                {item.discount && lineDiscountAmount(item) > 0 && (
-                  <span style={{ fontSize: 11, color: 'var(--color-warning-light)', fontWeight: 700 }}> 🏷️ {formatLineDiscount(item.discount)}</span>
+            {viewMode === 'view' ? (
+              <>
+                <InvoicePrint invoice={selected} store={storeInfo} />
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => printInvoice(selected)}
+                    style={{
+                      flex: 2,
+                      padding: '14px',
+                      borderRadius: 14,
+                      background: 'var(--brand-gradient)',
+                      border: 'none',
+                      color: 'white',
+                      fontWeight: 800,
+                      fontSize: 15,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-main)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      boxShadow: '0 4px 16px rgba(59,130,246,0.3)',
+                    }}
+                  >
+                    <Icon name="printer" size={18} />
+                    <span>طباعة الفاتورة</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowReturnModal(true)}
+                    style={{
+                      flex: 1,
+                      padding: '14px',
+                      borderRadius: 14,
+                      background: 'var(--kpi-danger-bg)',
+                      border: '1px solid var(--kpi-danger-border)',
+                      color: 'var(--color-danger-light)',
+                      fontWeight: 800,
+                      fontSize: 14,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-main)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <Icon name="arrow-left" size={16} />
+                    <span>إرجاع</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ background: 'var(--color-input-bg)', borderRadius: 14, padding: 14, fontSize: 13, border: '1px solid var(--color-border)' }}>
+                  {selected.items.map((item, index) => (
+                    <div key={index} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: index < selected.items.length - 1 ? '1px dashed var(--color-border)' : 'none' }}>
+                      <span>
+                        {item.name} × {item.pack ? `${item.qty} ${item.pack.label}` : formatLineQty(item)}
+                        {item.discount && lineDiscountAmount(item) > 0 && (
+                          <span style={{ fontSize: 11, color: 'var(--color-warning-light)', fontWeight: 700, marginInlineStart: 6 }}>
+                            خصم {formatLineDiscount(item.discount)}
+                          </span>
+                        )}
+                      </span>
+                      <span style={{ direction: 'ltr', fontWeight: 700 }}>
+                        {formatCurrency(item.price * item.qty - lineDiscountAmount(item))}
+                      </span>
+                    </div>
+                  ))}
+                  {(selected.itemDiscountAmount || 0) > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', color: 'var(--color-warning-light)', fontSize: 12 }}>
+                      <span>خصم الأصناف</span>
+                      <span style={{ direction: 'ltr' }}>-{formatCurrency(selected.itemDiscountAmount || 0)}</span>
+                    </div>
+                  )}
+                  <div className="divider" style={{ margin: '8px 0' }} />
+                  <strong style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15 }}>
+                    <span>إجمالي الفاتورة</span>
+                    <span style={{ direction: 'ltr', color: 'var(--color-primary-light)' }}>{formatCurrency(selected.total)}</span>
+                  </strong>
+                </div>
+
+                <CustomSelect
+                  value={editing.paymentType}
+                  onChange={(paymentType) => setEditing((current) => current && ({
+                    ...current,
+                    paymentType,
+                    paidAmount: paymentType === 'debt' ? '0' : paymentType === 'cash' ? String(selected.total) : current.paidAmount,
+                  }))}
+                  label="نوع الدفع"
+                  options={(Object.entries(typeLabels) as [PaymentType, string][]).map(([value, label]) => ({ value, label }))}
+                />
+
+                {(editing.paymentType === 'debt' || editing.paymentType === 'partial') && (
+                  <CustomSelect
+                    value={editing.customerId}
+                    placeholder="اختر العميل"
+                    label="العميل"
+                    searchable
+                    onChange={(customerId) => setEditing((current) => current && ({ ...current, customerId }))}
+                    options={customers.filter((customer) => customer.id !== undefined).map((customer) => ({
+                      value: customer.id!,
+                      label: customer.name,
+                      description: `${customer.phone ? `${customer.phone} · ` : ''}${customer.totalDebt > 0 ? `رصيده: ${formatCurrency(customer.totalDebt)}` : 'لا دين'}`,
+                    }))}
+                  />
                 )}
-              </span>
-              <span style={{ direction: 'ltr' }}>{formatCurrency(item.price * item.qty - lineDiscountAmount(item))}</span>
-            </div>
-          ))}
-          {(selected.itemDiscountAmount || 0) > 0 && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', color: 'var(--color-warning-light)', fontSize: 12 }}>
-              <span>خصم الأصناف</span>
-              <span style={{ direction: 'ltr' }}>-{formatCurrency(selected.itemDiscountAmount || 0)}</span>
-            </div>
-          )}
-          <div className="divider" /><strong style={{ display: 'flex', justifyContent: 'space-between' }}><span>إجمالي الفاتورة</span><span style={{ direction: 'ltr' }}>{formatCurrency(selected.total)}</span></strong>
-        </div>
-        <CustomSelect value={editing.paymentType} onChange={(paymentType) => setEditing((current) => current && ({ ...current, paymentType, paidAmount: paymentType === 'debt' ? '0' : paymentType === 'cash' ? String(selected.total) : current.paidAmount }))} label="نوع الدفع" options={(Object.entries(typeLabels) as [PaymentType, string][]).map(([value, label]) => ({ value, label }))} />
-        {(editing.paymentType === 'debt' || editing.paymentType === 'partial') && <CustomSelect value={editing.customerId} placeholder="اختر العميل" label="العميل" searchable onChange={(customerId) => setEditing((current) => current && ({ ...current, customerId }))} options={customers.filter((customer) => customer.id !== undefined).map((customer) => ({ value: customer.id!, label: customer.name, description: `${customer.phone ? `${customer.phone} · ` : ''}${customer.totalDebt > 0 ? `رصيده: ${formatCurrency(customer.totalDebt)}` : 'لا دين'}` }))} />}
-        {editing.paymentType !== 'debt' && <><CustomSelect value={editing.paymentMethod} label="طريقة القبض" onChange={(paymentMethod) => setEditing((current) => current && ({ ...current, paymentMethod }))} options={[{ value: 'cash' as PaymentMethod, label: '💵 نقداً' }, { value: 'jawwal_pay' as PaymentMethod, label: '📱 جوال باي' }, { value: 'palpay' as PaymentMethod, label: '💳 بال باي' }, { value: 'bop' as PaymentMethod, label: '🏦 بنك فلسطين' }]} />{editing.paymentType === 'partial' && <div className="input-wrap"><label className="input-label">المبلغ المقبوض</label><input className="input" type="number" min="0" max={selected.total} value={editing.paidAmount} onChange={(event) => setEditing((current) => current && ({ ...current, paidAmount: event.target.value }))} /></div>}</>}
-        <div className="input-wrap"><label className="input-label">ملاحظة</label><textarea className="input" rows={2} value={editing.note} onChange={(event) => setEditing((current) => current && ({ ...current, note: event.target.value }))} /></div>
-        <div style={{ display: 'flex', gap: 8 }}><button type="button" className="btn btn-danger" style={{ paddingInline: 14 }} onClick={remove} title="حذف الفاتورة">🗑️</button><button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={save} disabled={saving}>{saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}</button></div>
-          </>
-        )}
-      </div></Modal>}
+
+                {editing.paymentType !== 'debt' && (
+                  <>
+                    <CustomSelect
+                      value={editing.paymentMethod}
+                      label="طريقة القبض"
+                      onChange={(paymentMethod) => setEditing((current) => current && ({ ...current, paymentMethod }))}
+                      options={[
+                        { value: 'cash' as PaymentMethod, label: 'نقداً' },
+                        { value: 'jawwal_pay' as PaymentMethod, label: 'جوال باي' },
+                        { value: 'palpay' as PaymentMethod, label: 'بال باي' },
+                        { value: 'bop' as PaymentMethod, label: 'بنك فلسطين' },
+                      ]}
+                    />
+                    {editing.paymentType === 'partial' && (
+                      <div className="input-wrap">
+                        <label className="input-label">المبلغ المقبوض</label>
+                        <input
+                          className="input"
+                          type="number"
+                          min="0"
+                          max={selected.total}
+                          value={editing.paidAmount}
+                          onChange={(event) => setEditing((current) => current && ({ ...current, paidAmount: event.target.value }))}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="input-wrap">
+                  <label className="input-label">ملاحظة</label>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={editing.note}
+                    onChange={(event) => setEditing((current) => current && ({ ...current, note: event.target.value }))}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                  <button
+                    type="button"
+                    className="btn btn-danger"
+                    style={{ paddingInline: 16 }}
+                    onClick={remove}
+                    title="حذف الفاتورة"
+                  >
+                    <Icon name="trash" size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ flex: 1 }}
+                    onClick={save}
+                    disabled={saving}
+                  >
+                    {saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
 
       {/* Delete Invoice Confirmation Modal */}
       <ConfirmModal

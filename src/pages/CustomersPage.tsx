@@ -11,9 +11,8 @@ import {
   updateInitialDebt,
   type CustomerLedgerItem,
 } from '../hooks/useCustomers'
-import { Modal } from '../components/ui/Modal'
+import { Modal, StatCard, SearchBar, Tabs, EmptyState, Icon } from '../components/ui'
 import { printElementById } from '../components/print/printDocument'
-import { CustomSelect } from '../components/ui/CustomSelect'
 import { StatementPrintHost, downloadStatementCSV } from '../components/customer/StatementPrint'
 import { formatCurrency } from '../utils/currency'
 import { type Customer, type PaymentMethod, getPaymentMethodName } from '../db/db'
@@ -235,98 +234,49 @@ export function CustomersPage() {
     <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Top Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid rgba(239,68,68,0.3)',
-          borderRadius: 14,
-          padding: '12px 10px',
-          textAlign: 'center',
-          minHeight: 96,
-        }}>
-          <div style={{ fontSize: 20, marginBottom: 2 }}>💰</div>
-          <div style={{ fontSize: 17, fontWeight: 900, color: 'var(--color-danger-light)', direction: 'ltr' }}>
-            {formatCurrency(totalOutstandingDebt)}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>إجمالي الديون</div>
-        </div>
-
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 14,
-          padding: '12px 10px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 20, marginBottom: 2 }}>⚠️</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-warning-light)' }}>
-            {indebtedCount}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>عليهم ديون</div>
-        </div>
-
-        <div style={{
-          background: 'var(--color-bg-card)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 14,
-          padding: '12px 10px',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: 20, marginBottom: 2 }}>👥</div>
-          <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-primary-light)' }}>
-            {customers.length}
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>إجمالي العملاء</div>
-        </div>
+        <StatCard
+          label="إجمالي الديون"
+          value={formatCurrency(totalOutstandingDebt)}
+          icon="banknotes"
+          variant="danger"
+          ltr
+        />
+        <StatCard
+          label="عليهم ديون"
+          value={indebtedCount}
+          icon="warning"
+          variant="warning"
+        />
+        <StatCard
+          label="إجمالي العملاء"
+          value={customers.length}
+          icon="users"
+          variant="brand"
+        />
       </div>
 
       {/* Search Bar + Add Button */}
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          background: 'rgba(255,255,255,0.05)',
-          border: '1.5px solid var(--color-border)',
-          borderRadius: 50,
-          padding: '10px 16px',
-        }}>
-          <span style={{ fontSize: 16 }}>🔍</span>
-          <input
-            style={{
-              flex: 1,
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              color: 'var(--color-text-primary)',
-              fontFamily: 'var(--font-main)',
-              fontSize: 14,
-            }}
-            placeholder="ابحث باسم العميل أو رقم هاتفه..."
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <SearchBar
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={setSearch}
+            placeholder="ابحث باسم العميل أو رقم هاتفه..."
           />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', fontSize: 16 }}
-            >
-              ✕
-            </button>
-          )}
         </div>
 
         <button
+          type="button"
           onClick={handleOpenAdd}
           style={{
-            height: 48,
-            padding: '0 18px',
+            height: 46,
+            padding: '0 16px',
             background: 'var(--brand-gradient)',
             border: 'none',
-            borderRadius: 14,
+            borderRadius: 'var(--radius-xl)',
             color: 'white',
             fontWeight: 800,
-            fontSize: 14,
+            fontSize: 13,
             cursor: 'pointer',
             fontFamily: 'var(--font-main)',
             boxShadow: 'var(--shadow-primary)',
@@ -334,36 +284,55 @@ export function CustomersPage() {
             alignItems: 'center',
             gap: 6,
             whiteSpace: 'nowrap',
+            flexShrink: 0,
           }}
         >
-          <span>+</span>
+          <Icon name="plus" size={16} />
           <span>عميل جديد</span>
         </button>
       </div>
 
-      {/* Filters */}
-      <CustomSelect
-        label="تصفية العملاء"
-        value={filter}
-        onChange={(v) => setFilter(v as 'all' | 'debt' | 'settled')}
-        options={[
+      {/* Filter Tabs */}
+      <Tabs
+        tabs={[
           { value: 'all', label: 'جميع العملاء' },
-          { value: 'debt', label: 'عليهم ديون فقط' },
+          { value: 'debt', label: 'عليهم ديون', badge: indebtedCount > 0 ? indebtedCount : undefined },
           { value: 'settled', label: 'حسابات مسددة' },
         ]}
+        value={filter}
+        onChange={(v) => setFilter(v as 'all' | 'debt' | 'settled')}
       />
 
       {/* Customers List */}
       {customers.length === 0 ? (
-        <div className="empty-state" style={{ padding: '40px 10px' }}>
-          <div className="empty-icon">👥</div>
-          <p style={{ fontSize: 16, fontWeight: 700 }}>
-            {search ? 'لا توجد نتائج بحث' : 'لا يوجد عملاء مضافين بعد'}
-          </p>
-          <p style={{ fontSize: 13, color: 'var(--color-text-muted)', marginTop: 4 }}>
-            {search ? 'جرّب كتابة اسم آخر' : 'اضغط زر "عميل جديد" لإضافة عميل وتتبع ديونه'}
-          </p>
-        </div>
+        <EmptyState
+          icon="users"
+          title={search ? 'لا توجد نتائج بحث' : 'لا يوجد عملاء مضافين بعد'}
+          description={search ? 'جرّب كتابة اسم أو رقم هاتف آخر' : 'اضغط زر "عميل جديد" لإضافة أول عميل ومتابعة حساباته'}
+          action={
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              style={{
+                background: 'var(--brand-gradient)',
+                border: 'none',
+                borderRadius: 10,
+                padding: '8px 18px',
+                color: '#fff',
+                fontWeight: 800,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontFamily: 'var(--font-main)',
+              }}
+            >
+              <Icon name="plus" size={16} />
+              <span>عميل جديد</span>
+            </button>
+          }
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {customers.map((c) => {
@@ -445,6 +414,7 @@ export function CustomersPage() {
                   flexWrap: 'wrap',
                 }}>
                   <button
+                    type="button"
                     onClick={() => handleOpenPayment(c)}
                     style={{
                       flex: 1,
@@ -460,15 +430,16 @@ export function CustomersPage() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 4,
+                      gap: 5,
                       boxShadow: '0 6px 18px rgba(16,185,129,0.22)',
                     }}
                   >
-                    <span>💰</span>
+                    <Icon name="banknotes" size={15} />
                     <span>سداد دفعة</span>
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => handleOpenLedger(c)}
                     style={{
                       flex: 1,
@@ -484,14 +455,15 @@ export function CustomersPage() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      gap: 4,
+                      gap: 5,
                     }}
                   >
-                    <span>📜</span>
+                    <Icon name="document" size={15} />
                     <span>كشف حساب</span>
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => handleOpenAddDebt(c)}
                     style={{
                       flex: 1,
@@ -500,48 +472,60 @@ export function CustomersPage() {
                       background: 'rgba(239,68,68,0.1)',
                       border: '1px solid rgba(239,68,68,0.25)',
                       color: 'var(--color-danger-light)',
-                      fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-main)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-main)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 4,
                     }}
                   >
-                    + إضافة دين
+                    <Icon name="plus" size={13} />
+                    <span>إضافة دين</span>
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => handleOpenEdit(c)}
                     style={{
-                      width: 44,
-                      height: 44,
+                      width: 40,
+                      height: 40,
                       borderRadius: 10,
                       background: 'rgba(255,255,255,0.06)',
                       border: '1px solid var(--color-border)',
                       cursor: 'pointer',
-                      fontSize: 15,
+                      color: 'var(--color-text-secondary)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      flexShrink: 0,
                     }}
-                    title="تعديل العميل"
+                    title="تعديل بيانات العميل"
                   >
-                    ✏️
+                    <Icon name="pencil" size={15} />
                   </button>
 
                   <button
+                    type="button"
                     onClick={() => setDeleteConfirm(c)}
                     style={{
-                      width: 44,
-                      height: 44,
+                      width: 40,
+                      height: 40,
                       borderRadius: 10,
                       background: 'rgba(239,68,68,0.1)',
                       border: '1px solid rgba(239,68,68,0.2)',
+                      color: 'var(--color-danger-light)',
                       cursor: 'pointer',
-                      fontSize: 15,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      flexShrink: 0,
                     }}
                     title="حذف العميل"
                   >
-                    🗑️
+                    <Icon name="trash" size={15} />
                   </button>
                 </div>
               </div>

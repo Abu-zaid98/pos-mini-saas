@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import { Modal } from '../ui/Modal'
+import { Icon } from '../ui/Icon'
 import { getStoredTheme, toggleTheme, type Theme } from '../../utils/theme'
 import { useStoreName } from '../../hooks/useStoreName'
 import { CurrentDate } from './CurrentDate'
@@ -115,7 +116,6 @@ export function AppShell({ onLogout }: AppShellProps) {
                 borderRadius: 10,
                 padding: '4px 8px',
                 color: 'var(--color-text-primary)',
-                fontSize: 14,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -125,7 +125,7 @@ export function AppShell({ onLogout }: AppShellProps) {
                 boxShadow: 'var(--shadow-sm)',
               }}
             >
-              {theme === 'dark' ? '☀️' : '🌙'}
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
             </button>
 
             {/* Quick Logout / Lock Button */}
@@ -145,13 +145,13 @@ export function AppShell({ onLogout }: AppShellProps) {
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 5,
                   fontFamily: 'var(--font-main)',
                   height: 32,
                   boxShadow: 'var(--shadow-sm)',
                 }}
               >
-                <span>🔒</span>
+                <Icon name="lock" size={14} />
                 <span>خروج</span>
               </button>
             )}
