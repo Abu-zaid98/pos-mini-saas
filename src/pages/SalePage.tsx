@@ -81,6 +81,8 @@ export function SalePage() {
   const [paymentType, setPaymentType] = useState<PaymentType>('cash')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null)
+  const [manualCustomerName, setManualCustomerName] = useState<string>('')
+  const [checkoutError, setCheckoutError] = useState<string | null>(null)
   const [partialPaidAmount, setPartialPaidAmount] = useState<string>('')
   const [cashReceived, setCashReceived] = useState<string>('')
   const [saleNote, setSaleNote] = useState('')
@@ -168,6 +170,8 @@ export function SalePage() {
     setDiscountValue(0)
     setSaleNote('')
     setSelectedCustomerId(null)
+    setManualCustomerName('')
+    setCheckoutError(null)
     setPartialPaidAmount('')
     setCashReceived('')
     setPaymentType('cash')
@@ -369,10 +373,11 @@ export function SalePage() {
 
   const handleCompleteSale = async () => {
     if (cart.length === 0) return
+    setCheckoutError(null)
 
-    // Validation
+    // Validation: الدين الكامل والدفع الجزئي يتطلبان عميلاً مسجلاً في النظام حصراً
     if ((paymentType === 'debt' || paymentType === 'partial') && !selectedCustomerId) {
-      alert('يرجى اختيار العميل لتسجيل البيع بالدين')
+      setCheckoutError('لتسجيل البيع بالدين أو الدفع الجزئي، يجب اختيار عميل مسجل من القائمة (أو إضافة عميل جديد) لمتابعة حسابه المالي.')
       return
     }
 
@@ -384,23 +389,27 @@ export function SalePage() {
       debt = finalTotal
     } else if (paymentType === 'partial') {
       const parsedPaid = parseFloat(partialPaidAmount) || 0
-      if (parsedPaid >= finalTotal) {
-        paid = finalTotal
-        debt = 0
-      } else {
-        paid = Math.max(0, parsedPaid)
-        debt = finalTotal - paid
+      if (parsedPaid <= 0) {
+        setCheckoutError('يرجى إدخال المبلغ المقبوض حالياً في خانة الدفع الجزئي.')
+        return
       }
+      if (parsedPaid >= finalTotal) {
+        setCheckoutError(`في الدفع الجزئي، يجب أن يكون المبلغ المقبوض أقل من إجمالي الفاتورة (${formatCurrency(finalTotal)}). إذا تم سداد كامل المبلغ، اختر الدفع الكامل.`)
+        return
+      }
+      paid = parsedPaid
+      debt = Math.round((finalTotal - paid) * 100) / 100
     }
 
     setIsSubmitting(true)
 
     try {
       const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
+      const customerName = selectedCustomer?.name || (manualCustomerName.trim() ? manualCustomerName.trim() : undefined)
 
       const saleData: CreateSaleInput = {
         customerId: (paymentType === 'cash' && !selectedCustomerId) ? null : selectedCustomerId,
-        customerName: selectedCustomer?.name,
+        customerName,
         items: cart.map(({ productId, name, qty, price, costPrice, unit, kind, pack, durationMinutes, discount, pieces }) => ({
           productId,
           name,
@@ -433,7 +442,7 @@ export function SalePage() {
       resetSaleState()
     } catch (err) {
       console.error(err)
-      alert('حدث خطأ أثناء حفظ الفاتورة')
+      setCheckoutError('حدث خطأ أثناء حفظ الفاتورة، يرجى المحاولة مرة أخرى.')
     } finally {
       setIsSubmitting(false)
     }
@@ -1607,17 +1616,59 @@ export function SalePage() {
             </div>
           )}
 
-          {/* Customer Selection — إلزامي للدين/الجزئي، اختياري للنقدي (اسم على الفاتورة) */}
+          {/* Error Message Alert */}
+          {checkoutError && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 10,
+              color: 'var(--color-danger-light)',
+              fontSize: 13,
+              fontWeight: 700,
+              lineHeight: 1.5,
+              animation: 'fadeIn 0.2s ease',
+            }}>
+              <span style={{ fontSize: 18, flexShrink: 0, marginTop: -2 }}>⚠️</span>
+              <div style={{ flex: 1 }}>{checkoutError}</div>
+              <button
+                type="button"
+                onClick={() => setCheckoutError(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-danger-light)',
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 800,
+                  padding: 0,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Customer Selection — إلزامي للدين/الجزئي، واختياري للنقدي مع خيار كتابة اسم عابر */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', fontWeight: 700 }}>
-                العميل {paymentType !== 'cash' ? <span style={{ color: 'var(--color-danger)' }}>*</span> : <span style={{ fontWeight: 400 }}>(اختياري)</span>}:
+                {paymentType === 'cash' ? (
+                  <span>العميل <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(اختياري)</span>:</span>
+                ) : (
+                  <span>
+                    العميل <span style={{ color: 'var(--color-danger)' }}>* (إلزامي لمتابعة الذمة المالية)</span>:
+                  </span>
+                )}
               </label>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                {paymentType === 'cash' && selectedCustomerId && (
+                {paymentType === 'cash' && (selectedCustomerId || manualCustomerName) && (
                   <button
                     type="button"
-                    onClick={() => setSelectedCustomerId(null)}
+                    onClick={() => { setSelectedCustomerId(null); setManualCustomerName('') }}
                     style={{
                       background: 'none', border: 'none',
                       color: 'var(--color-text-muted)',
@@ -1641,26 +1692,80 @@ export function SalePage() {
                     fontFamily: 'var(--font-main)',
                   }}
                 >
-                  + عميل جديد
+                  + عميل دائم جديد
                 </button>
               </div>
             </div>
 
-              <CustomSelect
-                value={selectedCustomerId}
-                placeholder="-- اختر العميل --"
-                searchable
-                onChange={setSelectedCustomerId}
-                options={customers.filter((customer) => customer.id !== undefined).map((customer) => {
-                  const debtText = customer.totalDebt > 0 ? `رصيده الحالي: ${formatCurrency(customer.totalDebt)}` : 'لا يوجد دين حالي'
-                  return {
-                    value: customer.id!,
-                    label: customer.name,
-                    description: customer.phone ? `${customer.phone} · ${debtText}` : debtText,
-                  }
-                })}
-              />
-            </div>
+            {paymentType === 'cash' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <CustomSelect
+                  value={selectedCustomerId}
+                  placeholder="-- اختر عميلاً مسجلاً أو اتركه فارغاً --"
+                  searchable
+                  onChange={(val) => {
+                    setSelectedCustomerId(val)
+                    if (val) setManualCustomerName('')
+                  }}
+                  options={customers.filter((customer) => customer.id !== undefined).map((customer) => {
+                    const debtText = customer.totalDebt > 0 ? `رصيده: ${formatCurrency(customer.totalDebt)}` : 'لا دين'
+                    return {
+                      value: customer.id!,
+                      label: customer.name,
+                      description: customer.phone ? `${customer.phone} · ${debtText}` : debtText,
+                    }
+                  })}
+                />
+                {!selectedCustomerId && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                      <span>أو اكتب اسم عميل مباشر فقط (دون إضافته لقائمة الدائمين):</span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="اسم العميل العابر (يظهر على الفاتورة والإيصال)..."
+                      value={manualCustomerName}
+                      onChange={(e) => setManualCustomerName(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: 10,
+                        background: 'var(--color-bg-card)',
+                        border: '1px solid var(--color-border)',
+                        color: 'var(--color-text-primary)',
+                        fontSize: 13,
+                        outline: 'none',
+                        fontFamily: 'var(--font-main)',
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div>
+                <CustomSelect
+                  value={selectedCustomerId}
+                  placeholder="-- اختر العميل المسجل لمتابعة الدين --"
+                  searchable
+                  onChange={(val) => {
+                    setSelectedCustomerId(val)
+                    if (checkoutError) setCheckoutError(null)
+                  }}
+                  options={customers.filter((customer) => customer.id !== undefined).map((customer) => {
+                    const debtText = customer.totalDebt > 0 ? `رصيده الحالي: ${formatCurrency(customer.totalDebt)}` : 'لا يوجد دين حالي'
+                    return {
+                      value: customer.id!,
+                      label: customer.name,
+                      description: customer.phone ? `${customer.phone} · ${debtText}` : debtText,
+                    }
+                  })}
+                />
+                <div style={{ marginTop: 6, fontSize: 11, color: 'var(--color-warning-light)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span>⚠️ في مبيعات الدين والدفع الجزئي، لا يمكن استخدام اسم عابر لحفظ الذمة المالية للعميل.</span>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Partial Payment Configuration */}
           {paymentType === 'partial' && (
@@ -1674,22 +1779,31 @@ export function SalePage() {
               gap: 10,
             }}>
               <div>
-                <label style={{ fontSize: 13, color: 'var(--color-warning-light)', fontWeight: 700, display: 'block', marginBottom: 6 }}>
-                  المبلغ المقبوض حالياً:
-                </label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 13, color: 'var(--color-warning-light)', fontWeight: 700 }}>
+                    المبلغ المقبوض حالياً:
+                  </label>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+                    يجب أن يكون أقل من {formatCurrency(finalTotal)}
+                  </span>
+                </div>
                 <input
                   type="number"
                   min="0"
-                  max={finalTotal}
-                  placeholder="أدخل المبلغ المقبوض..."
+                  max={Math.max(0, finalTotal - 0.01)}
+                  step="any"
+                  placeholder={`أدخل المبلغ المقبوض (أقل من ${formatCurrency(finalTotal)})...`}
                   value={partialPaidAmount}
-                  onChange={(e) => setPartialPaidAmount(e.target.value)}
+                  onChange={(e) => {
+                    setPartialPaidAmount(e.target.value)
+                    if (checkoutError) setCheckoutError(null)
+                  }}
                   style={{
                     width: '100%',
                     padding: '10px 14px',
                     borderRadius: 10,
                     background: 'var(--color-bg-card)',
-                    border: '1px solid var(--color-border)',
+                    border: (parseFloat(partialPaidAmount) >= finalTotal) ? '1px solid var(--color-danger)' : '1px solid var(--color-border)',
                     color: 'var(--color-text-primary)',
                     fontSize: 16,
                     fontWeight: 800,
@@ -1698,6 +1812,11 @@ export function SalePage() {
                     textAlign: 'right',
                   }}
                 />
+                {parseFloat(partialPaidAmount) >= finalTotal && (
+                  <small style={{ color: 'var(--color-danger-light)', fontSize: 11, fontWeight: 700, display: 'block', marginTop: 4 }}>
+                    ⚠️ المبلغ المدفوع مساوٍ أو أكبر من قيمة الفاتورة! للدفع الكامل، اختر وسيلة دفع نقدية مباشرة بالأعلى.
+                  </small>
+                )}
               </div>
 
               {/* Method used for the partial payment */}

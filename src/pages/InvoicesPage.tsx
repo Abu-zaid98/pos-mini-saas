@@ -15,7 +15,7 @@ import { formatDateTime } from '../utils/datetime'
 import { downloadXlsx, type XlsxCell } from '../utils/xlsx'
 import { Icon, SearchBar, Tabs, StatCard, EmptyState, PageHeader } from '../components/ui'
 
-type InvoiceFilter = 'all' | PaymentType
+type InvoiceFilter = 'all' | PaymentType | 'refunded'
 type InvoicePeriod = 'today' | 'yesterday' | 'week' | 'month' | 'all' | 'custom'
 
 const periodTabs = [
@@ -32,6 +32,7 @@ const filterTabs = [
   { value: 'cash', label: 'مكتمل' },
   { value: 'partial', label: 'جزئي' },
   { value: 'debt', label: 'ديون' },
+  { value: 'refunded', label: 'مرتجعة' },
 ]
 
 function startOfDay(d: Date): number {
@@ -77,7 +78,14 @@ export function InvoicesPage() {
     const isRealSale = invoice.items.length === 0 || invoice.items.some((item) => item.productId !== 0)
     if (!isRealSale) return false
 
-    const matchFilter = filter === 'all' || invoice.paymentType === filter
+    const isFullyRefunded = (invoice.refundedAmount || 0) >= (invoice.total || 0) && (invoice.total || 0) > 0
+    let matchFilter = true
+    if (filter === 'refunded') {
+      matchFilter = isFullyRefunded
+    } else if (filter !== 'all') {
+      matchFilter = invoice.paymentType === filter
+    }
+
     const query = search.trim().toLowerCase()
     const matchSearch = !query ||
       String(invoice.id).includes(query) ||
@@ -103,12 +111,17 @@ export function InvoicesPage() {
   }), [invoices, filter, search, period, fromDate, toDate])
 
   const totals = useMemo(() => visible.reduce(
-    (s, inv) => ({
-      total: s.total + (inv.total || 0),
-      paid: s.paid + (inv.paidAmount || 0),
-      debt: s.debt + (inv.debtAmount || 0),
-    }),
-    { total: 0, paid: 0, debt: 0 },
+    (s, inv) => {
+      const refunded = inv.refundedAmount || 0
+      const netTotal = Math.max(0, (inv.total || 0) - refunded)
+      return {
+        total: s.total + netTotal,
+        paid: s.paid + (inv.paidAmount || 0),
+        debt: s.debt + (inv.debtAmount || 0),
+        refunded: s.refunded + refunded,
+      }
+    },
+    { total: 0, paid: 0, debt: 0, refunded: 0 },
   ), [visible])
 
   const exportExcel = () => {
@@ -117,23 +130,31 @@ export function InvoicesPage() {
       return
     }
     const rows: XlsxCell[][] = [
-      ['رقم الفاتورة', 'التاريخ', 'العميل', 'نوع الدفع', 'الإجمالي', 'المدفوع', 'الدين', 'الأصناف'],
-      ...visible.map((inv) => [
-        inv.id != null ? String(inv.id) : '',
-        formatDateTime(inv.createdAt),
-        inv.customerName || 'بيع مباشر',
-        typeLabels[inv.paymentType] || inv.paymentType,
-        inv.total || 0,
-        inv.paidAmount || 0,
-        inv.debtAmount || 0,
-        inv.items.map((i) => `${i.name} × ${i.qty}`).join(' | '),
-      ]),
+      ['رقم الفاتورة', 'التاريخ', 'العميل', 'نوع الدفع', 'الإجمالي الأصلي', 'المرتجع', 'صافي المبيعات', 'المدفوع', 'الدين', 'الأصناف'],
+      ...visible.map((inv) => {
+        const refunded = inv.refundedAmount || 0
+        const isFullyRefunded = refunded >= (inv.total || 0) && (inv.total || 0) > 0
+        const typeLabel = isFullyRefunded ? 'مرتجع بالكامل' : (typeLabels[inv.paymentType] || inv.paymentType)
+        const net = Math.max(0, (inv.total || 0) - refunded)
+        return [
+          inv.id != null ? String(inv.id) : '',
+          formatDateTime(inv.createdAt),
+          inv.customerName || 'بيع مباشر',
+          typeLabel,
+          inv.total || 0,
+          refunded,
+          net,
+          inv.paidAmount || 0,
+          inv.debtAmount || 0,
+          inv.items.map((i) => `${i.name} × ${i.qty}`).join(' | '),
+        ]
+      }),
       [],
-      ['الإجمالي', '', '', '', totals.total, totals.paid, totals.debt, `عدد الفواتير: ${visible.length}`],
+      ['الإجمالي', '', '', '', '', totals.refunded, totals.total, totals.paid, totals.debt, `عدد الفواتير: ${visible.length}`],
     ]
     const stamp = period === 'custom' ? `${fromDate || 'start'}_to_${toDate || 'now'}` : period
     downloadXlsx(`invoices-${stamp}-${visible.length}.xlsx`, [
-      { name: 'الفواتير', rows, columnWidths: [10, 20, 22, 12, 12, 12, 12, 42] },
+      { name: 'الفواتير', rows, columnWidths: [10, 20, 22, 14, 12, 10, 12, 12, 12, 42] },
     ])
   }
 
@@ -316,13 +337,21 @@ export function InvoicesPage() {
       </section>
 
       {/* KPI Stat Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: totals.refunded > 0 ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: 10 }}>
         <StatCard
-          label="المبيعات"
+          label={totals.refunded > 0 ? 'صافي المبيعات' : 'المبيعات'}
           value={formatCurrency(totals.total)}
           variant="brand"
           ltr
         />
+        {totals.refunded > 0 && (
+          <StatCard
+            label="المرتجعات"
+            value={formatCurrency(totals.refunded)}
+            variant="danger"
+            ltr
+          />
+        )}
         <StatCard
           label="المقبوض"
           value={formatCurrency(totals.paid)}
@@ -366,6 +395,10 @@ export function InvoicesPage() {
           {visible.map((invoice) => {
             const isCash = invoice.paymentType === 'cash'
             const isDebt = invoice.paymentType === 'debt'
+            const refunded = invoice.refundedAmount || 0
+            const isFullyRefunded = refunded >= (invoice.total || 0) && (invoice.total || 0) > 0
+            const netAmount = Math.max(0, (invoice.total || 0) - refunded)
+
             return (
               <button
                 key={invoice.id}
@@ -373,8 +406,8 @@ export function InvoicesPage() {
                 onClick={() => openInvoice(invoice)}
                 style={{
                   width: '100%',
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-bg-card)',
+                  border: isFullyRefunded ? '1px dashed var(--color-danger)' : '1px solid var(--color-border)',
+                  background: isFullyRefunded ? 'rgba(239, 68, 68, 0.04)' : 'var(--color-bg-card)',
                   color: 'var(--color-text-primary)',
                   borderRadius: 16,
                   padding: '14px 16px',
@@ -384,16 +417,24 @@ export function InvoicesPage() {
                   boxShadow: 'var(--shadow-sm)',
                   transition: 'all 0.15s ease',
                   position: 'relative',
+                  opacity: isFullyRefunded ? 0.85 : 1,
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       <strong style={{ fontSize: 15, color: 'var(--color-text-primary)' }}>فاتورة #{invoice.id}</strong>
-                      <span className={`badge ${isCash ? 'badge-success' : isDebt ? 'badge-danger' : 'badge-warning'}`}>
-                        {typeLabels[invoice.paymentType]}
-                      </span>
-                      {invoice.refundedAmount && invoice.refundedAmount > 0 ? (
+                      {isFullyRefunded ? (
+                        <span className="badge badge-danger" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Icon name="arrow-left" size={11} />
+                          <span>مرتجع بالكامل</span>
+                        </span>
+                      ) : (
+                        <span className={`badge ${isCash ? 'badge-success' : isDebt ? 'badge-danger' : 'badge-warning'}`}>
+                          {typeLabels[invoice.paymentType]}
+                        </span>
+                      )}
+                      {!isFullyRefunded && refunded > 0 ? (
                         <span style={{
                           fontSize: 10.5,
                           fontWeight: 800,
@@ -407,7 +448,7 @@ export function InvoicesPage() {
                           gap: 3,
                         }}>
                           <Icon name="arrow-left" size={11} />
-                          <span>مرتجع {formatCurrency(invoice.refundedAmount)}</span>
+                          <span>مرتجع {formatCurrency(refunded)}</span>
                         </span>
                       ) : null}
                     </div>
@@ -425,9 +466,20 @@ export function InvoicesPage() {
                   </div>
 
                   <div style={{ textAlign: 'left', flexShrink: 0 }}>
-                    <strong style={{ direction: 'ltr', display: 'block', fontSize: 16, color: 'var(--color-text-primary)' }}>
+                    <strong style={{
+                      direction: 'ltr',
+                      display: 'block',
+                      fontSize: 16,
+                      color: isFullyRefunded ? 'var(--color-text-muted)' : 'var(--color-text-primary)',
+                      textDecoration: isFullyRefunded ? 'line-through' : 'none',
+                    }}>
                       {formatCurrency(invoice.total)}
                     </strong>
+                    {refunded > 0 && !isFullyRefunded && (
+                      <span style={{ direction: 'ltr', display: 'block', fontSize: 13, fontWeight: 800, color: 'var(--color-success-light)' }}>
+                        صافي {formatCurrency(netAmount)}
+                      </span>
+                    )}
                     {invoice.debtAmount > 0 && (
                       <small style={{ color: 'var(--color-danger-light)', direction: 'ltr', display: 'block', fontWeight: 800, fontSize: 11 }}>
                         دين {formatCurrency(invoice.debtAmount)}
