@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { exportBackup, importBackup, daysSinceBackup } from '../utils/backup'
 import { changePassword, hasPassword, setPassword } from '../utils/auth'
@@ -8,7 +8,56 @@ import { usePWAUpdate } from '../hooks/usePWAUpdate'
 import { db } from '../db/db'
 import { Modal } from '../components/ui/Modal'
 import { lic, type LicenseResult } from '../lib/license'
-import { Icon } from '../components/ui'
+import { Icon, ConfirmModal, useToast, type IconName } from '../components/ui'
+import { exportTransactionsToExcel, resetTransactionsData } from '../utils/dataReset'
+
+interface SettingsSectionProps {
+  icon: IconName
+  title: string
+  subtitle?: string
+  accent?: string
+  badge?: ReactNode
+  defaultOpen?: boolean
+  children: ReactNode
+}
+
+/**
+ * بند قابل للطي (فتح/إغلاق) في صفحة الإعدادات.
+ * رأس واضح مع أيقونة وعنوان ووصف وسهم يدور عند الفتح.
+ */
+function SettingsSection({
+  icon,
+  title,
+  subtitle,
+  accent,
+  badge,
+  defaultOpen = false,
+  children,
+}: SettingsSectionProps) {
+  const [open, setOpen] = useState(defaultOpen)
+
+  return (
+    <section className={`settings-section ${open ? 'open' : ''}`}>
+      <button
+        type="button"
+        className="settings-section-head"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <span className="settings-section-icon" style={{ color: accent ?? 'var(--color-primary-light)' }}>
+          <Icon name={icon} size={18} />
+        </span>
+        <span className="settings-section-titles">
+          <span className="settings-section-title">{title}</span>
+          {subtitle && <span className="settings-section-subtitle">{subtitle}</span>}
+        </span>
+        {badge && <span className="settings-section-badge">{badge}</span>}
+        <Icon name="chevron-down" size={18} className="settings-chevron" />
+      </button>
+      {open && <div className="settings-section-body">{children}</div>}
+    </section>
+  )
+}
 
 export function SettingsPage() {
   const [storeName, setStoreName] = useState('ميزان')
@@ -23,6 +72,19 @@ export function SettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [currentTheme, setCurrentTheme] = useState<Theme>(getStoredTheme)
+
+  const toast = useToast()
+
+  // تأكيد استعادة النسخة الاحتياطية (بديل عن confirm المتصفح)
+  const [pendingImport, setPendingImport] = useState<File | null>(null)
+  const [importing, setImporting] = useState(false)
+
+  // تأكيد التحديث القسري (بديل عن confirm المتصفح)
+  const [forceRefreshOpen, setForceRefreshOpen] = useState(false)
+
+  // تأكيد تهيئة البيانات: تصدير الحركات إلى إكسل ثم تصفيرها
+  const [resetOpen, setResetOpen] = useState(false)
+  const [resetting, setResetting] = useState(false)
 
   const {
     canInstall,
@@ -54,6 +116,9 @@ export function SettingsPage() {
 
   // Logout confirmation modal
   const [logoutModalOpen, setLogoutModalOpen] = useState(false)
+
+  // Deactivate subscription / license confirmation modal
+  const [deactivateLicenseOpen, setDeactivateLicenseOpen] = useState(false)
 
   // License info state
   const [licenseInfo, setLicenseInfo] = useState<LicenseResult | null>(null)
@@ -129,6 +194,7 @@ export function SettingsPage() {
   }
 
   const handleDeactivateLicense = () => {
+    setDeactivateLicenseOpen(false)
     lic.logout()
     window.location.reload()
   }
@@ -157,32 +223,68 @@ export function SettingsPage() {
   }
 
   const handleExport = async () => {
-    await exportBackup()
-    const days = await daysSinceBackup()
-    setBackupDays(days)
-    alert('✅ تم تصدير النسخة الاحتياطية بنجاح وحفظها كملف JSON!')
+    try {
+      await exportBackup()
+      const days = await daysSinceBackup()
+      setBackupDays(days)
+      toast.success('تم تصدير النسخة الاحتياطية بنجاح وحُفظت كملف JSON')
+    } catch (err) {
+      console.error(err)
+      toast.error('تعذّر تصدير النسخة الاحتياطية، حاول مرة أخرى')
+    }
   }
 
   const handleImport = () => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.json'
-    input.onchange = async (e) => {
+    input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0]
-      if (file) {
-        if (!confirm('تنبيه: استعادة النسخة الاحتياطية ستستبدل البيانات الحالية بالبيانات الموجودة في الملف. هل تود المتابعة؟')) {
-          return
-        }
-        const result = await importBackup(file)
-        if (result.success) {
-          alert('✅ تم استعادة البيانات بنجاح!')
-          window.location.reload()
-        } else {
-          alert('❌ فشل الاستيراد: ' + result.error)
-        }
-      }
+      if (file) setPendingImport(file)
     }
     input.click()
+  }
+
+  const handleConfirmImport = async () => {
+    const file = pendingImport
+    if (!file) return
+    setImporting(true)
+    try {
+      const result = await importBackup(file)
+      if (result.success) {
+        setPendingImport(null)
+        toast.success('تمت استعادة البيانات بنجاح')
+        setTimeout(() => window.location.reload(), 1500)
+      } else {
+        toast.error('فشل الاستيراد: ' + (result.error || 'ملف غير صالح'))
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('فشل الاستيراد: ' + (err instanceof Error ? err.message : 'ملف غير صالح'))
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleForceRefresh = () => {
+    setForceRefreshOpen(false)
+    void forceRefresh()
+  }
+
+  const handleDataReset = async () => {
+    setResetting(true)
+    try {
+      // أولاً نصدّر كل الحركات إلى إكسل (حتى يبقى أرشيف كامل قبل التصفير)
+      await exportTransactionsToExcel()
+      await resetTransactionsData()
+      setResetOpen(false)
+      toast.success('تم تصدير الحركات إلى إكسل ثم تصفيرها بنجاح')
+    } catch (err) {
+      console.error(err)
+      toast.error('تعذّر إتمام تهيئة البيانات — لم يتم تصفير أي شيء')
+    } finally {
+      setResetting(false)
+    }
   }
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -304,7 +406,7 @@ export function SettingsPage() {
         />
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 900, marginBottom: 4, color: 'var(--color-text-primary)' }}>
-            {storeName || 'ميزان'}
+            {storeName.trim() || 'بدون اسم'}
           </h2>
           <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>
             ميزان — نظام إدارة المبيعات، المخزون، الديون والمصاريف
@@ -312,31 +414,406 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {/* Appearance & Theme Card */}
-      <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 16,
-        padding: 16,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        boxShadow: 'var(--shadow-sm)',
-        flexWrap: 'wrap',
-        gap: 10,
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon name="sun" size={18} color="var(--color-primary-light)" />
-            <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
-              مظهر التطبيق (الثيم)
-            </h3>
+      {/* Edit Store Profile Form */}
+      <SettingsSection
+        icon="store"
+        title="بيانات المتجر والنظام"
+        subtitle="اسم المتجر، المالك، العملة، وحد التنبيه"
+        badge={saveSuccess ? '✓ تم الحفظ' : undefined}
+      >
+        <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
+              اسم المتجر:
+            </label>
+            <input
+              type="text"
+              value={storeName}
+              onChange={(e) => setStoreName(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)',
+                fontSize: 14,
+                outline: 'none',
+              }}
+            />
           </div>
-          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
-            التبديل بين الثيم الداكن والفاتح المريح للعين
-          </p>
+
+          <div>
+            <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
+              اسم المالك / المسؤول:
+            </label>
+            <input
+              type="text"
+              placeholder="مثال: محمد"
+              value={ownerName}
+              onChange={(e) => setOwnerName(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: 10,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)',
+                fontSize: 14,
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
+                رمز العملة:
+              </label>
+              <input
+                type="text"
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-primary)',
+                  fontSize: 14,
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
+                حد تنبيه نقص المخزون:
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={lowStockDefault}
+                onChange={(e) => setLowStockDefault(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 10,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-primary)',
+                  fontSize: 14,
+                  outline: 'none',
+                }}
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSaving}
+            style={{
+              marginTop: 4,
+              padding: '11px',
+              borderRadius: 10,
+              background: 'var(--brand-gradient)',
+              border: 'none',
+              color: 'white',
+              fontWeight: 800,
+              fontSize: 14,
+              cursor: isSaving ? 'not-allowed' : 'pointer',
+              fontFamily: 'var(--font-main)',
+            }}
+          >
+            {isSaving ? 'جارٍ الحفظ...' : 'حفظ الإعدادات'}
+          </button>
+        </form>
+      </SettingsSection>
+
+      {/* Invoice appearance — تظهر على الفاتورة المطبوعة */}
+      <SettingsSection
+        icon="printer"
+        title="مظهر الفاتورة المطبوعة"
+        subtitle="الهاتف والعنوان ورسالة الشكر التي تظهر على الفاتورة"
+        badge={saveSuccess ? '✓ تم الحفظ' : undefined}
+      >
+        <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div>
+              <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
+                الهاتف (يظهر أعلى الفاتورة):
+              </label>
+              <input
+                type="tel"
+                dir="ltr"
+                placeholder="05xxxxxxxx"
+                value={storePhone}
+                onChange={(e) => setStorePhone(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-primary)', fontSize: 14, outline: 'none',
+                }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
+                العنوان:
+              </label>
+              <input
+                type="text"
+                placeholder="مثال: شارع الثورة ، مقابل تاج مول"
+                value={storeAddress}
+                onChange={(e) => setStoreAddress(e.target.value)}
+                style={{
+                  width: '100%', padding: '10px 14px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-primary)', fontSize: 14, outline: 'none',
+                }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
+              رسالة الشكر أسفل الفاتورة:
+            </label>
+            <input
+              type="text"
+              value={invoiceFooter}
+              onChange={(e) => setInvoiceFooter(e.target.value)}
+              style={{
+                width: '100%', padding: '10px 14px', borderRadius: 10,
+                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)', fontSize: 14, outline: 'none',
+              }}
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSaving}
+            style={{
+              marginTop: 4, padding: '11px', borderRadius: 10,
+              background: 'var(--brand-gradient)',
+              border: 'none', color: 'white', fontWeight: 800, fontSize: 14,
+              cursor: isSaving ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-main)',
+            }}
+          >
+            {isSaving ? 'جارٍ الحفظ...' : 'حفظ مظهر الفاتورة'}
+          </button>
+        </form>
+      </SettingsSection>
+
+      {/* Security / Password */}
+      <SettingsSection
+        icon="lock"
+        title="قفل التطبيق وكلمة المرور"
+        subtitle={hasExistingPassword ? 'تم تعيين كلمة مرور مشفرة' : 'لم يتم تعيين كلمة مرور بعد'}
+      >
+        <button
+          onClick={() => setPasswordModalOpen(true)}
+          style={{
+            alignSelf: 'flex-start',
+            padding: '8px 16px',
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.08)',
+            border: '1px solid var(--color-border)',
+            color: 'var(--color-text-primary)',
+            fontSize: 13,
+            fontWeight: 700,
+            cursor: 'pointer',
+            fontFamily: 'var(--font-main)',
+          }}
+        >
+          {hasExistingPassword ? 'تغيير الرمز' : 'تعيين رمز'}
+        </button>
+      </SettingsSection>
+
+      {/* License & Subscription Card */}
+      <SettingsSection
+        icon="shield"
+        title="ترخيص النظام والاشتراك"
+        subtitle={
+          licenseInfo?.ok
+            ? (licenseInfo.grace
+              ? `فترة سماح مؤقتة: متبقي ${licenseInfo.graceDaysLeft} يوم`
+              : `الاشتراك نشط وموثق أوفلاين: متبقي ${licenseInfo.daysLeft} يوم`)
+            : 'الترخيص غير مفعّل أو بانتظار التجديد'
+        }
+      >
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleRefreshLicense}
+            disabled={licenseRefreshing}
+            style={{
+              padding: '7px 14px',
+              borderRadius: 10,
+              background: 'rgba(59,130,246,0.12)',
+              border: '1px solid rgba(59,130,246,0.3)',
+              color: 'var(--color-primary-light)',
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: licenseRefreshing ? 'not-allowed' : 'pointer',
+              fontFamily: 'var(--font-main)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Icon name="refresh" size={14} />
+            <span>{licenseRefreshing ? 'جارٍ الفحص...' : 'تحديث الترخيص'}</span>
+          </button>
+          <a
+            href={lic.renewLink()}
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              padding: '7px 14px',
+              borderRadius: 10,
+              background: 'rgba(34,197,94,0.12)',
+              border: '1px solid rgba(34,197,94,0.35)',
+              color: '#4ade80',
+              fontSize: 12,
+              fontWeight: 800,
+              textDecoration: 'none',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontFamily: 'var(--font-main)',
+            }}
+          >
+            <Icon name="chat" size={15} />
+            <span>تجديد</span>
+          </a>
         </div>
 
+        {lic.getUid() && (
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontSize: 11.5,
+            color: 'var(--color-text-muted)',
+            paddingTop: 10,
+            borderTop: '1px solid var(--color-border)',
+            flexWrap: 'wrap',
+            gap: 8,
+          }}>
+            <span>معرّف المشترك الحالي: <strong style={{ color: 'var(--color-text-primary)', fontFamily: 'monospace' }}>{lic.getUid()}</strong></span>
+            <button
+              type="button"
+              onClick={() => setDeactivateLicenseOpen(true)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--color-danger-light)',
+                fontSize: 11.5,
+                fontWeight: 700,
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                fontFamily: 'var(--font-main)',
+              }}
+            >
+              إلغاء تفعيل الترخيص على هذا الجهاز
+            </button>
+          </div>
+        )}
+      </SettingsSection>
+
+      {/* Device Storage & Data Protection Card */}
+      <SettingsSection
+        icon="shield"
+        title="حماية بيانات الهاتف"
+        subtitle="خيارات متقدمة — التخزين الدائم ومنع مسح البيانات"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
+              بياناتك محفوظة على جهازك وتعمل بدون إنترنت — فعّل الحماية الدائمة حتى لا يمسحها الهاتف تلقائياً
+            </p>
+          </div>
+
+          {storageEstimate && (
+            <div style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 12,
+              padding: '12px 14px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <div>
+                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>المساحة المستهلكة من ذاكرة الهاتف:</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-primary-light)', marginTop: 2 }}>
+                  {storageEstimate.usageMB} ميجابايت <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>/ {storageEstimate.quotaMB} ميجابايت سعة مخصصة</span>
+                </div>
+              </div>
+              <Icon name="phone" size={24} color="var(--color-primary-light)" />
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                حالة الحماية الدائمة:
+              </div>
+              <div style={{ fontSize: 12, color: isPersistent ? 'var(--color-success-light)' : 'var(--color-warning-light)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Icon name={isPersistent ? 'check' : 'warning'} size={14} color={isPersistent ? 'var(--color-success-light)' : '#fbbf24'} />
+                <span>
+                  {isPersistent
+                    ? 'مفعّلة: بياناتك محمية ولن تُمسح تلقائياً'
+                    : 'غير مفعّلة: فعّلها لحماية بياناتك من المسح التلقائي'}
+                </span>
+              </div>
+            </div>
+
+            {!isPersistent && (
+              <button
+                type="button"
+                disabled={persistLoading}
+                onClick={async () => {
+                  setPersistLoading(true)
+                  const ok = await requestPersistence()
+                  setPersistLoading(false)
+                  if (ok) {
+                    alert('تم تفعيل التخزين الدائم وحماية قاعدة البيانات بنجاح!')
+                  } else {
+                    alert('لم يتم منح الإذن التلقائي، قم بتثبيت التطبيق على الشاشة الرئيسية ليتم تفعيله بأعلى درجة أمان.')
+                  }
+                }}
+                style={{
+                  background: 'rgba(59,130,246,0.15)',
+                  border: '1px solid rgba(59,130,246,0.35)',
+                  borderRadius: 10,
+                  padding: '8px 14px',
+                  color: 'var(--color-primary-light)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-main)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                }}
+              >
+                <Icon name="shield" size={15} />
+                <span>{persistLoading ? 'جارٍ التفعيل...' : 'تفعيل الحماية الدائمة'}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </SettingsSection>
+
+      {/* Appearance & Theme Card */}
+      <SettingsSection
+        icon="sun"
+        title="مظهر التطبيق (الثيم)"
+        subtitle="التبديل بين الثيم الداكن والفاتح المريح للعين"
+      >
         <div style={{
           display: 'flex',
           background: 'var(--color-input-bg)',
@@ -388,46 +865,15 @@ export function SettingsPage() {
             <span>فاتح</span>
           </button>
         </div>
-      </div>
+      </SettingsSection>
 
       {/* PWA Installation Card */}
-      <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 18,
-        padding: 20,
-        boxShadow: 'var(--shadow-sm)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 14,
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="download" size={18} color="var(--color-primary-light)" />
-              <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
-                تثبيت التطبيق على الجهاز
-              </h3>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
-              تنزيل التطبيق للعمل كبرنامج مستقل على شاشة هاتفك أو حاسوبك بدون شريط المتصفح
-            </p>
-          </div>
-          {isInstalled && (
-            <span style={{
-              background: 'rgba(16,185,129,0.15)',
-              color: 'var(--color-success-light)',
-              border: '1px solid rgba(16,185,129,0.3)',
-              borderRadius: 20,
-              padding: '4px 10px',
-              fontSize: 11,
-              fontWeight: 800,
-            }}>
-              ✓ مثبت بالفعل
-            </span>
-          )}
-        </div>
-
+      <SettingsSection
+        icon="download"
+        title="تثبيت التطبيق على الجهاز"
+        subtitle="تنزيل التطبيق للعمل كبرنامج مستقل على شاشة هاتفك أو حاسوبك بدون شريط المتصفح"
+        badge={isInstalled ? '✓ مثبت بالفعل' : undefined}
+      >
         {isInstalled ? (
           <div style={{
             background: 'rgba(16,185,129,0.1)',
@@ -557,11 +1003,7 @@ export function SettingsPage() {
               )}
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm('سيتم مسح ذاكرة التخزين المؤقت وإعادة تحميل أحدث نسخة. متابعة؟')) {
-                    void forceRefresh()
-                  }
-                }}
+                onClick={() => setForceRefreshOpen(true)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -579,543 +1021,14 @@ export function SettingsPage() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Device Storage & Data Protection Card */}
-      <details style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 18,
-        padding: 20,
-        boxShadow: 'var(--shadow-sm)',
-      }}>
-        <summary style={{
-          cursor: 'pointer',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontSize: 15,
-          fontWeight: 800,
-          color: 'var(--color-text-primary)',
-          listStyle: 'none',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon name="shield" size={18} color="var(--color-primary-light)" />
-            <span>حماية بيانات الهاتف <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-text-muted)' }}>(خيارات متقدمة)</span></span>
-          </div>
-          <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>عرض ▾</span>
-        </summary>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 14 }}>
-          <div>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
-              بياناتك محفوظة على جهازك وتعمل بدون إنترنت — فعّل الحماية الدائمة حتى لا يمسحها الهاتف تلقائياً
-            </p>
-          </div>
-
-          {storageEstimate && (
-            <div style={{
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 12,
-              padding: '12px 14px',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}>
-              <div>
-                <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>المساحة المستهلكة من ذاكرة الهاتف:</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-primary-light)', marginTop: 2 }}>
-                  {storageEstimate.usageMB} ميجابايت <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>/ {storageEstimate.quotaMB} ميجابايت سعة مخصصة</span>
-                </div>
-              </div>
-              <Icon name="phone" size={24} color="var(--color-primary-light)" />
-            </div>
-          )}
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                حالة الحماية الدائمة:
-              </div>
-              <div style={{ fontSize: 12, color: isPersistent ? 'var(--color-success-light)' : 'var(--color-warning-light)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Icon name={isPersistent ? 'check' : 'warning'} size={14} color={isPersistent ? 'var(--color-success-light)' : '#fbbf24'} />
-                <span>
-                  {isPersistent
-                    ? 'مفعّلة: بياناتك محمية ولن تُمسح تلقائياً'
-                    : 'غير مفعّلة: فعّلها لحماية بياناتك من المسح التلقائي'}
-                </span>
-              </div>
-            </div>
-
-            {!isPersistent && (
-              <button
-                type="button"
-                disabled={persistLoading}
-                onClick={async () => {
-                  setPersistLoading(true)
-                  const ok = await requestPersistence()
-                  setPersistLoading(false)
-                  if (ok) {
-                    alert('تم تفعيل التخزين الدائم وحماية قاعدة البيانات بنجاح!')
-                  } else {
-                    alert('لم يتم منح الإذن التلقائي، قم بتثبيت التطبيق على الشاشة الرئيسية ليتم تفعيله بأعلى درجة أمان.')
-                  }
-                }}
-                style={{
-                  background: 'rgba(59,130,246,0.15)',
-                  border: '1px solid rgba(59,130,246,0.35)',
-                  borderRadius: 10,
-                  padding: '8px 14px',
-                  color: 'var(--color-primary-light)',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-main)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <Icon name="shield" size={15} />
-                <span>{persistLoading ? 'جارٍ التفعيل...' : 'تفعيل الحماية الدائمة'}</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </details>
-
-      {/* Edit Store Profile Form */}
-      <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 16,
-        padding: 18,
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon name="store" size={18} color="var(--color-primary-light)" />
-            <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>بيانات المتجر والنظام</h3>
-          </div>
-          {saveSuccess && (
-            <span style={{ fontSize: 13, color: 'var(--color-success-light)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <Icon name="check" size={14} />
-              <span>تم الحفظ بنجاح</span>
-            </span>
-          )}
-        </div>
-
-        <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div>
-            <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
-              اسم المتجر:
-            </label>
-            <input
-              type="text"
-              value={storeName}
-              onChange={(e) => setStoreName(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: 10,
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-primary)',
-                fontSize: 14,
-                outline: 'none',
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
-              اسم المالك / المسؤول:
-            </label>
-            <input
-              type="text"
-              placeholder="مثال: محمد"
-              value={ownerName}
-              onChange={(e) => setOwnerName(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                borderRadius: 10,
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-text-primary)',
-                fontSize: 14,
-                outline: 'none',
-              }}
-            />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
-                رمز العملة:
-              </label>
-              <input
-                type="text"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: 10,
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--color-text-primary)',
-                  fontSize: 14,
-                  outline: 'none',
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
-                حد تنبيه نقص المخزون:
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={lowStockDefault}
-                onChange={(e) => setLowStockDefault(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: 10,
-                  background: 'rgba(255,255,255,0.05)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--color-text-primary)',
-                  fontSize: 14,
-                  outline: 'none',
-                }}
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSaving}
-            style={{
-              marginTop: 4,
-              padding: '11px',
-              borderRadius: 10,
-              background: 'var(--brand-gradient)',
-              border: 'none',
-              color: 'white',
-              fontWeight: 800,
-              fontSize: 14,
-              cursor: isSaving ? 'not-allowed' : 'pointer',
-              fontFamily: 'var(--font-main)',
-            }}
-          >
-            {isSaving ? 'جارٍ الحفظ...' : 'حفظ الإعدادات'}
-          </button>
-        </form>
-      </div>
-
-      {/* Invoice appearance — تظهر على الفاتورة المطبوعة */}
-      <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 16,
-        padding: 18,
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon name="printer" size={18} color="var(--color-primary-light)" />
-            <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>مظهر الفاتورة المطبوعة</h3>
-          </div>
-          {saveSuccess && (
-            <span style={{ fontSize: 13, color: 'var(--color-success-light)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <Icon name="check" size={14} />
-              <span>تم الحفظ بنجاح</span>
-            </span>
-          )}
-        </div>
-
-        <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
-                الهاتف (يظهر أعلى الفاتورة):
-              </label>
-              <input
-                type="tel"
-                dir="ltr"
-                placeholder="05xxxxxxxx"
-                value={storePhone}
-                onChange={(e) => setStorePhone(e.target.value)}
-                style={{
-                  width: '100%', padding: '10px 14px', borderRadius: 10,
-                  background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)',
-                  color: 'var(--color-text-primary)', fontSize: 14, outline: 'none',
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
-                العنوان:
-              </label>
-              <input
-                type="text"
-                placeholder="مثال: شارع الثورة ، مقابل تاج مول"
-                value={storeAddress}
-                onChange={(e) => setStoreAddress(e.target.value)}
-                style={{
-                  width: '100%', padding: '10px 14px', borderRadius: 10,
-                  background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)',
-                  color: 'var(--color-text-primary)', fontSize: 14, outline: 'none',
-                }}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6 }}>
-              رسالة الشكر أسفل الفاتورة:
-            </label>
-            <input
-              type="text"
-              value={invoiceFooter}
-              onChange={(e) => setInvoiceFooter(e.target.value)}
-              style={{
-                width: '100%', padding: '10px 14px', borderRadius: 10,
-                background: 'rgba(255,255,255,0.05)', border: '1px solid var(--color-border)',
-                color: 'var(--color-text-primary)', fontSize: 14, outline: 'none',
-              }}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={isSaving}
-            style={{
-              marginTop: 4, padding: '11px', borderRadius: 10,
-              background: 'var(--brand-gradient)',
-              border: 'none', color: 'white', fontWeight: 800, fontSize: 14,
-              cursor: isSaving ? 'not-allowed' : 'pointer', fontFamily: 'var(--font-main)',
-            }}
-          >
-            {isSaving ? 'جارٍ الحفظ...' : 'حفظ مظهر الفاتورة'}
-          </button>
-        </form>
-      </div>
-
-      {/* Security / Password */}
-      <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 16,
-        padding: 16,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon name="lock" size={18} color="var(--color-primary-light)" />
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>قفل التطبيق وكلمة المرور</h3>
-          </div>
-          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
-            {hasExistingPassword ? 'تم تعيين كلمة مرور مشفرة' : 'لم يتم تعيين كلمة مرور بعد'}
-          </p>
-        </div>
-        <button
-          onClick={() => setPasswordModalOpen(true)}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 10,
-            background: 'rgba(255,255,255,0.08)',
-            border: '1px solid var(--color-border)',
-            color: 'var(--color-text-primary)',
-            fontSize: 13,
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontFamily: 'var(--font-main)',
-          }}
-        >
-          {hasExistingPassword ? 'تغيير الرمز' : 'تعيين رمز'}
-        </button>
-      </div>
-
-      {/* License & Subscription Card */}
-      <div style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 16,
-        padding: 16,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 12,
-        boxShadow: 'var(--shadow-sm)',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Icon name="shield" size={18} color="var(--color-primary-light)" />
-              <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text-primary)', margin: 0 }}>
-                ترخيص النظام والاشتراك
-              </h3>
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
-              {licenseInfo?.ok
-                ? (licenseInfo.grace
-                  ? `فترة سماح مؤقتة: متبقي ${licenseInfo.graceDaysLeft} يوم`
-                  : `الاشتراك نشط وموثق أوفلاين: متبقي ${licenseInfo.daysLeft} يوم`)
-                : 'الترخيص غير مفعّل أو بانتظار التجديد'}
-            </p>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={handleRefreshLicense}
-              disabled={licenseRefreshing}
-              style={{
-                padding: '7px 14px',
-                borderRadius: 10,
-                background: 'rgba(59,130,246,0.12)',
-                border: '1px solid rgba(59,130,246,0.3)',
-                color: 'var(--color-primary-light)',
-                fontSize: 12,
-                fontWeight: 700,
-                cursor: licenseRefreshing ? 'not-allowed' : 'pointer',
-                fontFamily: 'var(--font-main)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <Icon name="refresh" size={14} />
-              <span>{licenseRefreshing ? 'جارٍ الفحص...' : 'تحديث الترخيص'}</span>
-            </button>
-            <a
-              href={lic.renewLink()}
-              target="_blank"
-              rel="noreferrer"
-              style={{
-                padding: '7px 14px',
-                borderRadius: 10,
-                background: 'rgba(34,197,94,0.12)',
-                border: '1px solid rgba(34,197,94,0.35)',
-                color: '#4ade80',
-                fontSize: 12,
-                fontWeight: 800,
-                textDecoration: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                fontFamily: 'var(--font-main)',
-              }}
-            >
-              <Icon name="chat" size={15} />
-              <span>تجديد</span>
-            </a>
-          </div>
-        </div>
-
-        {lic.getUid() && (
-          <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            fontSize: 11.5,
-            color: 'var(--color-text-muted)',
-            paddingTop: 10,
-            borderTop: '1px solid var(--color-border)',
-            flexWrap: 'wrap',
-            gap: 8,
-          }}>
-            <span>معرّف المشترك الحالي: <strong style={{ color: 'var(--color-text-primary)', fontFamily: 'monospace' }}>{lic.getUid()}</strong></span>
-            <button
-              type="button"
-              onClick={() => {
-                if (confirm('هل أنت متأكد من إلغاء تفعيل هذا الترخيص على هذا الجهاز؟ سيتطلب الدخول مجدداً تفعيل الاشتراك عبر الإنترنت.')) {
-                  handleDeactivateLicense()
-                }
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--color-danger-light)',
-                fontSize: 11.5,
-                fontWeight: 700,
-                cursor: 'pointer',
-                textDecoration: 'underline',
-                fontFamily: 'var(--font-main)',
-              }}
-            >
-              إلغاء تفعيل الترخيص على هذا الجهاز
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Logout Card */}
-      <div style={{
-        background: 'rgba(239,68,68,0.06)',
-        border: '1px solid rgba(239,68,68,0.25)',
-        borderRadius: 16,
-        padding: 16,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-      }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon name="lock" size={18} color="var(--color-danger-light)" />
-            <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-danger-light)', margin: 0 }}>
-              تسجيل الخروج
-            </h3>
-          </div>
-          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
-            قفل التطبيق والعودة لشاشة إدخال رمز المرور (PIN)
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={handleLogoutClick}
-          style={{
-            padding: '9px 18px',
-            borderRadius: 10,
-            background: 'linear-gradient(135deg, #ef4444, #dc2626)',
-            border: 'none',
-            color: 'white',
-            fontSize: 13,
-            fontWeight: 800,
-            cursor: 'pointer',
-            fontFamily: 'var(--font-main)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            boxShadow: '0 4px 12px rgba(239,68,68,0.25)',
-          }}
-        >
-          <Icon name="lock" size={15} />
-          <span>تسجيل خروج</span>
-        </button>
-      </div>
+      </SettingsSection>
 
       {/* Backup Section */}
-      <details style={{
-        background: 'var(--color-bg-card)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 16,
-        overflow: 'hidden',
-      }}>
-        <summary style={{
-          cursor: 'pointer',
-          padding: '16px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          listStyle: 'none',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Icon name="download" size={18} color="var(--color-primary-light)" />
-            <span style={{ fontSize: 15, fontWeight: 800 }}>النسخ الاحتياطي <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--color-text-muted)' }}>(خيارات متقدمة)</span></span>
-          </div>
+      <SettingsSection
+        icon="download"
+        title="النسخ الاحتياطي"
+        subtitle="خيارات متقدمة — احفظ نسخة أسبوعياً لاسترجاعها عند الحاجة"
+        badge={
           <span style={{
             fontSize: 12,
             padding: '3px 8px',
@@ -1126,8 +1039,9 @@ export function SettingsPage() {
           }}>
             {backupDays === null ? 'لا توجد نسخة سابقة' : backupDays === 0 ? 'اليوم' : `منذ ${backupDays} أيام`}
           </span>
-        </summary>
-        <div style={{ padding: '0 16px 16px' }}>
+        }
+      >
+        <div>
           <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 0 }}>
             احفظ نسخة من بياناتك أسبوعياً لاسترجاعها عند الحاجة.
           </p>
@@ -1179,8 +1093,113 @@ export function SettingsPage() {
             </div>
           </button>
         </div>
-      </details>
+      </SettingsSection>
 
+      {/* تهيئة البيانات — تصدير الحركات إلى إكسل ثم تصفيرها */}
+      <SettingsSection
+        icon="trash"
+        title="تهيئة البيانات"
+        subtitle="تصدير كل الحركات السابقة إلى إكسل ثم تصفيرها"
+        accent="var(--color-danger-light)"
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <p style={{ fontSize: 12.5, color: 'var(--color-text-muted)', margin: 0, lineHeight: 1.7 }}>
+            يصدّر هذا الخيار كل عملياتك السابقة (المبيعات، المشتريات، الدفعات، المصاريف،
+            التحويلات، الإنتاج) وأرصدة العملاء والموردين إلى ملف Excel متعدد الأوراق، ثم
+            يصفّرها نهائياً لتعود للعمل بسجل نظيف.
+          </p>
+
+          <ul style={{
+            margin: 0,
+            paddingInlineStart: 18,
+            fontSize: 12,
+            color: 'var(--color-text-muted)',
+            lineHeight: 1.9,
+          }}>
+            <li>
+              <strong style={{ color: 'var(--color-danger-light)' }}>يُصفّر:</strong>{' '}
+              الفواتير والمشتريات والدفعات والمصاريف والتحويلات والإنتاج، وديون العملاء وأرصدة الموردين.
+            </li>
+            <li>
+              <strong style={{ color: 'var(--color-success-light)' }}>يُبقي:</strong>{' '}
+              الأصناف والمخزون، وقوائم العملاء والموردين، والإعدادات وبيانات المتجر.
+            </li>
+          </ul>
+
+          <button
+            type="button"
+            onClick={() => setResetOpen(true)}
+            style={{
+              alignSelf: 'flex-start',
+              padding: '11px 18px',
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+              border: 'none',
+              color: 'white',
+              fontSize: 13.5,
+              fontWeight: 800,
+              cursor: 'pointer',
+              fontFamily: 'var(--font-main)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              boxShadow: '0 6px 16px rgba(239,68,68,0.28)',
+              transition: 'all 0.15s ease',
+            }}
+          >
+            <Icon name="trash" size={16} />
+            <span>تصدير الحركات وتصفير البيانات</span>
+          </button>
+        </div>
+      </SettingsSection>
+
+      {/* Logout Card — آخر بند في الصفحة */}
+      <div style={{
+        background: 'rgba(239,68,68,0.06)',
+        border: '1px solid rgba(239,68,68,0.25)',
+        borderRadius: 16,
+        padding: 16,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 12,
+        flexWrap: 'wrap',
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="lock" size={18} color="var(--color-danger-light)" />
+            <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-danger-light)', margin: 0 }}>
+              تسجيل الخروج
+            </h3>
+          </div>
+          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, margin: 0 }}>
+            قفل التطبيق والعودة لشاشة إدخال رمز المرور (PIN)
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleLogoutClick}
+          style={{
+            padding: '9px 18px',
+            borderRadius: 10,
+            background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+            border: 'none',
+            color: 'white',
+            fontSize: 13,
+            fontWeight: 800,
+            cursor: 'pointer',
+            fontFamily: 'var(--font-main)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            flexShrink: 0,
+            boxShadow: '0 4px 12px rgba(239,68,68,0.25)',
+          }}
+        >
+          <Icon name="lock" size={15} />
+          <span>تسجيل خروج</span>
+        </button>
+      </div>
 
       {/* MODAL: CHANGE PASSWORD */}
       <Modal
@@ -1329,6 +1348,66 @@ export function SettingsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Deactivate Subscription / License Confirmation Modal */}
+      <ConfirmModal
+        open={deactivateLicenseOpen}
+        onClose={() => setDeactivateLicenseOpen(false)}
+        onConfirm={handleDeactivateLicense}
+        title="إلغاء تفعيل الاشتراك"
+        icon="🔓"
+        message="هل أنت متأكد من إلغاء تفعيل هذا الترخيص على هذا الجهاز؟"
+        subMessage="سيتم الخروج من الاشتراك الحالي، وسيطلب الدخول مجدداً تفعيل الاشتراك عبر الإنترنت."
+        confirmText="نعم، إلغاء التفعيل"
+        cancelText="تراجع"
+        variant="danger"
+      />
+
+      {/* Import Backup Confirmation */}
+      <ConfirmModal
+        open={pendingImport !== null}
+        onClose={() => setPendingImport(null)}
+        onConfirm={handleConfirmImport}
+        title="استعادة نسخة احتياطية"
+        icon="📥"
+        message="سيتم استبدال البيانات الحالية بالبيانات الموجودة في الملف."
+        subMessage={`الملف: ${pendingImport?.name ?? ''} — لا يمكن التراجع عن هذه العملية.`}
+        confirmText="نعم، استعادة"
+        cancelText="إلغاء"
+        variant="warning"
+        loading={importing}
+        loadingText="جارٍ الاستعادة..."
+      />
+
+      {/* Force Refresh Confirmation */}
+      <ConfirmModal
+        open={forceRefreshOpen}
+        onClose={() => setForceRefreshOpen(false)}
+        onConfirm={handleForceRefresh}
+        title="تحديث قسري"
+        icon="🔄"
+        message="سيتم مسح ذاكرة التخزين المؤقت وإعادة تحميل أحدث نسخة."
+        subMessage="استخدم هذا الخيار فقط إذا كان التطبيق عالقاً على نسخة قديمة."
+        confirmText="نعم، تحديث قسري"
+        cancelText="إلغاء"
+        variant="primary"
+      />
+
+      {/* Data Initialization Confirmation */}
+      <ConfirmModal
+        open={resetOpen}
+        onClose={() => setResetOpen(false)}
+        onConfirm={handleDataReset}
+        title="تهيئة البيانات"
+        icon="⚠️"
+        message="سيتم تصدير كل الحركات السابقة إلى ملف Excel ثم تصفيرها نهائياً."
+        subMessage="لا يمكن التراجع عن هذه العملية. ستبقى الأصناف والمخزون والعملاء والموردين والإعدادات محفوظة."
+        confirmText="نعم، تصدير وتصفير"
+        cancelText="إلغاء"
+        variant="danger"
+        loading={resetting}
+        loadingText="جارٍ التصدير والتصفير..."
+      />
 
       {/* PWA Install Guide Modal */}
       <Modal

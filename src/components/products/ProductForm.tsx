@@ -6,9 +6,14 @@ import { Button } from '../ui/Button'
 import { BarcodeScanner } from '../ui/BarcodeScanner'
 import { CustomSelect } from '../ui/CustomSelect'
 import { addProduct, updateProduct } from '../../hooks/useProducts'
+import { addQuickRestock } from '../../hooks/usePurchases'
 import { useCategories } from '../../hooks/useCategories'
-import { db, PRODUCT_TYPES, type Product, type ProductType, type SalePack } from '../../db/db'
+import { useSupplierNames } from '../../hooks/useSuppliers'
+import { useAccountBalances } from '../../hooks/useInvoices'
+import { useWallets, activeWallets } from '../../hooks/useWallets'
+import { db, PRODUCT_TYPES, type Product, type ProductType, type SalePack, type PaymentMethod, type PaymentType } from '../../db/db'
 import { GRAMS_PER_KG, getProductType, toDateInputValue } from '../../utils/units'
+import { formatCurrency } from '../../utils/currency'
 import { fileToThumbnail } from '../../utils/image'
 
 interface ProductFormProps {
@@ -41,8 +46,22 @@ export function ProductForm({
   onSaved,
 }: ProductFormProps) {
   const categories = useCategories()
+  const supplierNames = useSupplierNames()
+  const balances = useAccountBalances()
+  const allWallets = useWallets()
+  const activeList = activeWallets(allWallets)
+  const wallets = activeList.length ? activeList : allWallets
   const [form, setForm] = useState(EMPTY)
   const [itemType, setItemType] = useState<ProductType>('goods')
+  // مصدر المخزون عند إنشاء صنف جديد: موجود مسبقاً (بدون خصم) أو توريد (فاتورة شراء تُخصم من محفظة)
+  const [stockOrigin, setStockOrigin] = useState<'existing' | 'supply'>('existing')
+  // حقول التوريد عند الإنشاء
+  const [supplierName, setSupplierName] = useState('')
+  const [customSupplier, setCustomSupplier] = useState(false)
+  const [paymentType, setPaymentType] = useState<PaymentType>('cash')
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
+  const [partialPaid, setPartialPaid] = useState('')
+  const [supplyNotes, setSupplyNotes] = useState('')
   // عبوات البيع (للسلع): {label, factor, price} كنصوص للإدخال
   const [packs, setPacks] = useState<{ label: string; factor: string; price: string }[]>([])
   // تاريخ الصلاحية (للسلع والموزون)
@@ -84,6 +103,13 @@ export function ProductForm({
         setOpenPrice(false)
         setDuration('')
         setImageData(null)
+        setStockOrigin('existing')
+        setSupplierName('')
+        setCustomSupplier(false)
+        setPaymentType('cash')
+        setPaymentMethod('cash')
+        setPartialPaid('')
+        setSupplyNotes('')
         setForm({
           ...EMPTY,
           barcode: initialBarcode ?? '',
@@ -100,6 +126,17 @@ export function ProductForm({
     setErrors((er) => ({ ...er, [key]: '' }))
   }
 
+  // معالجة صورة مأخوذة من الاستديو (المعرض) أو من الكاميرا مباشرة
+  const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setImageLoading(true)
+    const thumb = await fileToThumbnail(file)
+    setImageLoading(false)
+    if (thumb) setImageData(thumb)
+  }
+
   const validate = () => {
     const errs: Record<string, string> = {}
     if (!form.name.trim()) errs.name = 'الاسم مطلوب'
@@ -111,6 +148,8 @@ export function ProductForm({
       errs.costPrice = itemType === 'weighted' ? 'تكلفة الكيلو غير صالحة' : 'سعر التكلفة غير صالح'
     if (itemType !== 'service' && (!form.quantity || isNaN(+form.quantity) || +form.quantity < 0))
       errs.quantity = itemType === 'weighted' ? 'المخزون بالكيلو غير صالح' : 'الكمية غير صالحة'
+    if (!product && itemType !== 'service' && stockOrigin === 'supply' && (isNaN(+form.quantity) || +form.quantity <= 0))
+      errs.quantity = itemType === 'weighted' ? 'أدخل كمية مورّدة أكبر من صفر' : 'أدخل كمية مورّدة أكبر من صفر'
     if (itemType === 'goods') {
       packs.forEach((pk, i) => {
         if (!pk.label.trim() || !(+pk.factor >= 2) || !(+pk.price > 0)) {
@@ -127,6 +166,7 @@ export function ProductForm({
     setLoading(true)
     const cost = form.costPrice === '' ? 0 : parseFloat(form.costPrice)
     const salePrice = form.salePrice === '' ? 0 : parseFloat(form.salePrice)
+    const isNewSupply = !product && itemType !== 'service' && stockOrigin === 'supply'
     const parsedPacks: SalePack[] = itemType === 'goods'
       ? packs
         .filter((pk) => pk.label.trim() && +pk.factor >= 2 && +pk.price > 0)
@@ -141,9 +181,11 @@ export function ProductForm({
       name: form.name.trim(),
       salePrice,
       costPrice: cost,
-      quantity: itemType === 'weighted'
-        ? Math.round(parseFloat(form.quantity) * GRAMS_PER_KG)
-        : itemType === 'service' ? 0 : parseInt(form.quantity),
+      quantity: isNewSupply
+        ? 0
+        : itemType === 'weighted'
+          ? Math.round(parseFloat(form.quantity) * GRAMS_PER_KG)
+          : itemType === 'service' ? 0 : parseInt(form.quantity),
       lowStockAlert: itemType === 'weighted'
         ? Math.round((parseFloat(form.lowStockAlert) || 0) * GRAMS_PER_KG)
         : itemType === 'service' ? 0 : parseInt(form.lowStockAlert) || 5,
@@ -161,6 +203,33 @@ export function ProductForm({
       savedProduct = { ...product, ...data, updatedAt: new Date() }
     } else {
       const newId = await addProduct(data)
+      // عند اختيار «توريد»: نسجّل أمر توريد حقيقياً (مورد + محفظة + آلية دفع)
+      // فيُخصم المبلغ من المحفظة وتُضاف الكمية للمخزون عبر فاتورة الشراء.
+      if (isNewSupply) {
+        const pricingQty = itemType === 'weighted' ? parseFloat(form.quantity) : parseInt(form.quantity)
+        const supplyQty = itemType === 'weighted' ? Math.round(pricingQty * GRAMS_PER_KG) : pricingQty
+        const totalCost = Math.round(pricingQty * cost * 100) / 100
+        let paid = totalCost
+        let debt = 0
+        if (paymentType === 'debt') {
+          paid = 0
+          debt = totalCost
+        } else if (paymentType === 'partial') {
+          paid = Math.min(totalCost, Math.max(0, parseFloat(partialPaid) || 0))
+          debt = Math.max(0, totalCost - paid)
+        }
+        await addQuickRestock({
+          productId: Number(newId),
+          addedQuantity: supplyQty,
+          newCostPrice: cost,
+          supplierName: supplierName.trim(),
+          paymentMethod: paymentType === 'debt' ? undefined : paymentMethod,
+          paidAmount: paid,
+          debtAmount: debt,
+          paymentType,
+          notes: supplyNotes.trim(),
+        })
+      }
       const fetched = await db.products.get(Number(newId))
       savedProduct = fetched
     }
@@ -248,6 +317,55 @@ export function ProductForm({
             </div>
           )}
 
+          {/* مصدر المخزون عند الإنشاء: موجود مسبقاً (بدون خصم) أو توريد (فاتورة شراء) */}
+          {!product && !isService && (
+            <div>
+              <label className="input-label">مصدر الكمية *</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setStockOrigin('existing')}
+                  style={{
+                    border: stockOrigin === 'existing' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-border)',
+                    background: stockOrigin === 'existing' ? 'var(--color-primary-glow)' : 'var(--color-input-bg)',
+                    borderRadius: 12,
+                    padding: '10px 8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 3,
+                    fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>📦</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--color-text-primary)' }}>موجود مسبقاً</span>
+                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)', textAlign: 'center' }}>جرد افتتاحي — دون خصم من أي محفظة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStockOrigin('supply')}
+                  style={{
+                    border: stockOrigin === 'supply' ? '2px solid var(--color-primary)' : '1.5px solid var(--color-border)',
+                    background: stockOrigin === 'supply' ? 'var(--color-primary-glow)' : 'var(--color-input-bg)',
+                    borderRadius: 12,
+                    padding: '10px 8px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 3,
+                    fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  <span style={{ fontSize: 20 }}>🚚</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--color-text-primary)' }}>توريد (شراء)</span>
+                  <span style={{ fontSize: 10, color: 'var(--color-text-muted)', textAlign: 'center' }}>فاتورة شراء تُخصم من المحفظة</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Barcode (optional for services) */}
           <div>
             <label className="input-label">الباركود{isService ? ' (اختياري)' : ''}</label>
@@ -289,9 +407,9 @@ export function ProductForm({
             error={errors.name}
           />
 
-          {/* Photo (all types) */}
+          {/* Photo (all types) — من الاستديو أو التقاط صورة الآن */}
           <div>
-            <label className="input-label">صورة الصنف (اختياري — من كاميرا الجهاز)</label>
+            <label className="input-label">صورة الصنف (اختياري)</label>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 6 }}>
               {imageData ? (
                 <img
@@ -308,26 +426,33 @@ export function ProductForm({
                   📷
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 8, flex: 1 }}>
+              <div style={{ display: 'flex', gap: 8, flex: 1, flexWrap: 'wrap' }}>
+                {/* من الاستديو / معرض الصور (بلا capture) */}
                 <label
                   className="btn btn-ghost btn-sm"
-                  style={{ flex: 1, justifyContent: 'center', cursor: 'pointer', textAlign: 'center' }}
+                  style={{ flex: 1, justifyContent: 'center', cursor: 'pointer', textAlign: 'center', minWidth: 110 }}
                 >
-                  {imageLoading ? 'جارٍ المعالجة...' : imageData ? 'تغيير الصورة' : 'التقاط / اختيار'}
+                  {imageLoading ? 'جارٍ المعالجة...' : '🖼️ من الاستديو'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={imageLoading}
+                    onChange={handlePickImage}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                {/* التقاط صورة مباشرة بالكاميرا */}
+                <label
+                  className="btn btn-ghost btn-sm"
+                  style={{ flex: 1, justifyContent: 'center', cursor: 'pointer', textAlign: 'center', minWidth: 110 }}
+                >
+                  {imageLoading ? 'جارٍ المعالجة...' : '📷 التقاط صورة'}
                   <input
                     type="file"
                     accept="image/*"
                     capture="environment"
                     disabled={imageLoading}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0]
-                      e.target.value = ''
-                      if (!file) return
-                      setImageLoading(true)
-                      const thumb = await fileToThumbnail(file)
-                      setImageLoading(false)
-                      if (thumb) setImageData(thumb)
-                    }}
+                    onChange={handlePickImage}
                     style={{ display: 'none' }}
                   />
                 </label>
@@ -402,13 +527,21 @@ export function ProductForm({
           {!isService && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <Input
-                label={isWeighted ? 'المخزون الحالي (كغ) *' : 'الكمية الحالية *'}
+                label={
+                  !product && stockOrigin === 'supply'
+                    ? (isWeighted ? 'الكمية المورّدة (كغ) *' : 'الكمية المورّدة *')
+                    : (isWeighted ? 'المخزون الحالي (كغ) *' : 'الكمية الحالية *')
+                }
                 placeholder="0"
                 value={form.quantity}
                 onChange={set('quantity')}
                 inputMode="decimal"
                 error={errors.quantity}
-                hint={defaultQuantity === '0' ? 'اتركها 0 إذا كنت تقوم بتوريد الكمية الآن عبر الفاتورة' : undefined}
+                hint={
+                  !product && stockOrigin === 'supply'
+                    ? 'تُضاف للمخزون عبر فاتورة شراء وتُخصم قيمتها من المحفظة المختارة'
+                    : defaultQuantity === '0' ? 'اتركها 0 إذا كنت تقوم بتوريد الكمية الآن عبر الفاتورة' : undefined
+                }
               />
               <Input
                 label={isWeighted ? 'تنبيه المخزون (كغ)' : 'تنبيه مخزون منخفض'}
@@ -417,6 +550,159 @@ export function ProductForm({
                 onChange={set('lowStockAlert')}
                 inputMode="decimal"
               />
+            </div>
+          )}
+
+          {/* تفاصيل التوريد: مورد + محفظة + آلية دفع (عند الإنشاء بخيار التوريد) */}
+          {!product && !isService && stockOrigin === 'supply' && (
+            <div style={{
+              background: 'rgba(16,185,129,0.06)',
+              border: '1.5px solid rgba(16,185,129,0.3)',
+              borderRadius: 12,
+              padding: 12,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+            }}>
+              <strong style={{ fontSize: 13 }}>🚚 أمر التوريد</strong>
+
+              {/* المورد */}
+              <div>
+                <CustomSelect
+                  label="اسم المورد / الشركة"
+                  placeholder="اختر مورداً أو أدخل جديداً..."
+                  searchable
+                  searchPlaceholder="🔍 ابحث باسم المورد..."
+                  value={customSupplier ? '__new__' : (supplierNames.includes(supplierName.trim()) && supplierName.trim() ? supplierName.trim() : null)}
+                  onChange={(v) => {
+                    if (v === '__new__') {
+                      setCustomSupplier(true)
+                      setSupplierName('')
+                    } else {
+                      setCustomSupplier(false)
+                      setSupplierName(v)
+                    }
+                  }}
+                  options={[
+                    ...supplierNames.map((n) => ({ value: n, label: `🏭 ${n}` })),
+                    { value: '__new__', label: '＋ كتابة اسم جديد...' },
+                  ]}
+                />
+                {customSupplier && (
+                  <div style={{ marginTop: 8 }}>
+                    <Input
+                      label="اسم المورد الجديد"
+                      placeholder="مثال: شركة النور للتجارة العامة..."
+                      value={supplierName}
+                      onChange={(e) => setSupplierName(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* حالة الدفع */}
+              <div>
+                <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>حالة الدفع للمورد *</label>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+                  {[
+                    { id: 'cash' as PaymentType, label: '💵 نقداً كاش' },
+                    { id: 'debt' as PaymentType, label: '📝 آجل (دين)' },
+                    { id: 'partial' as PaymentType, label: '⚖️ جزئي' },
+                  ].map((t) => {
+                    const active = paymentType === t.id
+                    const activeStyle =
+                      t.id === 'debt'
+                        ? { border: '1px solid rgba(239,68,68,0.4)', background: 'rgba(239,68,68,0.15)', color: 'var(--color-danger-light)' }
+                        : t.id === 'partial'
+                          ? { border: '1px solid rgba(245,158,11,0.4)', background: 'rgba(245,158,11,0.12)', color: 'var(--color-warning-light)' }
+                          : { border: '1px solid transparent', background: 'var(--brand-gradient)', color: '#fff' }
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setPaymentType(t.id)}
+                        style={{
+                          padding: '8px 4px',
+                          borderRadius: 8,
+                          border: active ? activeStyle.border : '1px solid var(--color-border)',
+                          background: active ? activeStyle.background : 'var(--color-bg-card)',
+                          color: active ? activeStyle.color : 'var(--color-text-secondary)',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-main)',
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* المبلغ الجزئي المدفوع */}
+              {paymentType === 'partial' && (
+                <Input
+                  label="المبلغ المدفوع كاش ₪ *"
+                  placeholder="0.00"
+                  value={partialPaid}
+                  onChange={(e) => setPartialPaid(e.target.value)}
+                  inputMode="decimal"
+                />
+              )}
+
+              {/* المحفظة */}
+              {paymentType !== 'debt' && (
+                <div>
+                  <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>صندوق / محفظة الدفع</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                    {wallets.map((m) => {
+                      const active = paymentMethod === m.id
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setPaymentMethod(m.id)}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: 10,
+                            border: active ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                            background: active ? 'rgba(59,130,246,0.15)' : 'var(--color-bg-card)',
+                            color: active ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
+                            fontSize: 12,
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: 3,
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span>{m.icon}</span>
+                            <span>{m.name}</span>
+                          </div>
+                          <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                            الرصيد: {formatCurrency(Number((balances as Record<string, number>)[m.id] ?? 0))}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ملاحظات */}
+              <div>
+                <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>ملاحظات الشراء</label>
+                <input
+                  className="input"
+                  placeholder="مثلاً: رقم فاتورة المورد..."
+                  value={supplyNotes}
+                  onChange={(e) => setSupplyNotes(e.target.value)}
+                />
+              </div>
             </div>
           )}
 

@@ -1,6 +1,6 @@
 /**
  * SubscribersPage.tsx — إدارة المشتركين (نسخة احترافية)
- * بحث + فلترة + فرز + تصدير CSV + sticky toolbar + سكرول داخلي
+ * بحث + فلترة + فرز + تصدير Excel + sticky toolbar + سكرول داخلي
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
@@ -11,6 +11,8 @@ import { CreateSubscriberModal } from '../components/CreateSubscriberModal'
 import { BulkRemindModal } from '../components/BulkRemindModal'
 import { useToast } from '../components/feedback'
 import type { Subscription, SubscriptionStatus } from '../types'
+import { formatDate } from '../../utils/datetime'
+import { downloadXlsx, type XlsxCell } from '../../utils/xlsx'
 
 const APP_ID = import.meta.env.VITE_LIC_APP_ID || '1374790599531web0b22b9db833219122b122e'
 
@@ -140,27 +142,23 @@ export function SubscribersPage() {
     return sorted
   }, [subscriptions, search, filter, sort])
 
-  const exportCSV = () => {
+  const exportExcel = () => {
     const header = ['username', 'email', 'displayName', 'phone', 'status', 'expiryDate', 'daysLeft']
-    const rows = filtered.map((s) => [
-      s.username,
-      s.email,
-      s.displayName || '',
-      s.phone || '',
-      computeStatus(s),
-      s.expiryDate.toISOString().slice(0, 10),
-      String(daysLeftOf(s)),
+    const rows: XlsxCell[][] = [
+      header,
+      ...filtered.map((s) => [
+        s.username,
+        s.email,
+        s.displayName || '',
+        s.phone || '',
+        computeStatus(s),
+        s.expiryDate.toISOString().slice(0, 10),
+        daysLeftOf(s),
+      ]),
+    ]
+    downloadXlsx(`subscribers-${filter}-${new Date().toISOString().slice(0, 10)}.xlsx`, [
+      { name: 'المشتركون', rows, rtl: false },
     ])
-    const csv = [header, ...rows]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
-      .join('\n')
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `subscribers-${filter}-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   return (
@@ -185,9 +183,9 @@ export function SubscribersPage() {
           </button>
           <button
             className="admin-btn-secondary admin-btn-sm"
-            onClick={exportCSV}
+            onClick={exportExcel}
             disabled={filtered.length === 0}
-            title="تصدير النتائج CSV"
+            title="تصدير النتائج إلى Excel"
           >
             ⬇ تصدير
           </button>
@@ -418,7 +416,7 @@ function SubscriberTableRow({ sub, onRefresh }: { sub: Subscription; onRefresh: 
         </span>
       </td>
       <td className="admin-table-date">
-        {sub.expiryDate.toLocaleDateString('ar')}
+        {formatDate(sub.expiryDate)}
       </td>
       <td>
         <span className={
@@ -468,7 +466,7 @@ function SubscriberMobileCard({ sub }: { sub: Subscription }) {
       </div>
       <div className="admin-sub-card-footer">
         <span className="admin-sub-card-date">
-          📅 {sub.expiryDate.toLocaleDateString('ar')}
+          📅 {formatDate(sub.expiryDate)}
         </span>
         <span className={daysLeft > 7 ? 'admin-days-ok' : daysLeft >= 0 ? 'admin-days-warn' : 'admin-days-expired'}>
           {daysLeft > 0 ? `${daysLeft} يوم` : daysLeft === 0 ? 'اليوم الأخير' : 'انتهى'}

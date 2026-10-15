@@ -3,10 +3,11 @@ import { Modal } from '../ui/Modal'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { CustomSelect } from '../ui/CustomSelect'
-import { PAYMENT_METHODS, type Product, type PaymentMethod, type PaymentType } from '../../db/db'
+import { type Product, type PaymentMethod, type PaymentType } from '../../db/db'
 import { addQuickRestock } from '../../hooks/usePurchases'
 import { useSupplierNames } from '../../hooks/useSuppliers'
 import { useAccountBalances } from '../../hooks/useInvoices'
+import { useWallets, activeWallets } from '../../hooks/useWallets'
 import { formatCurrency } from '../../utils/currency'
 import { GRAMS_PER_KG, averageCostPerKg, getProductType } from '../../utils/units'
 
@@ -20,6 +21,9 @@ interface QuickRestockModalProps {
 export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRestockModalProps) {
   const balances = useAccountBalances()
   const supplierNames = useSupplierNames()
+  const allWallets = useWallets()
+  const activeList = activeWallets(allWallets)
+  const wallets = activeList.length ? activeList : allWallets
   const [addedQty, setAddedQty] = useState('')
   const [costPrice, setCostPrice] = useState('')
   const [supplierName, setSupplierName] = useState('')
@@ -360,7 +364,7 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
               صندوق / محفظة الدفع
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-              {PAYMENT_METHODS.map((m) => {
+              {wallets.map((m) => {
                 const active = paymentMethod === m.id
                 return (
                   <button
@@ -385,10 +389,10 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span>{m.icon}</span>
-                      <span>{m.label}</span>
+                      <span>{m.name}</span>
                     </div>
                     <span style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
-                      الرصيد: {formatCurrency(balances[m.id])}
+                      الرصيد: {formatCurrency(balances[m.id] ?? 0)}
                     </span>
                   </button>
                 )

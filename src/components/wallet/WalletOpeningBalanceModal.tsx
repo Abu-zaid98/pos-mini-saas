@@ -3,7 +3,7 @@ import { Modal } from '../ui/Modal'
 import { ConfirmModal } from '../ui/ConfirmModal'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
-import { db, PAYMENT_METHODS, type PaymentMethod } from '../../db/db'
+import { db, type PaymentMethod } from '../../db/db'
 import {
   type OpeningBalances,
   type WalletAdjustment,
@@ -11,7 +11,10 @@ import {
   saveWalletAdjustment,
   deleteWalletAdjustment,
 } from '../../utils/wallet'
+import { walletLabel } from '../../utils/wallets'
+import { useWallets, activeWallets } from '../../hooks/useWallets'
 import { formatCurrency } from '../../utils/currency'
+import { formatDate } from '../../utils/datetime'
 
 function toLocalInputValue(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
@@ -19,8 +22,7 @@ function toLocalInputValue(d: Date): string {
 }
 
 function methodLabel(id: PaymentMethod): string {
-  const m = PAYMENT_METHODS.find((x) => x.id === id)
-  return m ? `${m.icon} ${m.label}` : id
+  return walletLabel(id)
 }
 
 interface WalletOpeningBalanceModalProps {
@@ -30,6 +32,9 @@ interface WalletOpeningBalanceModalProps {
 }
 
 export function WalletOpeningBalanceModal({ open, onClose, onSuccess }: WalletOpeningBalanceModalProps) {
+  const allWallets = useWallets()
+  const wallets = activeWallets(allWallets)
+  const walletOptions = wallets.length ? wallets : allWallets
   const [balances, setBalances] = useState<OpeningBalances>({
     cash: 0,
     jawwal_pay: 0,
@@ -73,12 +78,9 @@ export function WalletOpeningBalanceModal({ open, onClose, onSuccess }: WalletOp
       .then((setting) => {
         if (setting?.value && typeof setting.value === 'object') {
           const val = setting.value as OpeningBalances
-          setBalances({
-            cash: Number(val.cash) || 0,
-            jawwal_pay: Number(val.jawwal_pay) || 0,
-            palpay: Number(val.palpay) || 0,
-            bop: Number(val.bop) || 0,
-          })
+          const next: OpeningBalances = {}
+          for (const [k, v] of Object.entries(val)) next[k] = Number(v) || 0
+          setBalances(next)
         }
       })
       .catch(() => undefined)
@@ -164,14 +166,14 @@ export function WalletOpeningBalanceModal({ open, onClose, onSuccess }: WalletOp
     setError('')
     setSaving(true)
     try {
+      const value: OpeningBalances = {}
+      for (const [k, v] of Object.entries(balances)) {
+        const n = Number(v) || 0
+        if (n !== 0) value[k] = n
+      }
       await db.settings.put({
         key: 'wallet_opening_balances',
-        value: {
-          cash: Number(balances.cash) || 0,
-          jawwal_pay: Number(balances.jawwal_pay) || 0,
-          palpay: Number(balances.palpay) || 0,
-          bop: Number(balances.bop) || 0,
-        },
+        value,
       })
       onSuccess?.()
       onClose()
@@ -182,11 +184,7 @@ export function WalletOpeningBalanceModal({ open, onClose, onSuccess }: WalletOp
     }
   }
 
-  const totalCapital =
-    (Number(balances.cash) || 0) +
-    (Number(balances.jawwal_pay) || 0) +
-    (Number(balances.palpay) || 0) +
-    (Number(balances.bop) || 0)
+  const totalCapital = Object.values(balances).reduce<number>((sum, v) => sum + (Number(v) || 0), 0)
 
   return (
     <Modal
@@ -226,11 +224,11 @@ export function WalletOpeningBalanceModal({ open, onClose, onSuccess }: WalletOp
           <div style={{ textAlign: 'center', padding: 20 }}>جارٍ التحميل...</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {PAYMENT_METHODS.map((m) => (
+            {walletOptions.map((m) => (
               <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: 140 }}>
                   <span style={{ fontSize: 18 }}>{m.icon}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{m.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{m.name}</span>
                 </div>
                 <div style={{ flex: 1 }}>
                   <Input
@@ -322,7 +320,7 @@ export function WalletOpeningBalanceModal({ open, onClose, onSuccess }: WalletOp
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {PAYMENT_METHODS.map((m) => (
+            {walletOptions.map((m) => (
               <button
                 key={m.id}
                 type="button"
@@ -335,7 +333,7 @@ export function WalletOpeningBalanceModal({ open, onClose, onSuccess }: WalletOp
                   fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font-main)',
                 }}
               >
-                {m.icon} {m.label}
+                {m.icon} {m.name}
               </button>
             ))}
           </div>
@@ -412,7 +410,7 @@ export function WalletOpeningBalanceModal({ open, onClose, onSuccess }: WalletOp
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 800 }}>
-                        {methodLabel(a.method)} · {new Date(a.date).toLocaleDateString('ar-EG')}
+                        {methodLabel(a.method)} · {formatDate(a.date)}
                       </div>
                       {a.note && (
                         <div style={{ fontSize: 11, color: 'var(--color-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

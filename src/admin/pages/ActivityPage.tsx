@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react'
 import { getActivityLog } from '../subscriptions'
 import type { ActivityLog } from '../types'
+import { formatDateTime } from '../../utils/datetime'
 
 const ACTION_CONFIG = {
   created: { label: 'إنشاء اشتراك', icon: '✚', color: 'success' },
@@ -95,7 +96,7 @@ export function ActivityPage() {
                     <div className="admin-activity-meta">
                       <span>بواسطة: {log.adminEmail}</span>
                       <span>·</span>
-                      <span>{log.timestamp.toLocaleString('ar')}</span>
+                      <span>{formatDateTime(log.timestamp)}</span>
                     </div>
                   </div>
                 </div>

@@ -6,10 +6,11 @@
  * على الشاشة ثم يستدعي window.print() — وCSS الطباعة في index.css
  * يُظهر الفاتورة فقط ويخفي باقي التطبيق.
  */
-import { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type Ref } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, getPaymentMethodName, type Invoice } from '../../db/db'
 import { formatCurrency } from '../../utils/currency'
+import { formatDate, formatTime } from '../../utils/datetime'
 import { formatLineDiscount, formatLineQty, formatServiceDuration, lineDiscountAmount } from '../../utils/units'
 import { printElementById } from '../print/printDocument'
 
@@ -28,7 +29,7 @@ export function useStoreInfo(): StoreInfo {
     return typeof found?.value === 'string' && found.value ? found.value : fallback
   }
   return {
-    name: get('storeName', 'ميزان'),
+    name: get('storeName'),
     phone: get('storePhone'),
     address: get('storeAddress'),
     currency: get('currency', '₪'),
@@ -42,20 +43,28 @@ function paymentLabel(inv: Invoice): string {
   return getPaymentMethodName(inv.paymentMethod)
 }
 
-export function InvoicePrint({ invoice: inv, store }: { invoice: Invoice; store: StoreInfo }) {
+export function InvoicePrint({
+  invoice: inv,
+  store,
+  containerRef,
+}: {
+  invoice: Invoice
+  store: StoreInfo
+  /** مرجع لعنصر الفاتورة (يُستخدم لتصديرها كصورة). */
+  containerRef?: Ref<HTMLDivElement>
+}) {
   const date = new Date(inv.createdAt)
-  const dateStr = date.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-  const timeStr = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+  const dateStr = formatDate(date)
+  const timeStr = formatTime(date)
 
   return (
-    <div className="invoice-doc" dir="rtl">
+    <div className="invoice-doc invoice-doc--sale" dir="rtl" ref={containerRef}>
       {/* Header */}
       <div className="invoice-header">
         <div className="invoice-brand">
           <img src="/logo.jpeg" alt="ميزان" className="invoice-logo" style={{ objectFit: 'contain', boxShadow: 'none' }} />
-          <div>
-            <div className="invoice-store">{store.name}</div>
-            <div className="invoice-contact">ميزان · نظام المبيعات والمخزون</div>
+          <div style={{ minWidth: 0 }}>
+            {store.name && <div className="invoice-store">{store.name}</div>}
             {(store.phone || store.address) && (
               <div className="invoice-contact">
                 {store.phone && <span dir="ltr">{store.phone}</span>}
@@ -137,7 +146,7 @@ export function InvoicePrint({ invoice: inv, store }: { invoice: Invoice; store:
           <span className="ltr">{formatCurrency(inv.paidAmount)}</span>
         </div>
         {inv.refundedAmount && inv.refundedAmount > 0 ? (
-          <div className="row discount" style={{ color: 'var(--color-danger-light)', fontWeight: 800 }}>
+          <div className="row discount" style={{ color: '#b91c1c', fontWeight: 800 }}>
             <span>إجمالي المرتجع ↩️</span>
             <span className="ltr">-{formatCurrency(inv.refundedAmount)}</span>
           </div>

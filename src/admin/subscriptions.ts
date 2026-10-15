@@ -24,6 +24,7 @@ import { db, auth } from './firebase'
 import { issueToken, calcExpiryMsPrecise, addDurationMs } from './crypto'
 import { formatTemplate, getTemplates } from './templates'
 import type { Subscription, SubscriptionStatus, DashboardStats, ActivityLog } from './types'
+import { formatDate, formatDateTime } from '../utils/datetime'
 
 const APP_ID = import.meta.env.VITE_LIC_APP_ID || '1374790599531web0b22b9db833219122b122e'
 const FB_API_KEY = import.meta.env.VITE_FB_API_KEY || 'AIzaSyB4RMwer7fmPM4dzfBj0CHkkayc5ExcaJk'
@@ -170,7 +171,7 @@ export async function createSubscriber(params: {
 
   // تسجيل النشاط
   const durLabel = customExpiryMs
-    ? `حتى ${new Date(expiryMs).toLocaleString('ar')}`
+    ? `حتى ${formatDateTime(expiryMs)}`
     : `${durationDays} يوم${durationHours ? ` + ${durationHours} ساعة` : ''}`
   await logActivity({
     action: 'created',
@@ -243,7 +244,7 @@ export async function renewSubscription(params: {
 
   // تسجيل النشاط
   const detail = mode === 'set'
-    ? `تعيين الانتهاء إلى ${new Date(expiryMs).toLocaleString('ar')}`
+    ? `تعيين الانتهاء إلى ${formatDateTime(expiryMs)}`
     : `تجديد ${durationDays} يوم${durationHours ? ` + ${durationHours} ساعة` : ''}`
   await logActivity({
     action: 'renewed',
@@ -290,7 +291,7 @@ export async function adjustSubscription(params: {
     action: 'adjusted',
     subscriberId: subscriptionId,
     subscriberEmail: existing.email,
-    details: `تعديل المدة ${sign}${deltaDays} يوم ${sign}${deltaHours} ساعة → ${new Date(newExpiryMs).toLocaleString('ar')}`,
+    details: `تعديل المدة ${sign}${deltaDays} يوم ${sign}${deltaHours} ساعة → ${formatDateTime(newExpiryMs)}`,
   })
 
   return { ...existing, token, expiryDate: new Date(newExpiryMs), graceDays: finalGrace, notes: (notes || existing.notes || undefined) as string | undefined, updatedAt: new Date() }
@@ -326,7 +327,7 @@ export async function setSubscriptionExpiry(params: {
     action: 'expiry_set',
     subscriberId: subscriptionId,
     subscriberEmail: existing.email,
-    details: `تعيين الانتهاء إلى ${new Date(expiryMs).toLocaleString('ar')}`,
+    details: `تعيين الانتهاء إلى ${formatDateTime(expiryMs)}`,
   })
 
   return { ...existing, token, expiryDate: new Date(expiryMs), graceDays: finalGrace, notes: (notes || existing.notes || undefined) as string | undefined, updatedAt: new Date() }
@@ -478,7 +479,7 @@ const WA_NUMBER = import.meta.env.VITE_LIC_WHATSAPP || '972592133357'
 export function buildRenewalWhatsApp(sub: Subscription): string {
   const msg = formatTemplate(getTemplates().renewal, {
     name: sub.displayName || sub.username,
-    date: sub.expiryDate.toLocaleDateString('ar'),
+    date: formatDate(sub.expiryDate),
     uid: sub.uid,
     days: Math.max(0, Math.ceil((sub.expiryDate.getTime() - Date.now()) / 86400000)),
   })
@@ -491,7 +492,7 @@ export function buildExpiringWhatsApp(sub: Subscription): string {
   const days = Math.max(0, Math.ceil((sub.expiryDate.getTime() - Date.now()) / 86400000))
   const msg = formatTemplate(getTemplates().expiring, {
     name: sub.displayName || sub.username,
-    date: sub.expiryDate.toLocaleDateString('ar'),
+    date: formatDate(sub.expiryDate),
     uid: sub.uid,
     days,
   })
@@ -502,7 +503,7 @@ export function buildExpiringWhatsApp(sub: Subscription): string {
 export function buildExpiredWhatsApp(sub: Subscription): string {
   const msg = formatTemplate(getTemplates().expired, {
     name: sub.displayName || sub.username,
-    date: sub.expiryDate.toLocaleDateString('ar'),
+    date: formatDate(sub.expiryDate),
     uid: sub.uid,
     days: 0,
   })

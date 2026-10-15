@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
-import { PAYMENT_METHODS, type PaymentMethod, type Purchase } from '../../db/db'
+import { type PaymentMethod, type Purchase } from '../../db/db'
 import { addSupplierDebtPayment } from '../../hooks/usePurchases'
 import { useAccountBalances } from '../../hooks/useInvoices'
+import { useWallets, activeWallets } from '../../hooks/useWallets'
 import { formatCurrency } from '../../utils/currency'
+import { formatDateTime } from '../../utils/datetime'
 
 interface SupplierPaymentModalProps {
   open: boolean
@@ -16,6 +18,9 @@ interface SupplierPaymentModalProps {
 
 export function SupplierPaymentModal({ open, purchase, onClose, onSuccess }: SupplierPaymentModalProps) {
   const balances = useAccountBalances()
+  const allWallets = useWallets()
+  const activeList = activeWallets(allWallets)
+  const wallets = activeList.length ? activeList : allWallets
   const remainingDebt = purchase.debtAmount || 0
   const [amount, setAmount] = useState(String(remainingDebt))
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(purchase.paymentMethod || 'cash')
@@ -25,15 +30,7 @@ export function SupplierPaymentModal({ open, purchase, onClose, onSuccess }: Sup
 
   if (!open) return null
 
-  const getMethodBalance = (m: PaymentMethod): number => {
-    switch (m) {
-      case 'cash': return balances.cash
-      case 'jawwal_pay': return balances.jawwal_pay
-      case 'palpay': return balances.palpay
-      case 'bop': return balances.bop
-      default: return 0
-    }
-  }
+  const getMethodBalance = (m: PaymentMethod): number => Number(balances[m] ?? 0)
 
   const currentWalletBalance = getMethodBalance(paymentMethod)
 
@@ -166,7 +163,7 @@ export function SupplierPaymentModal({ open, purchase, onClose, onSuccess }: Sup
             الصندوق / المحفظة المدفوع منها:
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-            {PAYMENT_METHODS.map((m) => {
+            {wallets.map((m) => {
               const active = paymentMethod === m.id
               const bal = getMethodBalance(m.id)
               return (
@@ -189,7 +186,7 @@ export function SupplierPaymentModal({ open, purchase, onClose, onSuccess }: Sup
                   }}
                 >
                   <span style={{ fontSize: 18 }}>{m.icon}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{m.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{m.name}</span>
                   <span style={{ fontSize: 11, color: bal < 0 ? 'var(--color-danger-light)' : 'var(--color-text-muted)', direction: 'ltr' }}>
                     الرصيد: {formatCurrency(bal)}
                   </span>
@@ -268,7 +265,7 @@ export function SupplierPaymentModal({ open, purchase, onClose, onSuccess }: Sup
                   }}
                 >
                   <div>
-                    <span>{new Date(p.date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    <span>{formatDateTime(p.date)}</span>
                     {p.notes && <span style={{ color: 'var(--color-text-muted)', marginRight: 6 }}>({p.notes})</span>}
                   </div>
                   <strong style={{ direction: 'ltr', color: 'var(--color-primary-light)' }}>

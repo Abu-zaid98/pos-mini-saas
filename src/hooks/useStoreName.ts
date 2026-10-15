@@ -3,9 +3,11 @@ import { db } from '../db/db'
 
 /**
  * Hook to reactively read the store name from settings.
- * Falls back to 'متجري' if not set yet.
+ * Returns '' when the name is cleared — the UI then shows the logo alone
+ * instead of a placeholder/default name.
  */
 export function useStoreName(): string {
   const setting = useLiveQuery(() => db.settings.get('storeName'), [])
-  return (setting?.value as string) || 'متجري'
+  const value = setting?.value
+  return typeof value === 'string' ? value.trim() : ''
 }

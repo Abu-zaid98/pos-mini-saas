@@ -8,6 +8,7 @@ import { auth } from '../firebase'
 import { getAllAdmins, createAdmin, setAdminActive, deleteAdmin } from '../admins'
 import { useToast, useConfirm } from '../components/feedback'
 import type { AdminUser } from '../types'
+import { formatDate } from '../../utils/datetime'
 
 export function AdminsPage() {
   const [admins, setAdmins] = useState<AdminUser[]>([])
@@ -235,7 +236,7 @@ function AdminRow({ admin, isMe, busy, onToggle, onDelete }: {
         </span>
       </td>
       <td style={{ fontSize: 12 }}>{admin.createdBy || '—'}</td>
-      <td className="admin-table-date">{admin.createdAt.toLocaleDateString('ar')}</td>
+      <td className="admin-table-date">{formatDate(admin.createdAt)}</td>
       <td>
         {isMe ? (
           <span className="admin-table-empty-cell">حسابك الحالي</span>

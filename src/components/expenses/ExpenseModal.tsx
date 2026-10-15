@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
-import { EXPENSE_CATEGORIES, PAYMENT_METHODS, type Expense, type PaymentMethod } from '../../db/db'
+import { EXPENSE_CATEGORIES, type Expense, type PaymentMethod } from '../../db/db'
 import { addExpense, getExpenseCategories, updateExpense, type ExpenseCategoryItem } from '../../hooks/useExpenses'
+import { useWallets, activeWallets } from '../../hooks/useWallets'
 
 interface ExpenseModalProps {
   open: boolean
@@ -20,6 +21,9 @@ function toDatetimeLocalValue(d: Date): string {
 
 export function ExpenseModal({ open, onClose, onSuccess, expense }: ExpenseModalProps) {
   const isEdit = !!expense?.id
+  const allWallets = useWallets()
+  const activeList = activeWallets(allWallets)
+  const wallets = activeList.length ? activeList : allWallets
   const [categories, setCategories] = useState<ExpenseCategoryItem[]>(EXPENSE_CATEGORIES as ExpenseCategoryItem[])
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState(EXPENSE_CATEGORIES[0].name)
@@ -254,7 +258,7 @@ export function ExpenseModal({ open, onClose, onSuccess, expense }: ExpenseModal
             طريقة الدفع للمصروف
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-            {PAYMENT_METHODS.map((m) => {
+            {wallets.map((m) => {
               const active = paymentMethod === m.id
               return (
                 <button
@@ -277,7 +281,7 @@ export function ExpenseModal({ open, onClose, onSuccess, expense }: ExpenseModal
                   }}
                 >
                   <span>{m.icon}</span>
-                  <span>{m.label}</span>
+                  <span>{m.name}</span>
                 </button>
               )
             })}

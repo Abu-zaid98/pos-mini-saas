@@ -3,6 +3,7 @@
  * معاينة فخمة + زر طباعة (يطبع الإيصال فقط) + إرسال واتساب
  */
 import { buildReceiptWhatsApp } from '../billing'
+import { formatDate, formatDateTime } from '../../utils/datetime'
 import type { PaymentRecord } from '../types'
 
 export function RenewalReceipt({ payment: p, onClose }: { payment: PaymentRecord; onClose: () => void }) {
@@ -59,15 +60,15 @@ function ReceiptDoc({ payment: p }: { payment: PaymentRecord }) {
             <div className="receipt-no">{p.receiptNo}</div>
           </div>
         </div>
-        <div className="receipt-date">{p.createdAt.toLocaleString('ar', { dateStyle: 'medium', timeStyle: 'short' })}</div>
+        <div className="receipt-date">{formatDateTime(p.createdAt)}</div>
       </div>
 
       <dl className="receipt-rows">
         <div><dt>المشترك</dt><dd><strong>{p.subscriberName || p.subscriberEmail}</strong></dd></div>
         <div><dt>البريد</dt><dd className="admin-mono">{p.subscriberEmail}</dd></div>
         <div><dt>المدة</dt><dd>{p.periodLabel}</dd></div>
-        <div><dt>من</dt><dd>{p.fromDate.toLocaleDateString('ar')}</dd></div>
-        <div><dt>إلى</dt><dd>{p.toDate.toLocaleDateString('ar')}</dd></div>
+        <div><dt>من</dt><dd>{formatDate(p.fromDate)}</dd></div>
+        <div><dt>إلى</dt><dd>{formatDate(p.toDate)}</dd></div>
         <div><dt>طريقة الدفع</dt><dd>{p.methodLabel || p.method}</dd></div>
         {p.notes && <div><dt>ملاحظات</dt><dd>{p.notes}</dd></div>}
       </dl>

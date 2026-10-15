@@ -1,6 +1,6 @@
 /**
  * ReportsPage.tsx — تقارير اللوحة: الإيرادات، النمو، المشاركة
- * رسوم SVG بدون مكتبات + تصدير CSV
+ * رسوم SVG بدون مكتبات + تصدير Excel
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
@@ -9,6 +9,7 @@ import { computeStatus, getActivityLog } from '../subscriptions'
 import { getPayments, bucketByMonth } from '../billing'
 import { getAllSessions } from '../sessions'
 import { activeDevices } from '../../lib/session-policy'
+import { downloadXlsx, type XlsxCell } from '../../utils/xlsx'
 import type { PaymentRecord, ActivityLog } from '../types'
 
 function BarChart({ data, formatValue }: {
@@ -105,24 +106,20 @@ export function ReportsPage() {
 
   const exportPayments = () => {
     const header = ['receiptNo', 'date', 'email', 'amount', 'currency', 'method']
-    const rows = payments.map((p) => [
-      p.receiptNo,
-      p.createdAt.toISOString().slice(0, 10),
-      p.subscriberEmail,
-      String(p.amount),
-      p.currency,
-      p.method,
+    const rows: XlsxCell[][] = [
+      header,
+      ...payments.map((p) => [
+        p.receiptNo,
+        p.createdAt.toISOString().slice(0, 10),
+        p.subscriberEmail,
+        Number(p.amount) || 0,
+        p.currency,
+        p.method,
+      ]),
+    ]
+    downloadXlsx(`revenue-report-${new Date().toISOString().slice(0, 10)}.xlsx`, [
+      { name: 'المدفوعات', rows, rtl: false },
     ])
-    const csv = [header, ...rows]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
-      .join('\n')
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `revenue-report-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   if (subsLoading && loading) {
@@ -142,7 +139,7 @@ export function ReportsPage() {
           <p className="admin-page-desc">الإيرادات والنمو والمشاركة — تُحسب لحظياً</p>
         </div>
         <button className="admin-btn-secondary admin-btn-sm" onClick={exportPayments} disabled={payments.length === 0}>
-          ⬇ تصدير المدفوعات CSV
+          ⬇ تصدير المدفوعات Excel
         </button>
       </div>
 

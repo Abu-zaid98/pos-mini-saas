@@ -9,6 +9,7 @@ import { useConfirm } from './feedback'
 import { useNotifications } from '../hooks/useNotifications'
 import { BulkRemindModal } from './BulkRemindModal'
 import { PWAUpdateBanner } from '../../components/pwa/PWAUpdateBanner'
+import { formatDate } from '../../utils/datetime'
 
 interface Props {
   children: React.ReactNode
@@ -332,7 +333,7 @@ export function AdminLayout({ children, user, onLogout }: Props) {
                                 <div className="admin-mini-avatar">{s.username.charAt(0).toUpperCase()}</div>
                                 <div className="admin-mini-info">
                                   <div className="admin-mini-name">{s.displayName || s.username}</div>
-                                  <div className="admin-mini-sub">{s.expiryDate.toLocaleDateString('ar')}</div>
+                                  <div className="admin-mini-sub">{formatDate(s.expiryDate)}</div>
                                 </div>
                               </button>
                             ))}

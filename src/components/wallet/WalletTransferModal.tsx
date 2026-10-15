@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Modal } from '../ui/Modal'
 import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
-import { PAYMENT_METHODS, type PaymentMethod } from '../../db/db'
+import { type PaymentMethod } from '../../db/db'
 import { addWalletTransfer } from '../../utils/wallet'
 import { useAccountBalances } from '../../hooks/useInvoices'
+import { useWallets, activeWallets } from '../../hooks/useWallets'
 import { formatCurrency } from '../../utils/currency'
 
 interface WalletTransferModalProps {
@@ -16,6 +17,8 @@ interface WalletTransferModalProps {
 
 export function WalletTransferModal({ open, onClose, onSuccess, initialFrom }: WalletTransferModalProps) {
   const balances = useAccountBalances()
+  const wallets = activeWallets(useWallets())
+  const options = wallets.length ? wallets : [{ id: 'cash', name: 'نقداً (كاش)', icon: '💵' }]
   const [fromMethod, setFromMethod] = useState<PaymentMethod>(initialFrom || 'cash')
   const [toMethod, setToMethod] = useState<PaymentMethod>(
     (initialFrom === 'cash' ? 'bop' : initialFrom ? 'cash' : 'bop') as PaymentMethod,
@@ -27,15 +30,7 @@ export function WalletTransferModal({ open, onClose, onSuccess, initialFrom }: W
 
   if (!open) return null
 
-  const getMethodBalance = (m: PaymentMethod): number => {
-    switch (m) {
-      case 'cash': return balances.cash
-      case 'jawwal_pay': return balances.jawwal_pay
-      case 'palpay': return balances.palpay
-      case 'bop': return balances.bop
-      default: return 0
-    }
-  }
+  const getMethodBalance = (m: PaymentMethod): number => Number(balances[m] ?? 0)
 
   const currentFromBalance = getMethodBalance(fromMethod)
 
@@ -100,7 +95,7 @@ export function WalletTransferModal({ open, onClose, onSuccess, initialFrom }: W
             من (خصم من):
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-            {PAYMENT_METHODS.map((m) => {
+            {options.map((m) => {
               const active = fromMethod === m.id
               const bal = getMethodBalance(m.id)
               return (
@@ -110,7 +105,7 @@ export function WalletTransferModal({ open, onClose, onSuccess, initialFrom }: W
                   onClick={() => {
                     setFromMethod(m.id)
                     if (toMethod === m.id) {
-                      const nextTo = PAYMENT_METHODS.find((x) => x.id !== m.id)?.id || 'cash'
+                      const nextTo = options.find((x) => x.id !== m.id)?.id || 'cash'
                       setToMethod(nextTo)
                     }
                   }}
@@ -129,7 +124,7 @@ export function WalletTransferModal({ open, onClose, onSuccess, initialFrom }: W
                   }}
                 >
                   <span style={{ fontSize: 18 }}>{m.icon}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{m.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{m.name}</span>
                   <span style={{ fontSize: 11, color: bal < 0 ? 'var(--color-danger-light)' : 'var(--color-text-muted)', direction: 'ltr' }}>
                     {formatCurrency(bal)}
                   </span>
@@ -145,7 +140,7 @@ export function WalletTransferModal({ open, onClose, onSuccess, initialFrom }: W
             إلى (إيداع في):
           </label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-            {PAYMENT_METHODS.map((m) => {
+            {options.map((m) => {
               const active = toMethod === m.id
               const isSame = fromMethod === m.id
               const bal = getMethodBalance(m.id)
@@ -171,7 +166,7 @@ export function WalletTransferModal({ open, onClose, onSuccess, initialFrom }: W
                   }}
                 >
                   <span style={{ fontSize: 18 }}>{m.icon}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{m.label}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{m.name}</span>
                   <span style={{ fontSize: 11, color: bal < 0 ? 'var(--color-danger-light)' : 'var(--color-text-muted)', direction: 'ltr' }}>
                     {formatCurrency(bal)}
                   </span>
@@ -227,8 +222,8 @@ export function WalletTransferModal({ open, onClose, onSuccess, initialFrom }: W
           gap: 4,
         }}>
           <div style={{ fontWeight: 800, color: 'var(--color-text-muted)' }}>الأثر المحاسبي:</div>
-          <div>ينقص {PAYMENT_METHODS.find((x) => x.id === fromMethod)?.label} بمقدار {formatCurrency(Number(amount) || 0)}</div>
-          <div>يزيد {PAYMENT_METHODS.find((x) => x.id === toMethod)?.label} بمقدار {formatCurrency(Number(amount) || 0)}</div>
+          <div>ينقص {options.find((x) => x.id === fromMethod)?.name} بمقدار {formatCurrency(Number(amount) || 0)}</div>
+          <div>يزيد {options.find((x) => x.id === toMethod)?.name} بمقدار {formatCurrency(Number(amount) || 0)}</div>
           <div style={{ color: 'var(--color-success-light)', fontWeight: 700 }}>إجمالي السيولة الكلية للمتجر: لا يتغير (0 ₪)</div>
         </div>
 

@@ -5,6 +5,7 @@ import './index.css'
 
 import { LicenseGuard } from './components/LicenseGuard'
 import { initSettings } from './db/db'
+import { ToastProvider } from './components/ui/Toast'
 import { AppShell } from './components/layout/AppShell'
 import { LoginScreen } from './pages/LoginScreen'
 import { SalePage } from './pages/SalePage'
@@ -16,6 +17,7 @@ import { InvoicesPage } from './pages/InvoicesPage'
 import { PurchasesPage } from './pages/PurchasesPage'
 import { ExpensesPage } from './pages/ExpensesPage'
 import { SuppliersPage } from './pages/SuppliersPage'
+import { WalletsPage } from './pages/WalletsPage'
 
 // لوحة التحكم تُحمّل عند الطلب فقط — لا تُثقل فتح الكاشير (code-splitting)
 // (ملف admin.css يُستورد داخل AdminApp فيُحمّل مع نفس الشريحة)
@@ -107,6 +109,7 @@ function PosApp() {
         <Route path="/purchases" element={<PurchasesPage />} />
         <Route path="/suppliers" element={<SuppliersPage />} />
         <Route path="/customers" element={<CustomersPage />} />
+        <Route path="/wallets" element={<WalletsPage />} />
         <Route path="/expenses" element={<ExpensesPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/invoices" element={<InvoicesPage />} />
@@ -136,7 +139,9 @@ function RouterRoot() {
   // تطبيق POS — محمي بـ LicenseGuard
   return (
     <LicenseGuard>
-      <PosApp />
+      <ToastProvider>
+        <PosApp />
+      </ToastProvider>
     </LicenseGuard>
   )
 }

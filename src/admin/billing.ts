@@ -18,6 +18,7 @@ import {
 } from 'firebase/firestore'
 import { db, auth } from './firebase'
 import { logActivity } from './subscriptions'
+import { formatDate } from '../utils/datetime'
 import { formatTemplate, getTemplates } from './templates'
 import type { Plan, PaymentRecord } from './types'
 
@@ -251,8 +252,8 @@ export function buildReceiptWhatsApp(p: {
     name: p.name,
     uid: p.uid || '',
     period: p.periodLabel,
-    from: p.fromDate.toLocaleDateString('ar'),
-    to: p.toDate.toLocaleDateString('ar'),
+    from: formatDate(p.fromDate),
+    to: formatDate(p.toDate),
     amount: p.amount,
     currency: p.currency,
     method: p.methodLabel,

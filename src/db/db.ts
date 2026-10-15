@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
+import { DEFAULT_WALLETS, getPaymentMethodName } from '../utils/wallets'
 
 // ===========================
 // Types
@@ -158,26 +159,18 @@ export interface ItemDiscount {
 }
 
 export type PaymentType = 'cash' | 'debt' | 'partial'
-export type PaymentMethod = 'cash' | 'jawwal_pay' | 'palpay' | 'bop'
+/**
+ * معرّف المحفظة/الحساب — نصي حرّ لأن المستخدم يضيف محافظه بنفسه.
+ * القيم الافتراضية: cash / jawwal_pay / palpay / bop (متوافقة مع البيانات القديمة).
+ */
+export type PaymentMethod = string
 export type DiscountType = 'percent' | 'fixed'
 
-export const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: string }[] = [
-  { id: 'cash', label: 'نقداً (كاش)', icon: '💵' },
-  { id: 'jawwal_pay', label: 'جوال باي', icon: '📱' },
-  { id: 'palpay', label: 'بال باي', icon: '💳' },
-  { id: 'bop', label: 'بنك فلسطين', icon: '🏦' },
-]
+export const PAYMENT_METHODS: { id: PaymentMethod; label: string; icon: string }[] =
+  DEFAULT_WALLETS.map((w) => ({ id: w.id, label: w.name, icon: w.icon }))
 
-export function getPaymentMethodName(method?: PaymentMethod): string {
-  switch (method) {
-    case 'jawwal_pay': return 'جوال باي 📱'
-    case 'palpay': return 'بال باي 💳'
-    case 'bop': return 'بنك فلسطين 🏦'
-    case 'cash':
-    default:
-      return 'نقداً (كاش) 💵'
-  }
-}
+// الاسم المعروض للمحفظة — يُدار عبر utils/wallets (يدعم الأسماء المخصصة)
+export { getPaymentMethodName }
 
 export interface Invoice {
   id?: number

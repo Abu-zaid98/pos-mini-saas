@@ -107,6 +107,7 @@ function storageKeys(appId: string) {
     lastSeen: `lic_last_seen_${appId}`, // لحماية ضد إرجاع الساعة
     device: `lic_dev_${appId}`,     // بصمة هذا الجهاز (ثابتة)
     heartbeat: `lic_hb_${appId}`,   // آخر نبضة أُرسلت للسيرفر
+    user: `lic_user_${appId}`,      // اسم الدخول الذي فعّل الاشتراك (للعرض في الواجهة)
   };
 }
 
@@ -700,6 +701,7 @@ export function createLicense(config: LicenseConfig) {
 
     ls.set(K.uid, localId);
     ls.set(K.idToken, refreshToken); // نخزن refreshToken للتجديد الصامت لاحقاً
+    ls.set(K.user, username.trim()); // اسم الدخول للعرض في النافبار
 
     ls.set(K.lastSeen, String(Date.now()));
     return evalPayload(payload);
@@ -803,6 +805,13 @@ export function createLicense(config: LicenseConfig) {
     return ls.get(K.uid);
   }
 
+  /**
+   * getUser() — اسم الدخول الذي فعّل الاشتراك على هذا الجهاز (للعرض فقط).
+   */
+  function getUser(): string | null {
+    return ls.get(K.user);
+  }
+
   return {
     /** تشغيل عند الإقلاع — النقطة الرئيسية */
     start,
@@ -826,6 +835,8 @@ export function createLicense(config: LicenseConfig) {
     isLoggedIn,
     /** UID المستخدم الحالي */
     getUid,
+    /** اسم الدخول الذي فعّل الاشتراك (للعرض في الواجهة) */
+    getUser,
     /** بصمة هذا الجهاز (للعرض عند التعارض) */
     getDeviceId,
     /** اسم التطبيق */

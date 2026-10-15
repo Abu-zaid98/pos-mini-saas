@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useLayoutEffect } from 'react'
 import { useProducts, getProductByBarcode } from '../hooks/useProducts'
 import { useCustomers, addCustomer } from '../hooks/useCustomers'
 import { createSaleInvoice, type CreateSaleInput } from '../hooks/useInvoices'
@@ -17,7 +17,6 @@ import {
   type DiscountType,
   type Product,
   type SaleUnit,
-  getPaymentMethodName,
 } from '../db/db'
 import {
   GRAMS_PER_KG,
@@ -43,6 +42,8 @@ import {
   unitShort,
 } from '../utils/units'
 import { InvoicePrint, usePrintInvoice, useStoreInfo } from '../components/invoice/InvoicePrint'
+import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
+import { useWallets, activeWallets } from '../hooks/useWallets'
 
 export function SalePage() {
   const [activeTab, setActiveTab] = useState<'catalog' | 'cart'>('catalog')
@@ -85,6 +86,11 @@ export function SalePage() {
   const [saleNote, setSaleNote] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // محافظ الدفع (قابلة للتخصيص من صفحة الخزينة)
+  const allWallets = useWallets()
+  const activeWalletList = activeWallets(allWallets)
+  const wallets = activeWalletList.length ? activeWalletList : allWallets
+
   // Quick customer modal
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false)
   const [newCustName, setNewCustName] = useState('')
@@ -97,6 +103,7 @@ export function SalePage() {
 
   // Success Receipt modal
   const [completedInvoice, setCompletedInvoice] = useState<Invoice | null>(null)
+  const invoiceDocRef = useRef<HTMLDivElement>(null)
 
   // Weight picker for weighted products (kg/g)
   const [weightProduct, setWeightProduct] = useState<Product | null>(null)
@@ -133,6 +140,25 @@ export function SalePage() {
 
   const printInvoice = usePrintInvoice()
   const storeInfo = useStoreInfo()
+
+  // شريط الإتمام/الإجمالي العائم — نقيس ارتفاعه الفعلي لنترك مسافة أسفله
+  // حتى لا يختفي آخر صنف في السلة خلفه.
+  const dockedRef = useRef<HTMLDivElement | null>(null)
+  const [dockedHeight, setDockedHeight] = useState(0)
+
+  useLayoutEffect(() => {
+    const el = dockedRef.current
+    if (!el) {
+      setDockedHeight(0)
+      return
+    }
+    const update = () => setDockedHeight(el.offsetHeight)
+    update()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [cart.length])
 
   const products = useProducts(search, activeCategory === 'الكل' ? '' : activeCategory)
   const customers = useCustomers('', 'all')
@@ -413,67 +439,11 @@ export function SalePage() {
     }
   }
 
-  // Format WhatsApp invoice message
-  const shareWhatsApp = (inv: Invoice) => {
-    const customer = customers.find((c) => c.id === inv.customerId)
-    const phone = customer?.phone?.replace(/\D/g, '') || ''
-
-    const dateStr = new Date(inv.createdAt).toLocaleString('ar-EG', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    })
-
-    const itemsText = inv.items
-      .map((i) => {
-        const dur = i.durationMinutes ? ` ⏱ ${formatServiceDuration(i.durationMinutes)}` : ''
-        const disc = i.discount && lineDiscountAmount(i) > 0 ? ` (خصم ${formatLineDiscount(i.discount)})` : ''
-        return `• ${i.name}${dur} (${formatLineQty(i)} × ${formatCurrency(i.price)}) = ${formatCurrency(i.qty * i.price)}${disc}`
-      })
-      .join('\n')
-
-    const methodName = inv.paymentType === 'debt'
-      ? 'دين كامل (آجل) 📝'
-      : `${getPaymentMethodName(inv.paymentMethod)} ${inv.paymentType === 'partial' ? '(دفع جزئي)' : ''}`
-
-    let msg = `🧾 *فاتورة مبيعات *\n`
-    msg += `رقم الفاتورة: #${inv.id}\n`
-    msg += `التاريخ: ${dateStr}\n`
-    if (inv.customerName) {
-      msg += `العميل: ${inv.customerName}\n`
-    }
-    msg += `طريقة الدفع: ${methodName}\n`
-    msg += `--------------------------------\n`
-    msg += `${itemsText}\n`
-    msg += `--------------------------------\n`
-    msg += `المجموع الفرعي: ${formatCurrency(inv.subtotal)}\n`
-    if ((inv.itemDiscountAmount || 0) > 0) {
-      msg += `خصم الأصناف: -${formatCurrency(inv.itemDiscountAmount || 0)}\n`
-    }
-    if (inv.discountAmount > 0) {
-      msg += `الخصم: -${formatCurrency(inv.discountAmount)}\n`
-    }
-    msg += `*الإجمالي النهائي: ${formatCurrency(inv.total)}*\n`
-    msg += `المبلغ المدفوع: ${formatCurrency(inv.paidAmount)}\n`
-    if (inv.debtAmount > 0) {
-      msg += `*المتبقي كدين: ${formatCurrency(inv.debtAmount)}*\n`
-    }
-    msg += `\nشكراً لزيارتكم ونتشرف بخدمتكم دائماً! 🌟`
-
-    const encoded = encodeURIComponent(msg)
-
-    if (phone) {
-      const cleanPhone = phone.startsWith('0') ? '970' + phone.slice(1) : phone
-      window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, '_blank')
-    } else {
-      window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank')
-    }
-  }
-
   return (
     <div
       style={{
         padding: '12px 14px',
-        paddingBottom: cart.length > 0 ? '100px' : undefined,
+        paddingBottom: cart.length > 0 ? dockedHeight + 24 : undefined,
         maxWidth: 840,
         margin: '0 auto',
         width: '100%',
@@ -821,22 +791,15 @@ export function SalePage() {
               </button>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0 4px' }}>
-                <span style={{ fontSize: 13, color: 'var(--color-text-muted)', fontWeight: 600 }}>
-                  الأصناف المضافة ({cart.length}) — محفوظة دائماً ✓
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div className="cart-toolbar">
+                <span className="cart-toolbar-count">
+                  <strong>{cart.length}</strong> صنف في السلة
                 </span>
+                <span className="cart-toolbar-saved">محفوظة دائماً ✓</span>
                 <button
                   onClick={resetSaleState}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-danger-light)',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-main)',
-                  }}
+                  className="cart-toolbar-clear"
                 >
                   إفراغ السلة 🗑️
                 </button>
@@ -864,29 +827,55 @@ export function SalePage() {
                   <div
                     key={key}
                     className="sale-cart-line"
-                    style={{
-                      background: 'var(--color-bg-card)',
-                      border: `1px solid ${overStock ? 'rgba(239,68,68,0.4)' : 'var(--color-border)'}`,
-                      borderRadius: 14,
-                      padding: '12px 14px',
-                    }}
+                    data-overstock={overStock ? 'true' : undefined}
                   >
-                    <div className="sale-cart-line-info">
-                      <p style={{ fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {item.name}
-                        {kind === 'service' && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}> 🛎️</span>}
-                        {kind === 'weighted' && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}> ⚖️</span>}
-                      </p>
-                      {kind === 'service' && item.durationMinutes ? (
-                        <div style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, marginTop: 2 }}>
-                          ⏱ {formatServiceDuration(item.durationMinutes)}
-                        </div>
-                      ) : null}
-                      {hasPieces && perPiece !== null ? (
-                        <div style={{ fontSize: 12, color: 'var(--color-primary-light)', fontWeight: 800, marginTop: 2 }}>
-                          {piecesCount} قطع × {perPiece} {unitShort(unit)} للقطعة
-                        </div>
-                      ) : null}
+                    {/* رأس السطر: الاسم والنوع + أزرار الإجراءات */}
+                    <div className="sale-cart-line-head">
+                      <div className="sale-cart-line-title">
+                        <span className="sale-cart-line-name">
+                          {item.name}
+                          {kind === 'service' && <span className="sale-cart-line-tag">🛎️ خدمة</span>}
+                          {kind === 'weighted' && <span className="sale-cart-line-tag">⚖️ وزن</span>}
+                        </span>
+                        {kind === 'service' && item.durationMinutes ? (
+                          <span className="sale-cart-line-sub">⏱ {formatServiceDuration(item.durationMinutes)}</span>
+                        ) : hasPieces && perPiece !== null ? (
+                          <span className="sale-cart-line-sub">{piecesCount} قطع × {perPiece} {unitShort(unit)} للقطعة</span>
+                        ) : kind === 'goods' ? (
+                          <span className="sale-cart-line-sub">
+                            {formatCurrency(item.price)}{item.pack ? `/${item.pack.label}` : unit !== 'piece' ? `/${unitShort(unit)}` : ' للقطعة'}
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="sale-cart-line-actions">
+                        <button
+                          className="sale-cart-line-discount"
+                          onClick={() => {
+                            if (editorOpen) {
+                              setDiscLineKey(null)
+                            } else {
+                              setDiscLineKey(key)
+                              setDiscType(item.discount?.type ?? 'percent')
+                              setDiscValue(item.discount ? String(item.discount.value) : '')
+                            }
+                          }}
+                          title="خصم خاص بهذا الصنف"
+                          data-active={item.discount ? 'true' : undefined}
+                        >
+                          {item.discount ? `🏷️ ${formatLineDiscount(item.discount)}` : '🏷️'}
+                        </button>
+                        <button
+                          className="sale-cart-line-delete"
+                          onClick={() => removeFromCart(item.productId, unit, packLabel, item.lineId)}
+                          title="حذف الصنف"
+                          aria-label={`حذف ${item.name}`}
+                        >✕</button>
+                      </div>
+                    </div>
+
+                    {/* محرّر السعر/العبوة عند الحاجة */}
+                    {(kind === 'service' || kind === 'weighted' || (kind === 'goods' && item.packOptions && item.packOptions.length > 0) || overStock) && (
                       <div className="sale-cart-line-price">
                         {kind === 'service' ? (
                           <label className="sale-cart-service-price">
@@ -950,14 +939,10 @@ export function SalePage() {
                             />
                             <span>₪/كغ</span>
                           </label>
-                        ) : (
-                          <span style={{ fontSize: 13, color: 'var(--color-text-secondary)', direction: 'ltr' }}>
-                            {formatCurrency(item.price)}{item.pack ? `/${item.pack.label}` : unit !== 'piece' ? `/${unitShort(unit)}` : ''}
-                          </span>
-                        )}
+                        ) : null}
                         {/* Pack selector for goods with packs — customized dropdown */}
                         {kind === 'goods' && item.packOptions && item.packOptions.length > 0 && (
-                          <div style={{ minWidth: 120, maxWidth: 170 }}>
+                          <div className="sale-cart-pack-select">
                             <CustomSelect
                               value={packLabel ?? ''}
                               onChange={(v) => {
@@ -975,141 +960,54 @@ export function SalePage() {
                           </div>
                         )}
                         {overStock && (
-                          <span style={{ fontSize: 11, color: 'var(--color-danger-light)', fontWeight: 700 }}>
-                            المخزون المتوفر: {maxDisplay}
+                          <span className="sale-cart-overstock">
+                            المتوفر: {maxDisplay}
                           </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* صف الكمية والإجمالي */}
+                    <div className="sale-cart-line-body">
+                      <div className="sale-cart-line-stepper">
+                        <button
+                          onClick={() => hasPieces
+                            ? setItemPieces(item.lineId, piecesCount - 1)
+                            : updateQty(item.productId, -step, unit, packLabel, item.lineId)}
+                          aria-label="إنقاص الكمية"
+                        >-</button>
+                        <input
+                          type="number"
+                          step={unit === 'piece' ? '1' : 'any'}
+                          value={item.qty}
+                          onChange={(e) => setDirectQty(item.productId, (kind === 'weighted' ? parseFloat(e.target.value) : parseInt(e.target.value)) || 0, unit, packLabel, item.lineId)}
+                          style={{ width: unit === 'piece' ? 34 : 54 }}
+                          aria-label={`كمية ${item.name}`}
+                        />
+                        <span className="sale-cart-line-unit">{unitShort(unit)}</span>
+                        <button
+                          onClick={() => hasPieces
+                            ? setItemPieces(item.lineId, piecesCount + 1)
+                            : updateQty(item.productId, step, unit, packLabel, item.lineId)}
+                          aria-label="زيادة الكمية"
+                        >+</button>
+                      </div>
+
+                      <div className="sale-cart-line-total">
+                        {disc > 0 ? (
+                          <>
+                            <span className="sale-cart-line-gross">{formatCurrency(gross)}</span>
+                            <span className="sale-cart-line-net">{formatCurrency(net)}</span>
+                          </>
+                        ) : (
+                          <span className="sale-cart-line-net">{formatCurrency(gross)}</span>
                         )}
                       </div>
                     </div>
 
-                    {/* Stepper */}
-                    <div className="sale-cart-line-stepper" style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      background: 'rgba(255,255,255,0.06)',
-                      borderRadius: 10,
-                      border: '1px solid var(--color-border)',
-                      padding: 2,
-                    }}>
-                      <button
-                        onClick={() => hasPieces
-                          ? setItemPieces(item.lineId, piecesCount - 1)
-                          : updateQty(item.productId, -step, unit, packLabel, item.lineId)}
-                        style={{
-                          width: 30, height: 30,
-                          border: 'none', background: 'transparent',
-                          color: 'var(--color-text-primary)',
-                          fontSize: 18, fontWeight: 700, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                      >-</button>
-                      <input
-                        type="number"
-                        step={unit === 'piece' ? '1' : 'any'}
-                        value={item.qty}
-                        onChange={(e) => setDirectQty(item.productId, (kind === 'weighted' ? parseFloat(e.target.value) : parseInt(e.target.value)) || 0, unit, packLabel, item.lineId)}
-                        style={{
-                          width: unit === 'piece' ? 36 : 56,
-                          textAlign: 'center',
-                          border: 'none',
-                          background: 'transparent',
-                          color: 'var(--color-text-primary)',
-                          fontSize: 14,
-                          fontWeight: 800,
-                          outline: 'none',
-                        }}
-                      />
-                      <span style={{ fontSize: 10, color: 'var(--color-text-muted)', paddingInlineEnd: 4 }}>{unitShort(unit)}</span>
-                      <button
-                        onClick={() => hasPieces
-                          ? setItemPieces(item.lineId, piecesCount + 1)
-                          : updateQty(item.productId, step, unit, packLabel, item.lineId)}
-                        style={{
-                          width: 30, height: 30,
-                          border: 'none', background: 'transparent',
-                          color: 'var(--color-text-primary)',
-                          fontSize: 18, fontWeight: 700, cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                      >+</button>
-                    </div>
-
-                    {/* Line total */}
-                    <div className="sale-cart-line-summary">
-                      <div className="sale-cart-line-total">
-                      {disc > 0 ? (
-                        <>
-                          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', textDecoration: 'line-through', direction: 'ltr', display: 'block' }}>
-                            {formatCurrency(gross)}
-                          </span>
-                          <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-warning-light)', direction: 'ltr', display: 'block' }}>
-                            {formatCurrency(net)}
-                          </span>
-                        </>
-                      ) : (
-                        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text-primary)', direction: 'ltr' }}>
-                          {formatCurrency(gross)}
-                        </span>
-                      )}
-                      </div>
-
-                    {/* Per-line discount */}
-                      <div className="sale-cart-line-actions">
-                        <button
-                          className="sale-cart-line-discount"
-                          onClick={() => {
-                            if (editorOpen) {
-                              setDiscLineKey(null)
-                            } else {
-                              setDiscLineKey(key)
-                              setDiscType(item.discount?.type ?? 'percent')
-                              setDiscValue(item.discount ? String(item.discount.value) : '')
-                            }
-                          }}
-                          title="خصم خاص بهذا الصنف"
-                          style={{
-                            background: item.discount ? 'rgba(245,158,11,0.18)' : 'none',
-                            border: item.discount ? '1px solid var(--color-warning)' : 'none',
-                            borderRadius: 8,
-                            color: item.discount ? 'var(--color-warning-light)' : 'var(--color-text-muted)',
-                            fontSize: 12,
-                            fontWeight: 800,
-                            cursor: 'pointer',
-                            padding: '4px 6px',
-                            fontFamily: 'var(--font-main)',
-                          }}
-                        >
-                          {item.discount ? `🏷️ ${formatLineDiscount(item.discount)}` : '🏷️'}
-                        </button>
-
-                    {/* Delete */}
-                        <button
-                          className="sale-cart-line-delete"
-                          onClick={() => removeFromCart(item.productId, unit, packLabel, item.lineId)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--color-text-muted)',
-                            fontSize: 16,
-                            cursor: 'pointer',
-                            padding: 4,
-                          }}
-                        >✕</button>
-                      </div>
-                    </div>
-
-                    {/* Inline per-line discount editor */}
+                    {/* محرّر الخصم للصنف */}
                     {editorOpen && (
-                      <div style={{
-                        gridColumn: '1 / -1',
-                        background: 'rgba(245,158,11,0.08)',
-                        border: '1px dashed rgba(245,158,11,0.4)',
-                        borderRadius: 10,
-                        padding: '8px 10px',
-                        display: 'flex',
-                        gap: 8,
-                        alignItems: 'center',
-                      }}>
+                      <div className="sale-cart-disc-editor">
                         <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--color-border)' }}>
                           {(['percent', 'fixed'] as const).map((t) => (
                             <button
@@ -1195,6 +1093,7 @@ export function SalePage() {
       {/* Docked Bottom Bar / Summary & Checkout — fixed عائم فوق شريط التنقل، والمسافة محسوبة مرة واحدة في جذر الصفحة */}
       {cart.length > 0 && (
         <div
+          ref={dockedRef}
           style={{
             position: 'fixed',
             bottom: 'calc(var(--bottom-bar-total-height, 72px) + 8px)',
@@ -1503,97 +1402,33 @@ export function SalePage() {
               اختر طريقة القبض / الدفع:
             </label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {/* Direct cash */}
-              <button
-                type="button"
-                onClick={() => { setPaymentType('cash'); setPaymentMethod('cash') }}
-                style={{
-                  padding: '12px 10px',
-                  borderRadius: 12,
-                  border: (paymentType === 'cash' && paymentMethod === 'cash') ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
-                  background: (paymentType === 'cash' && paymentMethod === 'cash') ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
-                  color: (paymentType === 'cash' && paymentMethod === 'cash') ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-main)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <span style={{ fontSize: 20 }}>💵</span>
-                <span>نقداً (كاش)</span>
-              </button>
-
-              {/* Jawwal Pay */}
-              <button
-                type="button"
-                onClick={() => { setPaymentType('cash'); setPaymentMethod('jawwal_pay') }}
-                style={{
-                  padding: '12px 10px',
-                  borderRadius: 12,
-                  border: (paymentType === 'cash' && paymentMethod === 'jawwal_pay') ? '2px solid #10b981' : '1px solid var(--color-border)',
-                  background: (paymentType === 'cash' && paymentMethod === 'jawwal_pay') ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.04)',
-                  color: (paymentType === 'cash' && paymentMethod === 'jawwal_pay') ? 'var(--color-success-light)' : 'var(--color-text-secondary)',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-main)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <span style={{ fontSize: 20 }}>📱</span>
-                <span>جوال باي</span>
-              </button>
-
-              {/* PalPay */}
-              <button
-                type="button"
-                onClick={() => { setPaymentType('cash'); setPaymentMethod('palpay') }}
-                style={{
-                  padding: '12px 10px',
-                  borderRadius: 12,
-                  border: (paymentType === 'cash' && paymentMethod === 'palpay') ? '2px solid #8b5cf6' : '1px solid var(--color-border)',
-                  background: (paymentType === 'cash' && paymentMethod === 'palpay') ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.04)',
-                  color: (paymentType === 'cash' && paymentMethod === 'palpay') ? 'var(--color-purple-light)' : 'var(--color-text-secondary)',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-main)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <span style={{ fontSize: 20 }}>💳</span>
-                <span>بال باي (PalPay)</span>
-              </button>
-
-              {/* Bank of Palestine */}
-              <button
-                type="button"
-                onClick={() => { setPaymentType('cash'); setPaymentMethod('bop') }}
-                style={{
-                  padding: '12px 10px',
-                  borderRadius: 12,
-                  border: (paymentType === 'cash' && paymentMethod === 'bop') ? '2px solid #3b82f6' : '1px solid var(--color-border)',
-                  background: (paymentType === 'cash' && paymentMethod === 'bop') ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.04)',
-                  color: (paymentType === 'cash' && paymentMethod === 'bop') ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-main)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
-                <span style={{ fontSize: 20 }}>🏦</span>
-                <span>بنك فلسطين</span>
-              </button>
+              {wallets.map((w) => {
+                const selected = paymentType === 'cash' && paymentMethod === w.id
+                return (
+                  <button
+                    key={w.id}
+                    type="button"
+                    onClick={() => { setPaymentType('cash'); setPaymentMethod(w.id) }}
+                    style={{
+                      padding: '12px 10px',
+                      borderRadius: 12,
+                      border: selected ? '2px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      background: selected ? 'rgba(59,130,246,0.2)' : 'rgba(255,255,255,0.04)',
+                      color: selected ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-main)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ fontSize: 20 }}>{w.icon}</span>
+                    <span>{w.name}</span>
+                  </button>
+                )
+              })}
 
               {/* Debt */}
               <button
@@ -1871,12 +1706,7 @@ export function SalePage() {
                   طريقة تحصيل هذا المبلغ:
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                  {[
-                    { id: 'cash' as PaymentMethod, label: 'كاش 💵' },
-                    { id: 'jawwal_pay' as PaymentMethod, label: 'جوال باي 📱' },
-                    { id: 'palpay' as PaymentMethod, label: 'بال باي 💳' },
-                    { id: 'bop' as PaymentMethod, label: 'بنك فلسطين 🏦' },
-                  ].map((m) => (
+                  {wallets.map((m) => (
                     <button
                       key={m.id}
                       type="button"
@@ -1893,7 +1723,7 @@ export function SalePage() {
                         fontFamily: 'var(--font-main)',
                       }}
                     >
-                      {m.label}
+                      {m.icon} {m.name}
                     </button>
                   ))}
                 </div>
@@ -2042,51 +1872,34 @@ export function SalePage() {
           type="box"
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <InvoicePrint invoice={completedInvoice} store={storeInfo} />
+            <InvoicePrint invoice={completedInvoice} store={storeInfo} containerRef={invoiceDocRef} />
 
-            {/* Share & Print Buttons */}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => shareWhatsApp(completedInvoice)}
-                style={{
-                  flex: 1,
-                  padding: '11px',
-                  borderRadius: 12,
-                  background: '#25D366',
-                  border: 'none',
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-main)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                }}
-              >
-                <span>مشاركة واتساب</span>
-                <span>💬</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => printInvoice(completedInvoice)}
-                style={{
-                  padding: '11px 16px',
-                  borderRadius: 12,
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--color-text-primary)',
-                  fontWeight: 700,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-main)',
-                }}
-              >
-                🖨️ طباعة
-              </button>
-            </div>
+            {/* تصدير الفاتورة كصورة / PDF / مشاركة واتساب كصورة */}
+            <InvoiceExportActions
+              getTarget={() => invoiceDocRef.current}
+              filenameBase={`invoice-${completedInvoice.id ?? ''}`}
+              whatsappPhone={customers.find((c) => c.id === completedInvoice.customerId)?.phone}
+              whatsappText={`فاتورة مبيعات #${completedInvoice.id}`}
+            />
+
+            <button
+              type="button"
+              onClick={() => printInvoice(completedInvoice)}
+              style={{
+                width: '100%',
+                padding: '11px',
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)',
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-main)',
+              }}
+            >
+              🖨️ طباعة الفاتورة
+            </button>
 
             <button
               type="button"

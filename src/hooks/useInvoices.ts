@@ -32,7 +32,9 @@ export interface CreateSaleInput {
 
 export function useInvoices(options?: {
   customerId?: number | null
-  dateRange?: 'today' | 'week' | 'month' | 'all'
+  dateRange?: 'today' | 'week' | 'month' | 'all' | 'custom'
+  fromDate?: string | null
+  toDate?: string | null
   limit?: number
 }) {
   const invoices = useLiveQuery(async () => {
@@ -55,6 +57,16 @@ export function useInvoices(options?: {
       } else if (options.dateRange === 'month') {
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
         all = all.filter((inv) => new Date(inv.createdAt).getTime() >= startOfMonth)
+      } else if (options.dateRange === 'custom') {
+        const t = (inv: Invoice) => new Date(inv.createdAt).getTime()
+        const fromTs = options.fromDate ? new Date(options.fromDate + 'T00:00:00').getTime() : NaN
+        const toTs = options.toDate ? new Date(options.toDate + 'T00:00:00').getTime() + 86_400_000 : NaN
+        all = all.filter((inv) => {
+          const ts = t(inv)
+          if (options.fromDate && Number.isFinite(fromTs) && ts < fromTs) return false
+          if (options.toDate && Number.isFinite(toTs) && ts >= toTs) return false
+          return true
+        })
       }
     }
 
@@ -63,7 +75,7 @@ export function useInvoices(options?: {
     }
 
     return all
-  }, [options?.customerId, options?.dateRange, options?.limit])
+  }, [options?.customerId, options?.dateRange, options?.fromDate, options?.toDate, options?.limit])
 
   return invoices ?? []
 }
@@ -334,11 +346,12 @@ export async function updateInvoiceDetails(invoiceId: number, data: UpdateInvoic
     const invoice = await db.invoices.get(invoiceId)
     if (!invoice) throw new Error('الفاتورة غير موجودة')
 
-    // المقبوض لا يتجاوز المتبقي بعد المرتجعات — حتى لا يُحيي التعديل مبلغاً مسترداً
+    // المقبوض والمتبقي كلاهما يُحسبان على الصافي بعد المرتجعات —
+    // حتى لا يُحيي التعديل مبلغاً مسترداً على شكل دين جديد
     const refunded = Math.max(0, Number(invoice.refundedAmount) || 0)
-    const maxPaid = Math.max(0, invoice.total - refunded)
-    const paidAmount = Math.min(maxPaid, Math.max(0, Number(data.paidAmount) || 0))
-    const debtAmount = Math.max(0, invoice.total - paidAmount)
+    const netTotal = Math.max(0, invoice.total - refunded)
+    const paidAmount = Math.min(netTotal, Math.max(0, Number(data.paidAmount) || 0))
+    const debtAmount = Math.max(0, netTotal - paidAmount)
 
     if (debtAmount > 0 && !data.customerId) {
       throw new Error('اختر العميل عند وجود مبلغ متبقٍ كدين')
@@ -360,23 +373,24 @@ export async function updateInvoiceDetails(invoiceId: number, data: UpdateInvoic
       await db.customers.update(data.customerId, next)
     }
 
-    // The payment that belongs to the original sale is replaced. Independent
-    // collection receipts remain untouched — وكذلك دفعات المرتجع النقدي (السالبة
-    // والتي تحوي "مرتجع") فحذفها يمحو أثر الاسترداد من المحفظة.
+    // دفعات البيع الأصلية تُستبدل، بينما تبقى سجلات الاسترداد النقدي (السالبة)
+    // ظاهرة في كشف المحفظة. لذلك نودع صافي المقبوض + مجموع ما سبق استرداده نقداً،
+    // حتى يبقى مجموع حركات الفاتورة = paidAmount تماماً (لا يُحتسب الاسترداد مرتين).
     const linkedPayments = await db.payments.where('invoiceId').equals(invoiceId).toArray()
+    const cashRefundTotal = Math.abs(
+      linkedPayments.filter((p) => Number(p.amount) < 0).reduce((s, p) => s + Number(p.amount), 0),
+    )
     await Promise.all(linkedPayments
-      .filter((payment) =>
-        payment.amount > 0 &&
-        !payment.note.includes('مرتجع') &&
-        (payment.note.includes(`فاتورة #${invoiceId}`) || payment.note.includes(`#${invoiceId}`)))
+      .filter((payment) => Number(payment.amount) > 0)
       .map((payment) => db.payments.delete(payment.id!)))
 
     const method = data.paymentMethod || 'cash'
-    if (paidAmount > 0) {
+    const depositAmount = Math.round((paidAmount + cashRefundTotal) * 100) / 100
+    if (depositAmount > 0) {
       await db.payments.add({
         customerId: data.customerId || 0,
         invoiceId,
-        amount: paidAmount,
+        amount: depositAmount,
         method,
         note: data.customerId
           ? `دفعة عبر ${getPaymentMethodName(method)} لفاتورة #${invoiceId}`

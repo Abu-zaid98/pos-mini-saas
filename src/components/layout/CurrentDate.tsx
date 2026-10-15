@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { formatDate, formatTime, formatWeekday } from '../../utils/datetime'
 
 function getNow() {
   return new Date()
@@ -13,9 +14,9 @@ export function CurrentDate() {
     return () => window.clearInterval(timer)
   }, [])
 
-  const day = new Intl.DateTimeFormat('ar-PS', { weekday: 'long' }).format(now)
-  const date = new Intl.DateTimeFormat('ar-PS', { day: 'numeric', month: 'short', year: 'numeric' }).format(now)
-  const time = new Intl.DateTimeFormat('ar-PS', { hour: 'numeric', minute: '2-digit' }).format(now)
+  const day = formatWeekday(now)
+  const date = formatDate(now)
+  const time = formatTime(now)
 
   return (
     <div className="current-date" aria-label={`${day}، ${date}، ${time}`}>

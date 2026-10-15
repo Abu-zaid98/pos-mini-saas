@@ -6,11 +6,12 @@ import { CustomSelect } from '../ui/CustomSelect'
 import {
   type Invoice,
   type PaymentMethod,
-  PAYMENT_METHODS,
   getPaymentMethodName,
 } from '../../db/db'
+import { useWallets, activeWallets } from '../../hooks/useWallets'
 import { refundInvoiceItems, type RefundItemInput } from '../../hooks/useInvoices'
 import { formatCurrency } from '../../utils/currency'
+import { formatDateTime } from '../../utils/datetime'
 import { formatLineQty, getItemUnit, lineDiscountAmount } from '../../utils/units'
 
 interface InvoiceReturnModalProps {
@@ -46,6 +47,10 @@ export function InvoiceReturnModal({ open, invoice, onClose, onSuccess }: Invoic
   const [generalNote, setGeneralNote] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const allWallets = useWallets()
+  const activeList = activeWallets(allWallets)
+  const wallets = activeList.length ? activeList : allWallets
 
   if (!open) return null
 
@@ -326,9 +331,9 @@ export function InvoiceReturnModal({ open, invoice, onClose, onSuccess }: Invoic
                 <CustomSelect
                   value={paymentMethod}
                   onChange={(m) => setPaymentMethod(m as PaymentMethod)}
-                  options={PAYMENT_METHODS.map((m) => ({
+                  options={wallets.map((m) => ({
                     value: m.id,
-                    label: `${m.icon} ${m.label}`,
+                    label: `${m.icon} ${m.name}`,
                   }))}
                 />
               </div>
@@ -425,7 +430,7 @@ export function InvoiceReturnModal({ open, invoice, onClose, onSuccess }: Invoic
                   <div>
                     <span style={{ fontWeight: 700 }}>{r.name} × {r.qty}</span>
                     <span style={{ fontSize: 10, color: 'var(--color-text-muted)', display: 'block' }}>
-                      {new Date(r.date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                      {formatDateTime(r.date)}
                       {r.reason ? ` · ${r.reason}` : ''}
                     </span>
                   </div>

@@ -8,12 +8,17 @@ import {
   getPaymentMethodName,
 } from '../db/db'
 
+/**
+ * أرصدة المحافظ. المفاتيح الافتراضية محفوظة (cash/jawwal_pay/palpay/bop) للتوافق
+ * مع البيانات والاختبارات القديمة، بينما يسمح فهرس `[method: string]` بمحافظ مخصصة.
+ */
 export interface AccountBalances {
   cash: number
   jawwal_pay: number
   palpay: number
   bop: number
   total: number
+  [method: string]: number
 }
 
 function emptyBalances(): AccountBalances {
@@ -25,18 +30,12 @@ function methodOf(m: PaymentMethod | undefined): PaymentMethod {
 }
 
 function addToBucket(b: AccountBalances, method: PaymentMethod, amt: number) {
-  if (method === 'jawwal_pay') b.jawwal_pay += amt
-  else if (method === 'palpay') b.palpay += amt
-  else if (method === 'bop') b.bop += amt
-  else b.cash += amt
+  b[method] = (b[method] ?? 0) + amt
   b.total += amt
 }
 
 function adjustBucketOnly(b: AccountBalances, method: PaymentMethod, amt: number) {
-  if (method === 'jawwal_pay') b.jawwal_pay += amt
-  else if (method === 'palpay') b.palpay += amt
-  else if (method === 'bop') b.bop += amt
-  else b.cash += amt
+  b[method] = (b[method] ?? 0) + amt
 }
 
 export type OpeningBalances = Partial<Record<PaymentMethod, number>>
@@ -179,11 +178,9 @@ export function computeBalances(
     }
   }
 
-  b.cash = Math.round(b.cash * 100) / 100
-  b.jawwal_pay = Math.round(b.jawwal_pay * 100) / 100
-  b.palpay = Math.round(b.palpay * 100) / 100
-  b.bop = Math.round(b.bop * 100) / 100
-  b.total = Math.round(b.total * 100) / 100
+  for (const key of Object.keys(b)) {
+    b[key] = Math.round(b[key] * 100) / 100
+  }
   return b
 }
 

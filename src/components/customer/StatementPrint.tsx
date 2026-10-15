@@ -6,6 +6,8 @@ import type { Customer } from '../../db/db'
 import type { CustomerLedgerItem } from '../../hooks/useCustomers'
 import { useStoreInfo } from '../invoice/InvoicePrint'
 import { formatCurrency } from '../../utils/currency'
+import { formatDate, formatDateTime } from '../../utils/datetime'
+import { downloadXlsx, type XlsxCell } from '../../utils/xlsx'
 
 export function useStatementData(customer: Customer | null, items: CustomerLedgerItem[]) {
   const totalInvoices = items
@@ -17,36 +19,28 @@ export function useStatementData(customer: Customer | null, items: CustomerLedge
   return { totalInvoices, totalPayments, debt: customer?.totalDebt || 0 }
 }
 
-/** نص CSV لكشف الحساب */
-export function statementToCSV(customer: Customer, items: CustomerLedgerItem[]): string {
-  const header = ['التاريخ', 'الحركة', 'البيان', 'مدين', 'دائن', 'ملاحظة']
+/** صفوف كشف الحساب للتصدير إلى إكسل */
+export function statementToRows(customer: Customer, items: CustomerLedgerItem[]): XlsxCell[][] {
+  const header = ['#', 'التاريخ', 'الحركة', 'البيان', 'مدين', 'دائن', 'ملاحظة']
   const rows = [...items]
     .sort((a, b) => a.date.getTime() - b.date.getTime())
-    .map((i) => [
-      i.date.toLocaleString('ar-EG'),
+    .map((i, idx) => [
+      idx + 1,
+      formatDateTime(i.date),
       i.type === 'invoice' ? 'فاتورة' : 'سند قبض',
       i.title,
-      i.type === 'invoice' ? String(i.amount) : '',
-      i.type === 'payment' ? String(i.amount) : '',
+      i.type === 'invoice' ? Number(i.amount) || 0 : '',
+      i.type === 'payment' ? Number(i.amount) || 0 : '',
       (i.note || '').replace(/\n/g, ' '),
     ])
-  const all = [header, ...rows, [], ['إجمالي الدين المستحق', '', '', '', '', String(customer.totalDebt || 0)]]
-  return (
-    '\ufeff' +
-    all.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
-  )
+  return [header, ...rows, [], ['إجمالي الدين المستحق', '', '', '', '', '', Number(customer.totalDebt) || 0]]
 }
 
-export function downloadStatementCSV(customer: Customer, items: CustomerLedgerItem[]) {
-  const blob = new Blob([statementToCSV(customer, items)], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `كشف-حساب-${customer.name}.csv`
-  document.body.appendChild(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+export function downloadStatementXlsx(customer: Customer, items: CustomerLedgerItem[]) {
+  const rows = statementToRows(customer, items)
+  downloadXlsx(`كشف-حساب-${customer.name}.xlsx`, [
+    { name: 'كشف الحساب', rows, columnWidths: [5, 20, 10, 26, 14, 14, 24] },
+  ])
 }
 
 export function StatementPrintHost({ customer, items }: {
@@ -56,7 +50,7 @@ export function StatementPrintHost({ customer, items }: {
   const store = useStoreInfo()
   if (!customer) return null
   const { totalInvoices, totalPayments } = useStatementData(customer, items)
-  const dateStr = new Date().toLocaleDateString('ar-EG', { dateStyle: 'medium' })
+  const dateStr = formatDate(new Date())
   const ordered = [...items].sort((a, b) => a.date.getTime() - b.date.getTime())
 
   return (
@@ -71,7 +65,7 @@ export function StatementPrintHost({ customer, items }: {
               style={{ objectFit: 'contain', padding: 2, boxShadow: 'none' }}
             />
             <div>
-              <div className="invoice-store">{store.name}</div>
+              {store.name && <div className="invoice-store">{store.name}</div>}
               {(store.phone || store.address) && (
                 <div className="invoice-contact">
                   {store.phone && <span dir="ltr">{store.phone}</span>}
@@ -110,7 +104,7 @@ export function StatementPrintHost({ customer, items }: {
                   {item.title}
                   {item.note && <div className="item-sub">{item.note}</div>}
                 </td>
-                <td className="c">{item.date.toLocaleDateString('ar-EG')}</td>
+                <td className="c">{formatDate(item.date)}</td>
                 <td className="c ltr">{item.type === 'invoice' ? Number(item.amount).toFixed(2) : '—'}</td>
                 <td className="c ltr">{item.type === 'payment' ? Number(item.amount).toFixed(2) : '—'}</td>
               </tr>

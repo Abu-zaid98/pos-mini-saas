@@ -408,66 +408,21 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
       </div>
 
       {/* Professional Keypad */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 12,
-          width: '100%',
-          maxWidth: 290,
-          zIndex: 1,
-          marginBottom: 16,
-          direction: 'ltr',
-        }}
-      >
+      <div className="numpad" style={{ zIndex: 1, marginBottom: 16 }}>
         {NUMPAD_LAYOUT.flat().map((key, i) => {
           const isDel = key === '⌫'
           const isClear = key === 'C'
-          const isSpecial = isDel || isClear
 
           return (
             <button
               key={i}
               type="button"
+              className={`numpad-key${isDel ? ' numpad-key--del' : isClear ? ' numpad-key--clear' : ''}`}
+              aria-label={isDel ? 'حذف رقم' : isClear ? 'مسح الكل' : key}
               onClick={() => {
                 if (isDel) handleDelete()
                 else if (isClear) handleClear()
                 else handleNumpad(key)
-              }}
-              style={{
-                height: 58,
-                borderRadius: 16,
-                border: '1px solid var(--color-border)',
-                background: isDel
-                  ? 'rgba(239,68,68,0.1)'
-                  : isClear
-                    ? 'var(--color-input-bg)'
-                    : 'var(--color-bg-card)',
-                color: isDel
-                  ? 'var(--color-danger-light)'
-                  : isClear
-                    ? 'var(--color-text-muted)'
-                    : 'var(--color-text-primary)',
-                fontSize: isSpecial ? 18 : 23,
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'transform 0.1s ease, background-color 0.15s ease',
-                fontFamily: 'var(--font-main)',
-                boxShadow: 'var(--shadow-sm)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                WebkitTapHighlightColor: 'transparent',
-              }}
-              onTouchStart={(e) => {
-                const t = e.currentTarget
-                t.style.transform = 'scale(0.92)'
-                t.style.background = 'var(--color-primary-glow)'
-              }}
-              onTouchEnd={(e) => {
-                const t = e.currentTarget
-                t.style.transform = 'scale(1)'
-                t.style.background = isDel ? 'rgba(239,68,68,0.1)' : 'var(--color-bg-card)'
               }}
             >
               {isDel ? <Icon name="arrow-left" size={20} /> : key}

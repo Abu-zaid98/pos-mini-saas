@@ -5,7 +5,7 @@ import { ProductForm } from '../components/products/ProductForm'
 import { CategoryManagerModal } from '../components/products/CategoryManagerModal'
 import { QuickRestockModal } from '../components/products/QuickRestockModal'
 import { BarcodeScanner } from '../components/ui/BarcodeScanner'
-import { Badge, StatCard, SearchBar, EmptyState, Icon } from '../components/ui'
+import { Badge, StatCard, SearchBar, EmptyState, Icon, PageHeader } from '../components/ui'
 import type { Product } from '../db/db'
 import { PRODUCT_TYPES } from '../db/db'
 import { getProductType, isLowStock, isOutOfStock, stockLabel, isExpired, isNearExpiry, daysToExpiry, formatServiceDuration } from '../utils/units'
@@ -62,6 +62,12 @@ export function ProductsPage() {
 
   return (
     <div className="page-frame">
+      <PageHeader
+        icon="package"
+        title="المخزون والمنتجات"
+        subtitle="إدارة المنتجات والكميات وتنبيهات المخزون والصلاحية"
+      />
+
       {/* Stats bar */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10, margin: '14px 0' }}>
             <StatCard label="إجمالي المنتجات" value={products.length} icon="package" variant="info" />

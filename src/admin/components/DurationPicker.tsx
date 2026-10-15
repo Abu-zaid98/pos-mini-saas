@@ -4,6 +4,7 @@
  */
 import { useMemo } from 'react'
 import { calcExpiryMsPrecise, formatDurationAr, toDatetimeLocalValue } from '../crypto'
+import { formatDateTime } from '../../utils/datetime'
 
 export interface DurationValue {
   days: number
@@ -140,7 +141,7 @@ export function DurationPicker({ value, onChange, baseDate, showCustom = true }:
             {isCustom ? 'ينتهي في تاريخ محدد' : `المدة: ${formatDurationAr(value.days, value.hours)}`}
           </div>
           <div className="admin-expiry-preview-date">
-            {previewExpiry.toLocaleString('ar', { dateStyle: 'full', timeStyle: 'short' })}
+            {formatDateTime(previewExpiry)}
           </div>
         </div>
       </div>

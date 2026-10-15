@@ -16,6 +16,8 @@ import { buildReceiptWhatsApp } from '../billing'
 import type { Plan, PaymentRecord } from '../types'
 import { RenewalReceipt } from '../components/RenewalReceipt'
 import { useToast, useConfirm } from '../components/feedback'
+import { formatDate } from '../../utils/datetime'
+import { downloadXlsx, type XlsxCell } from '../../utils/xlsx'
 
 const METHOD_LABEL: Record<PaymentMethodId, string> = {
   cash: 'نقدي',
@@ -72,28 +74,24 @@ export function BillingPage() {
     [payments]
   )
 
-  const exportCSV = () => {
+  const exportExcel = () => {
     const header = ['receiptNo', 'date', 'subscriber', 'email', 'period', 'amount', 'currency', 'method']
-    const rows = filtered.map((p) => [
-      p.receiptNo,
-      p.createdAt.toISOString().slice(0, 10),
-      p.subscriberName || '',
-      p.subscriberEmail,
-      p.periodLabel,
-      String(p.amount),
-      p.currency,
-      p.methodLabel || METHOD_LABEL[p.method],
+    const rows: XlsxCell[][] = [
+      header,
+      ...filtered.map((p) => [
+        p.receiptNo,
+        p.createdAt.toISOString().slice(0, 10),
+        p.subscriberName || '',
+        p.subscriberEmail,
+        p.periodLabel,
+        Number(p.amount) || 0,
+        p.currency,
+        p.methodLabel || METHOD_LABEL[p.method],
+      ]),
+    ]
+    downloadXlsx(`payments-${new Date().toISOString().slice(0, 10)}.xlsx`, [
+      { name: 'المدفوعات', rows, rtl: false },
     ])
-    const csv = [header, ...rows]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
-      .join('\n')
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `payments-${new Date().toISOString().slice(0, 10)}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   const seedPresets = async () => {
@@ -118,8 +116,8 @@ export function BillingPage() {
         </div>
         <div className="admin-toolbar-row">
           {tab === 'payments' && filtered.length > 0 && (
-            <button className="admin-btn-secondary admin-btn-sm" onClick={exportCSV}>
-              ⬇ تصدير CSV
+            <button className="admin-btn-secondary admin-btn-sm" onClick={exportExcel}>
+              ⬇ تصدير Excel
             </button>
           )}
           {tab === 'plans' && (
@@ -210,7 +208,7 @@ export function BillingPage() {
                         <td>{p.periodLabel}</td>
                         <td><strong>{p.amount} {p.currency}</strong></td>
                         <td>{p.methodLabel || METHOD_LABEL[p.method]}</td>
-                        <td className="admin-table-date">{p.createdAt.toLocaleDateString('ar')}</td>
+                        <td className="admin-table-date">{formatDate(p.createdAt)}</td>
                         <td>
                           <div className="admin-row-actions">
                             <button className="admin-table-action" onClick={() => setReceipt(p)} style={{ cursor: 'pointer', background: 'none' }}>

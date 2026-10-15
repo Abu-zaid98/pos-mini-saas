@@ -2,8 +2,10 @@
  * PurchasePrint.tsx — مستند فاتورة الشراء للعرض والطباعة
  * يعيد استخدام أنماط .invoice-doc نفسها (invoice-doc/invoice-header/...)
  */
+import type { Ref } from 'react'
 import { getPaymentMethodName, type Purchase } from '../../db/db'
 import { formatCurrency } from '../../utils/currency'
+import { formatDate, formatTime } from '../../utils/datetime'
 import { GRAMS_PER_KG } from '../../utils/units'
 import type { StoreInfo } from '../invoice/InvoicePrint'
 
@@ -12,19 +14,27 @@ function qtyLabel(qty: number, unit: string | undefined): string {
   return `${qty} قطعة`
 }
 
-export function PurchasePrint({ purchase: pur, store }: { purchase: Purchase; store: StoreInfo }) {
+export function PurchasePrint({
+  purchase: pur,
+  store,
+  containerRef,
+}: {
+  purchase: Purchase
+  store: StoreInfo
+  /** مرجع لعنصر الفاتورة (يُستخدم لتصديرها كصورة). */
+  containerRef?: Ref<HTMLDivElement>
+}) {
   const date = new Date(pur.date)
-  const dateStr = date.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
-  const timeStr = date.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })
+  const dateStr = formatDate(date)
+  const timeStr = formatTime(date)
 
   return (
-    <div className="invoice-doc" dir="rtl">
+    <div className="invoice-doc invoice-doc--purchase" dir="rtl" ref={containerRef}>
       <div className="invoice-header">
         <div className="invoice-brand">
           <img src="/logo.jpeg" alt="ميزان" className="invoice-logo" style={{ objectFit: 'contain', boxShadow: 'none' }} />
-          <div>
-            <div className="invoice-store">{store.name}</div>
-            <div className="invoice-contact">ميزان · نظام المبيعات والمخزون</div>
+          <div style={{ minWidth: 0 }}>
+            {store.name && <div className="invoice-store">{store.name}</div>}
             {(store.phone || store.address) && (
               <div className="invoice-contact">
                 {store.phone && <span dir="ltr">{store.phone}</span>}
@@ -93,14 +103,14 @@ export function PurchasePrint({ purchase: pur, store }: { purchase: Purchase; st
 
       {(pur.supplierPayments?.length || 0) > 0 && (
         <div className="invoice-note" style={{ textAlign: 'right' }}>
-          💳 دفعات مسددة: {(pur.supplierPayments || []).map((p) => `${formatCurrency(p.amount)} (${new Date(p.date).toLocaleDateString('ar-EG')})`).join(' · ')}
+          💳 دفعات مسددة: {(pur.supplierPayments || []).map((p) => `${formatCurrency(p.amount)} (${formatDate(p.date)})`).join(' · ')}
         </div>
       )}
       {pur.notes && <div className="invoice-note">📝 {pur.notes}</div>}
 
+      {/* فاتورة الشراء من المورد — لا تُظهر رسالة الشكر الخاصة بالبيع */}
       <div className="invoice-footer">
-        <div className="thanks">{store.footer}</div>
-        <div className="keep">مستند شراء داخلي · {store.currency}</div>
+        <div className="keep">مستند شراء داخلي · يُرجى مطابقة الأصناف والكميات عند الاستلام · {store.currency}</div>
       </div>
     </div>
   )

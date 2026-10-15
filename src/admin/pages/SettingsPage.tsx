@@ -1,5 +1,5 @@
 /**
- * SettingsPage.tsx — إعدادات اللوحة: قوالب الواتساب + العملة الافتراضية
+ * SettingsPage.tsx — إعدادات اللوحة: العملة الافتراضية + قوالب الواتساب
  * المتغيرات: {name} {days} {date} {uid} {receipt} {period} {from} {to} {amount} {currency} {method}
  */
 import { useEffect, useState } from 'react'
@@ -7,23 +7,25 @@ import { DEFAULT_TEMPLATES, formatTemplate, loadTemplates, saveTemplates } from 
 import { getDefaultCurrency, saveDefaultCurrency } from '../billing'
 import { useToast } from '../components/feedback'
 import type { WhatsTemplates } from '../types'
+import { formatDate } from '../../utils/datetime'
 
+// الترتيب بالأهمية: العملية الأساسية (التجديد) ← المستند المالي (الإيصال) ← الاسترجاع ← التذكير الثانوي
 const FIELDS: Array<{ key: keyof WhatsTemplates; title: string; desc: string }> = [
-  { key: 'renewal', title: 'رسالة التجديد (قرب الانتهاء)', desc: 'تُرسل من زر 💬 للمشتركين النشطين' },
+  { key: 'renewal', title: 'رسالة التجديد (قرب الانتهاء)', desc: 'تُرسل من زر 💬 للمشتركين النشطين — الأكثر استخداماً' },
+  { key: 'receipt', title: 'رسالة إيصال التجديد', desc: 'تُرسل مع زر الإيصال بعد الدفع — المستند المالي' },
+  { key: 'expired', title: 'رسالة انتهاء الاشتراك', desc: 'تُرسل للمنتهية والفترة السماح — استرجاع المشتركين' },
   { key: 'expiring', title: 'رسالة التذكير السريع', desc: 'تذكير قصير بمن تنتهي اشتراكاتهم' },
-  { key: 'expired', title: 'رسالة انتهاء الاشتراك', desc: 'تُرسل للمنتهية والفترة السماح' },
-  { key: 'receipt', title: 'رسالة إيصال التجديد', desc: 'تُرسل مع زر الإيصال بعد الدفع' },
 ]
 
 const SAMPLE = {
   name: 'أحمد محمد',
   days: 3,
-  date: new Date().toLocaleDateString('ar'),
+  date: formatDate(new Date()),
   uid: 'abc123',
   receipt: 'R-202610-0042',
   period: 'اشتراك شهري',
-  from: new Date().toLocaleDateString('ar'),
-  to: new Date(Date.now() + 30 * 86400000).toLocaleDateString('ar'),
+  from: formatDate(new Date()),
+  to: formatDate(new Date(Date.now() + 30 * 86400000)),
   amount: 150,
   currency: '₪',
   method: 'نقدي',
@@ -77,7 +79,7 @@ export function SettingsPage() {
       <div className="admin-page-header">
         <div>
           <h1 className="admin-page-title">الإعدادات</h1>
-          <p className="admin-page-desc">قوالب رسائل الواتساب والعملة الافتراضية</p>
+          <p className="admin-page-desc">العملة الافتراضية وقوالب رسائل الواتساب</p>
         </div>
         <div className="admin-toolbar-row">
           <button className="admin-btn-secondary admin-btn-sm" onClick={resetAll}>

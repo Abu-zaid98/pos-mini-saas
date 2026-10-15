@@ -8,6 +8,7 @@ import { useSubscriptions } from '../hooks/useSubscriptions'
 import { computeStatus } from '../subscriptions'
 import { BulkRemindModal } from '../components/BulkRemindModal'
 import type { Subscription } from '../types'
+import { formatDate } from '../../utils/datetime'
 
 const STATUS_CONFIG = {
   active: { label: 'نشط', color: 'success', icon: '✓' },
@@ -330,7 +331,7 @@ function SubscriberRow({ sub }: { sub: Subscription }) {
         </span>
       </td>
       <td className="admin-table-date">
-        {sub.expiryDate.toLocaleDateString('ar')}
+        {formatDate(sub.expiryDate)}
       </td>
       <td>
         <span className={daysLeft > 7 ? 'admin-days-ok' : daysLeft >= 0 ? 'admin-days-warn' : 'admin-days-expired'}>

@@ -12,6 +12,7 @@ interface ConfirmModalProps {
   cancelText?: string
   variant?: 'danger' | 'warning' | 'primary'
   loading?: boolean
+  loadingText?: string
 }
 
 export function ConfirmModal({
@@ -26,6 +27,7 @@ export function ConfirmModal({
   cancelText = 'إلغاء',
   variant = 'danger',
   loading = false,
+  loadingText = 'جارٍ الحذف...',
 }: ConfirmModalProps) {
   if (!open) return null
 
@@ -105,7 +107,7 @@ export function ConfirmModal({
               transition: 'all 0.15s ease',
             }}
           >
-            {loading ? 'جارٍ الحذف...' : confirmText}
+            {loading ? loadingText : confirmText}
           </button>
 
           <button

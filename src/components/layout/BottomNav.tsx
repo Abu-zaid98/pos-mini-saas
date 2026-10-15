@@ -10,11 +10,12 @@ interface PrimaryNavItem {
   label: string
 }
 
+// الترتيب وفق دورة العمل المحاسبية/الكاشير: الأكثر استخداماً في الشريط السفلي
 const PRIMARY_ITEMS: PrimaryNavItem[] = [
   { id: 'sale', path: '/', icon: 'cart', label: 'البيع' },
+  { id: 'invoices', path: '/invoices', icon: 'receipt', label: 'الفواتير' },
   { id: 'products', path: '/products', icon: 'package', label: 'المخزون' },
   { id: 'customers', path: '/customers', icon: 'users', label: 'العملاء' },
-  { id: 'reports', path: '/reports', icon: 'chart-bar', label: 'التقارير' },
 ]
 
 interface MoreItem {
@@ -25,24 +26,25 @@ interface MoreItem {
   badge?: string
 }
 
+// بقية الصفحات مرتّبة محاسبياً: الذمم الدائنة وما بعدها ثم التقارير فالإعدادات
 const MORE_ITEMS: MoreItem[] = [
   {
-    path: '/invoices',
-    icon: 'receipt',
-    label: 'سجل الفواتير والمردودات',
-    description: 'استعراض فواتير البيع وطباعتها وإدارتها',
-  },
-  {
     path: '/purchases',
-    icon: 'banknotes',
+    icon: 'box',
     label: 'المشتريات والتوريد',
     description: 'تسجيل فواتير الشراء وحركة البضائع الواردة',
   },
   {
     path: '/suppliers',
     icon: 'truck',
-    label: 'إدارة الموردين',
+    label: 'الموردون والذمم',
     description: 'سجل الموردين، الأرصدة، وسداد الديون المستحقة',
+  },
+  {
+    path: '/wallets',
+    icon: 'banknotes',
+    label: 'الخزينة والمحافظ',
+    description: 'المحافظ، الأرصدة الافتتاحية، والتحويلات بين المحافظ',
   },
   {
     path: '/expenses',
@@ -51,9 +53,15 @@ const MORE_ITEMS: MoreItem[] = [
     description: 'تسجيل ومتابعة مصاريف التشغيل اليومية',
   },
   {
+    path: '/reports',
+    icon: 'chart-bar',
+    label: 'التقارير والإحصائيات',
+    description: 'ملخصات المبيعات والأرباح وحركة الأصناف',
+  },
+  {
     path: '/settings',
     icon: 'settings',
-    label: 'الإعدادات والنسخ الاحتياطي',
+    label: 'الإعدادات العامة',
     description: 'بيانات المحل، الطابعة، النسخ الاحتياطي والترخيص',
   },
 ]

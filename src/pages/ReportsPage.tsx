@@ -1,38 +1,160 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useInvoices, useAccountBalances } from '../hooks/useInvoices'
 import { usePurchases } from '../hooks/usePurchases'
 import { useProducts } from '../hooks/useProducts'
 import { useCustomers } from '../hooks/useCustomers'
-import { useExpenses } from '../hooks/useExpenses'
+import { useExpenses, getCategoryIcon } from '../hooks/useExpenses'
 import { formatCurrency } from '../utils/currency'
 import { formatLineQty, getProductType, isLowStock, isOutOfStock, lineDiscountAmount } from '../utils/units'
-import { Modal, Tabs, StatCard } from '../components/ui'
-import { usePrintInvoice } from '../components/invoice/InvoicePrint'
+import { invoiceNetRevenue, invoiceNetProfit } from '../utils/reports'
+import { formatDateTime } from '../utils/datetime'
+import { Modal, Tabs, StatCard, PageHeader } from '../components/ui'
+import { InvoicePrint, usePrintInvoice, useStoreInfo } from '../components/invoice/InvoicePrint'
+import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
 import { WalletDetailModal } from '../components/wallet/WalletDetailModal'
-import { WalletTransferModal } from '../components/wallet/WalletTransferModal'
-import { WalletOpeningBalanceModal } from '../components/wallet/WalletOpeningBalanceModal'
+import {
+  DonutChart,
+  RadialGauge,
+  BarList,
+  ColumnTrend,
+  CHART_PALETTE,
+  DEBT_PALETTE,
+  type ChartSlice,
+} from '../components/charts/Charts'
 import { type Invoice, type PaymentMethod, getPaymentMethodName, db } from '../db/db'
-import { useStoreName } from '../hooks/useStoreName'
+import { useWallets } from '../hooks/useWallets'
 import { useLiveQuery } from 'dexie-react-hooks'
 
-type PeriodFilter = 'today' | 'week' | 'month' | 'all'
-type ReportSubTab = 'financial' | 'inventory_debt'
+type PeriodFilter = 'today' | 'week' | 'month' | 'all' | 'custom'
+type ReportSubTab = 'overview' | 'financial' | 'inventory' | 'customers'
+
+const AR_MONTHS = [
+  'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+  'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
+]
+
+const PERIOD_LABELS: Record<PeriodFilter, string> = {
+  today: 'اليوم',
+  week: 'آخر 7 أيام',
+  month: 'هذا الشهر',
+  all: 'كل الفترات',
+  custom: 'فترة مخصصة',
+}
+
+const EXPENSE_PALETTE = ['#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#ef4444', '#06b6d4', '#94a3b8']
+const MUTED_COLOR = '#94a3b8'
+
+function dayStart(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+/** يبني سلسلة زمنية للمبيعات حسب الفترة (بالساعة/اليوم/الشهر) */
+interface TrendPoint {
+  label: string
+  value: number
+}
+
+function buildSalesTrend(
+  invoices: Invoice[],
+  period: PeriodFilter,
+  fromDate: string,
+  toDate: string,
+): TrendPoint[] {
+  const now = new Date()
+  type Bucket = 'hour' | 'day' | 'month'
+  let start: Date
+  let end: Date = now
+  let bucket: Bucket = 'day'
+
+  if (period === 'today') {
+    start = dayStart(now)
+    bucket = 'hour'
+  } else if (period === 'week') {
+    start = dayStart(new Date(now.getTime() - 6 * 86_400_000))
+  } else if (period === 'month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1)
+  } else if (period === 'custom') {
+    start = fromDate ? new Date(`${fromDate}T00:00:00`) : dayStart(now)
+    end = toDate ? new Date(`${toDate}T23:59:59`) : now
+    bucket = end.getTime() - start.getTime() > 45 * 86_400_000 ? 'month' : 'day'
+  } else {
+    const times = invoices
+      .map((i) => new Date(i.createdAt).getTime())
+      .filter((t) => Number.isFinite(t))
+    start = times.length ? new Date(Math.min(...times)) : dayStart(now)
+    bucket = now.getTime() - start.getTime() > 60 * 86_400_000 ? 'month' : 'day'
+  }
+
+  if (bucket === 'month') start = new Date(start.getFullYear(), start.getMonth(), 1)
+  if (start.getTime() > end.getTime()) return []
+
+  const keyOf = (d: Date) => {
+    if (bucket === 'hour') return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`
+    if (bucket === 'month') return `${d.getFullYear()}-${d.getMonth()}`
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+  }
+  const labelOf = (d: Date) => {
+    if (bucket === 'hour') return `${d.getHours()}:00`
+    if (bucket === 'month') return AR_MONTHS[d.getMonth()]
+    const p = (n: number) => String(n).padStart(2, '0')
+    return `${p(d.getDate())}/${p(d.getMonth() + 1)}`
+  }
+
+  const points: TrendPoint[] = []
+  const index = new Map<string, number>()
+  const cursor = new Date(start)
+  if (bucket === 'hour') cursor.setMinutes(0, 0, 0)
+  let guard = 0
+  while (cursor.getTime() <= end.getTime() && guard < 400) {
+    index.set(keyOf(cursor), points.length)
+    points.push({ label: labelOf(cursor), value: 0 })
+    if (bucket === 'hour') cursor.setHours(cursor.getHours() + 1)
+    else if (bucket === 'month') cursor.setMonth(cursor.getMonth() + 1)
+    else cursor.setDate(cursor.getDate() + 1)
+    guard++
+  }
+
+  for (const inv of invoices) {
+    const d = new Date(inv.createdAt)
+    if (!Number.isFinite(d.getTime())) continue
+    const i = index.get(keyOf(d))
+    if (i !== undefined) points[i].value += invoiceNetRevenue(inv)
+  }
+
+  return points
+}
+
+/** يدمج كل الشرائح بعد حد معيّن في شريحة "أخرى" */
+function topWithOther(slices: ChartSlice[], limit: number, otherLabel = 'أخرى'): ChartSlice[] {
+  if (slices.length <= limit + 1) return slices
+  const head = slices.slice(0, limit)
+  const rest = slices.slice(limit).reduce((s, x) => s + (Number(x.value) || 0), 0)
+  if (rest > 0) head.push({ label: otherLabel, value: rest, color: MUTED_COLOR })
+  return head
+}
+
+function qtyText(v: number): string {
+  const n = Number(v) || 0
+  return n % 1 === 0 ? String(n) : n.toFixed(2)
+}
 
 export function ReportsPage() {
-  const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('financial')
+  const [reportSubTab, setReportSubTab] = useState<ReportSubTab>('overview')
   const [period, setPeriod] = useState<PeriodFilter>('today')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null)
   const printSaleInvoice = usePrintInvoice()
+  const storeInfo = useStoreInfo()
+  const reportInvoiceRef = useRef<HTMLDivElement>(null)
   const [walletMethod, setWalletMethod] = useState<PaymentMethod | null>(null)
-  const [showTransferModal, setShowTransferModal] = useState(false)
-  const [showOpeningModal, setShowOpeningModal] = useState(false)
 
-  const invoices = useInvoices({ dateRange: period })
+  const wallets = useWallets()
+  const invoices = useInvoices({ dateRange: period, fromDate, toDate })
   const allProducts = useProducts()
-  const allCustomers = useCustomers('', 'debt')
+  const allCustomers = useCustomers('', 'all')
   const balances = useAccountBalances()
-  const storeName = useStoreName()
-  const expenses = useExpenses(period)
+  const expenses = useExpenses(period, { fromDate, toDate })
 
   // All payments (for debt collection tracking)
   const allPayments = useLiveQuery(() => db.payments.toArray(), []) ?? []
@@ -44,14 +166,21 @@ export function ReportsPage() {
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
     const startOfWeek = startOfDay - 6 * 24 * 60 * 60 * 1000
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+    const fromTs = fromDate ? new Date(fromDate + 'T00:00:00').getTime() : NaN
+    const toTs = toDate ? new Date(toDate + 'T00:00:00').getTime() + 86_400_000 : NaN
     return allPurchases.filter((p) => {
       const t = new Date(p.date).getTime()
       if (period === 'today') return t >= startOfDay
       if (period === 'week') return t >= startOfWeek
       if (period === 'month') return t >= startOfMonth
+      if (period === 'custom') {
+        if (fromDate && Number.isFinite(fromTs) && t < fromTs) return false
+        if (toDate && Number.isFinite(toTs) && t >= toTs) return false
+        return true
+      }
       return true
     })
-  }, [allPurchases, period])
+  }, [allPurchases, period, fromDate, toDate])
 
   const purchaseTotals = useMemo(() => {
     return periodPurchases.reduce(
@@ -64,35 +193,22 @@ export function ReportsPage() {
     )
   }, [periodPurchases])
 
-  // Overall Debt
-  const totalOutstandingDebt = useMemo(() => {
-    return allCustomers.reduce((sum, c) => sum + (c.totalDebt || 0), 0)
-  }, [allCustomers])
-
   // فواتير البيع الحقيقية فقط — نستثني قيود الديون الوهمية (productId === 0)
   // وهي فواتير الرصيد الافتتاحي والديون اليدوية التي ليست بيعاً فعلياً
   const realInvoices = useMemo(() => {
     return invoices.filter((inv) => inv.items.some((i) => i.productId !== 0))
   }, [invoices])
 
-  // KPIs
-  const totalSales = useMemo(() => {
-    return realInvoices.reduce((sum, inv) => sum + inv.total, 0)
-  }, [realInvoices])
+  // KPIs — صافي بعد المرتجعات (المرتجع يخفض المبيعات والربح فعلياً)
+  const totalSales = useMemo(
+    () => realInvoices.reduce((sum, inv) => sum + invoiceNetRevenue(inv), 0),
+    [realInvoices],
+  )
 
-  const grossSalesProfit = useMemo(() => {
-    return realInvoices.reduce((sum, inv) => {
-      const invProfit = inv.items.reduce((iSum, item) => {
-        if (item.productId === 0) return iSum // skip opening-debt entries
-        const net = item.qty * item.price - lineDiscountAmount(item)
-        const profit = net - (item.costPrice || 0) * item.qty
-        return iSum + profit
-      }, 0)
-      // خصم الفاتورة الإجمالي يقلل الربح الفعلي
-      const finalInvProfit = invProfit - (inv.discountAmount || 0)
-      return sum + finalInvProfit
-    }, 0)
-  }, [realInvoices])
+  const grossSalesProfit = useMemo(
+    () => realInvoices.reduce((sum, inv) => sum + invoiceNetProfit(inv), 0),
+    [realInvoices],
+  )
 
   // Operating Expenses
   const totalExpenses = useMemo(() => {
@@ -104,66 +220,118 @@ export function ReportsPage() {
     return grossSalesProfit - totalExpenses
   }, [grossSalesProfit, totalExpenses])
 
-  // Period breakdown by payment method
-  const periodCollections = useMemo(() => {
-    const map = { cash: 0, jawwal_pay: 0, palpay: 0, bop: 0 }
-    realInvoices.forEach((inv) => {
-      if (inv.paidAmount > 0) {
-        const m = inv.paymentMethod || 'cash'
-        if (m === 'jawwal_pay') map.jawwal_pay += inv.paidAmount
-        else if (m === 'palpay') map.palpay += inv.paidAmount
-        else if (m === 'bop') map.bop += inv.paidAmount
-        else map.cash += inv.paidAmount
-      }
-    })
-    return map
-  }, [realInvoices])
-
-  // Collected debts in period — سدادات العملاء المستقلة (invoiceId === null)
-  // دفعات البيع الأصلية تحمل invoiceId، أما التحصيل من useCustomers.recordPayment فيكون مستقلاً
-  const collectedDebtInPeriod = useMemo(() => {
+  // دفعات الفترة (نفس منطق فلترة الفترات) — أساس المقبوضات الفعلية
+  const paymentsInPeriod = useMemo(() => {
     const now = new Date()
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
     const startOfWeek = startOfDay - 6 * 24 * 60 * 60 * 1000
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+    const fromTs = fromDate ? new Date(fromDate + 'T00:00:00').getTime() : NaN
+    const toTs = toDate ? new Date(toDate + 'T00:00:00').getTime() + 86_400_000 : NaN
 
-    return allPayments.reduce((sum, p) => {
-      if (p.invoiceId) return sum
-      const pDate = new Date(p.createdAt).getTime()
-      if (period === 'today' && pDate < startOfDay) return sum
-      if (period === 'week' && pDate < startOfWeek) return sum
-      if (period === 'month' && pDate < startOfMonth) return sum
-      return sum + (p.amount || 0)
-    }, 0)
-  }, [allPayments, period])
+    return allPayments.filter((p) => {
+      const t = new Date(p.createdAt).getTime()
+      if (period === 'today' && t < startOfDay) return false
+      if (period === 'week' && t < startOfWeek) return false
+      if (period === 'month' && t < startOfMonth) return false
+      if (period === 'custom') {
+        if (fromDate && Number.isFinite(fromTs) && t < fromTs) return false
+        if (toDate && Number.isFinite(toTs) && t >= toTs) return false
+      }
+      return true
+    })
+  }, [allPayments, period, fromDate, toDate])
 
-  // Top Selling Products — نستثني بنود الديون الوهمية
+  // Period breakdown by payment method (dynamic wallets) — من الحركات الفعلية
+  // (مبيعات نقدية + تحصيل ديون − استردادات) فتطابق حركة المحافظ تماماً
+  const periodCollections = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const p of paymentsInPeriod) {
+      const m = p.method || 'cash'
+      map[m] = (map[m] ?? 0) + (Number(p.amount) || 0)
+    }
+    return map
+  }, [paymentsInPeriod])
+
+  const periodCollectionsTotal = useMemo(
+    () => Object.values(periodCollections).reduce((s, v) => s + Math.max(0, v), 0),
+    [periodCollections],
+  )
+
+  // Collected debts in period — سدادات العملاء المستقلة (invoiceId === null)
+  const collectedDebtInPeriod = useMemo(
+    () => paymentsInPeriod.reduce((sum, p) => (p.invoiceId ? sum : sum + (Number(p.amount) || 0)), 0),
+    [paymentsInPeriod],
+  )
+
+  // Top Selling Products — نستثني بنود الديون الوهمية ونخصم المرتجعات
   const topProducts = useMemo(() => {
     const map: Record<string, { name: string; qty: number; revenue: number }> = {}
 
     realInvoices.forEach((inv) => {
+      const returnedQty = new Map<number, number>()
+      const refundedValue = new Map<number, number>()
+      for (const r of inv.returnedItems || []) {
+        returnedQty.set(r.productId, (returnedQty.get(r.productId) || 0) + (Number(r.qty) || 0))
+        refundedValue.set(r.productId, (refundedValue.get(r.productId) || 0) + (Number(r.refundAmount) || 0))
+      }
+      const appliedReturns = new Set<number>()
       inv.items.forEach((item) => {
         if (item.productId === 0) return
+        // المرتجع يُطبَّق مرة واحدة لكل صنف في الفاتورة (تفادياً للخصم المزدوج)
+        let rq = 0
+        let rv = 0
+        if (!appliedReturns.has(item.productId)) {
+          rq = returnedQty.get(item.productId) || 0
+          rv = refundedValue.get(item.productId) || 0
+          appliedReturns.add(item.productId)
+        }
         if (!map[item.name]) {
           map[item.name] = { name: item.name, qty: 0, revenue: 0 }
         }
-        map[item.name].qty += item.qty
-        map[item.name].revenue += item.price * item.qty - lineDiscountAmount(item)
+        map[item.name].qty += Math.max(0, item.qty - rq)
+        map[item.name].revenue += Math.max(0, item.price * item.qty - lineDiscountAmount(item) - rv)
       })
     })
 
-    const list = Object.values(map).sort((a, b) => b.qty - a.qty)
-    return list.slice(0, 5)
-  }, [invoices])
+    return Object.values(map).sort((a, b) => b.qty - a.qty).slice(0, 5)
+  }, [realInvoices])
 
-  const maxProductQty = topProducts[0]?.qty || 1
+  // ── العملاء والديون (مستقلة تماماً عن المخزون) ──
+  const debtors = useMemo(
+    () => allCustomers
+      .filter((c) => (c.totalDebt || 0) > 0)
+      .sort((a, b) => (b.totalDebt || 0) - (a.totalDebt || 0)),
+    [allCustomers],
+  )
 
-  // Top Debtors
-  const topDebtors = useMemo(() => {
-    return [...allCustomers]
-      .sort((a, b) => (b.totalDebt || 0) - (a.totalDebt || 0))
-      .slice(0, 5)
-  }, [allCustomers])
+  const creditCustomers = useMemo(
+    () => allCustomers
+      .filter((c) => (c.creditBalance || 0) > 0)
+      .sort((a, b) => (b.creditBalance || 0) - (a.creditBalance || 0)),
+    [allCustomers],
+  )
+
+  const totalCustomerCredit = useMemo(
+    () => creditCustomers.reduce((sum, c) => sum + (c.creditBalance || 0), 0),
+    [creditCustomers],
+  )
+
+  const totalOutstandingDebt = useMemo(
+    () => debtors.reduce((sum, c) => sum + (c.totalDebt || 0), 0),
+    [debtors],
+  )
+
+  const netReceivables = totalOutstandingDebt - totalCustomerCredit
+
+  const avgDebt = debtors.length > 0 ? totalOutstandingDebt / debtors.length : 0
+
+  const collectionRate = useMemo(() => {
+    const base = collectedDebtInPeriod + totalOutstandingDebt
+    return base > 0 ? (collectedDebtInPeriod / base) * 100 : 0
+  }, [collectedDebtInPeriod, totalOutstandingDebt])
+
+  const topDebtors = useMemo(() => debtors.slice(0, 5), [debtors])
 
   // Inventory Alerts — الخدمات لا تدخل في تنبيهات النقص (بلا مخزون)
   const lowStockProducts = useMemo(() => {
@@ -174,62 +342,153 @@ export function ReportsPage() {
     })
   }, [allProducts])
 
-  // Share WhatsApp for selected invoice
-  const shareInvoiceWhatsApp = (inv: Invoice) => {
-    const customer = allCustomers.find((c) => c.id === inv.customerId)
-    const phone = customer?.phone?.replace(/\D/g, '') || ''
-    const dateStr = new Date(inv.createdAt).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })
+  const outOfStockCount = useMemo(
+    () => allProducts.filter((p) => getProductType(p) !== 'service' && isOutOfStock(p)).length,
+    [allProducts],
+  )
 
-    const itemsText = inv.items
-      .map((i) => `• ${i.name} (${formatLineQty(i)} × ${formatCurrency(i.price)}) = ${formatCurrency(i.qty * i.price)}`)
-      .join('\n')
+  const stockValues = useMemo(() => {
+    return allProducts.reduce(
+      (acc, p) => {
+        const t = getProductType(p)
+        if (t === 'service') return acc
+        const qty = t === 'weighted' ? (p.quantity || 0) / 1000 : (p.quantity || 0)
+        acc.cost += (p.costPrice || 0) * qty
+        acc.retail += (p.salePrice || 0) * qty
+        return acc
+      },
+      { cost: 0, retail: 0 },
+    )
+  }, [allProducts])
 
-    let msg = `🧾 *فاتورة مبيعات — ${storeName} (ميزان)*\n`
-    msg += `رقم الفاتورة: #${inv.id}\n`
-    msg += `التاريخ: ${dateStr}\n`
-    if (inv.customerName) msg += `العميل: ${inv.customerName}\n`
-    msg += `طريقة الدفع: ${inv.paymentType === 'debt' ? 'دين كامل 📝' : getPaymentMethodName(inv.paymentMethod)}\n`
-    msg += `--------------------------------\n`
-    msg += `${itemsText}\n`
-    msg += `--------------------------------\n`
-    msg += `الإجمالي: ${formatCurrency(inv.total)}\n`
-    msg += `المدفوع: ${formatCurrency(inv.paidAmount)}\n`
-    if (inv.debtAmount > 0) msg += `المتبقي دين: ${formatCurrency(inv.debtAmount)}\n`
+  // ── Chart datasets ──
+  const paymentDonut: ChartSlice[] = useMemo(
+    () =>
+      wallets
+        .map((w, i) => ({
+          label: `${w.icon} ${w.name}`,
+          value: periodCollections[w.id] ?? 0,
+          color: CHART_PALETTE[i % CHART_PALETTE.length],
+        }))
+        .filter((d) => d.value > 0),
+    [wallets, periodCollections],
+  )
 
-    const encoded = encodeURIComponent(msg)
-    if (phone) {
-      const cleanPhone = phone.startsWith('0') ? '970' + phone.slice(1) : phone
-      window.open(`https://wa.me/${cleanPhone}?text=${encoded}`, '_blank')
-    } else {
-      window.open(`https://api.whatsapp.com/send?text=${encoded}`, '_blank')
-    }
-  }
+  const walletBalanceDonut: ChartSlice[] = useMemo(
+    () =>
+      wallets
+        .map((w, i) => ({
+          label: `${w.icon} ${w.name}`,
+          value: Math.max(0, Number((balances as Record<string, number>)[w.id] ?? 0)),
+          color: CHART_PALETTE[i % CHART_PALETTE.length],
+        }))
+        .filter((d) => d.value > 0),
+    [wallets, balances],
+  )
+
+  const expenseDonut: ChartSlice[] = useMemo(() => {
+    const map = new Map<string, number>()
+    expenses.forEach((e) => map.set(e.category, (map.get(e.category) ?? 0) + (e.amount || 0)))
+    const slices = [...map.entries()]
+      .map(([label, value]) => ({ label: `${getCategoryIcon(label)} ${label}`, value }))
+      .sort((a, b) => b.value - a.value)
+    return topWithOther(slices, 6, 'أنواع أخرى')
+  }, [expenses])
+
+  const categoryStock: ChartSlice[] = useMemo(() => {
+    const map = new Map<string, number>()
+    allProducts.forEach((p) => {
+      const t = getProductType(p)
+      if (t === 'service') return
+      const qty = t === 'weighted' ? (p.quantity || 0) / 1000 : (p.quantity || 0)
+      const val = (p.salePrice || 0) * qty
+      if (val <= 0) return
+      const cat = p.category?.trim() || 'غير مصنّف'
+      map.set(cat, (map.get(cat) ?? 0) + val)
+    })
+    const slices = [...map.entries()]
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+    return topWithOther(slices, 6, 'تصنيفات أخرى')
+  }, [allProducts])
+
+  const debtDonut: ChartSlice[] = useMemo(
+    () => topWithOther(debtors.map((c) => ({ label: c.name, value: c.totalDebt || 0 })), 6, 'بقية المدينين'),
+    [debtors],
+  )
+
+  const salesTrend = useMemo(
+    () => buildSalesTrend(realInvoices, period, fromDate, toDate),
+    [realInvoices, period, fromDate, toDate],
+  )
 
   // Period selector helper element
   const renderPeriodSelector = () => (
-    <Tabs
-      tabs={[
-        { value: 'today', label: 'اليوم' },
-        { value: 'week', label: 'آخر 7 أيام' },
-        { value: 'month', label: 'هذا الشهر' },
-        { value: 'all', label: 'كل الفترات' },
-      ]}
-      value={period}
-      onChange={(v) => setPeriod(v as PeriodFilter)}
-    />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <Tabs
+        tabs={[
+          { value: 'today', label: 'اليوم' },
+          { value: 'week', label: 'آخر 7 أيام' },
+          { value: 'month', label: 'هذا الشهر' },
+          { value: 'all', label: 'كل الفترات' },
+          { value: 'custom', label: 'مخصص' },
+        ]}
+        value={period}
+        onChange={(v) => {
+          setPeriod(v as PeriodFilter)
+          if (v !== 'custom') {
+            setFromDate('')
+            setToDate('')
+          }
+        }}
+      />
+      {period === 'custom' && (
+        <div style={{
+          background: 'var(--color-input-bg)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 14,
+          padding: 12,
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 10,
+        }}>
+          <div className="input-wrap">
+            <label className="input-label">من تاريخ</label>
+            <input className="input" type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} />
+          </div>
+          <div className="input-wrap">
+            <label className="input-label">إلى تاريخ</label>
+            <input className="input" type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} />
+          </div>
+        </div>
+      )}
+    </div>
   )
 
   return (
     <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <PageHeader
+        icon="chart-bar"
+        title="التقارير والإحصائيات"
+        subtitle="لوحة تحليلات شاملة للمبيعات والأرباح والمخزون والديون"
+      />
+
       {/* TOP SEGMENTED REPORT TABS */}
       <Tabs
         tabs={[
-          { value: 'financial', label: 'المالية والأرباح', icon: 'chart-bar' },
+          { value: 'overview', label: 'نظرة عامة', icon: 'chart-bar' },
+          { value: 'financial', label: 'المالية والأرباح', icon: 'banknotes' },
           {
-            value: 'inventory_debt',
-            label: 'حركة وحالة المخزن',
+            value: 'inventory',
+            label: 'المخزون',
             icon: 'package',
             badge: lowStockProducts.length > 0 ? lowStockProducts.length : undefined,
+          },
+          {
+            value: 'customers',
+            label: 'العملاء والديون',
+            icon: 'users',
+            badge: debtors.length > 0 ? debtors.length : undefined,
           },
         ]}
         value={reportSubTab}
@@ -237,7 +496,116 @@ export function ReportsPage() {
       />
 
       {/* ============================================================ */}
-      {/* TAB 1: FINANCIAL & PROFITS */}
+      {/* TAB: OVERVIEW                                                */}
+      {/* ============================================================ */}
+      {reportSubTab === 'overview' && (
+        <>
+          {renderPeriodSelector()}
+
+          {/* Hero banner */}
+          <div className="report-hero">
+            <div>
+              <span className="report-hero-eyebrow">ميزان · ملخص الأداء</span>
+              <h3 className="report-hero-title">نظرة شاملة — {PERIOD_LABELS[period]}</h3>
+              <p className="report-hero-sub">
+                {realInvoices.length} فاتورة بيع · {topProducts.length} صنف الأكثر مبيعاً · {debtors.length} عميل مدين
+              </p>
+            </div>
+            <div className="report-hero-grid">
+              <div className="report-hero-stat">
+                <div className="report-hero-stat-l">المبيعات</div>
+                <div className="report-hero-stat-v">{formatCurrency(totalSales)}</div>
+              </div>
+              <div className="report-hero-stat">
+                <div className="report-hero-stat-l">صافي الربح</div>
+                <div className="report-hero-stat-v">{formatCurrency(realNetProfit)}</div>
+              </div>
+              <div className="report-hero-stat">
+                <div className="report-hero-stat-l">المصاريف</div>
+                <div className="report-hero-stat-v">{formatCurrency(totalExpenses)}</div>
+              </div>
+              <div className="report-hero-stat">
+                <div className="report-hero-stat-l">الديون المعلقة</div>
+                <div className="report-hero-stat-v">{formatCurrency(totalOutstandingDebt)}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Sales trend */}
+          <div className="report-panel">
+            <div className="report-panel-head">
+              <div className="report-panel-title"><span className="report-panel-emoji">📈</span> حركة المبيعات</div>
+              <span className="report-panel-badge">{PERIOD_LABELS[period]}</span>
+            </div>
+            <ColumnTrend points={salesTrend} />
+          </div>
+
+          {/* Payments + Expenses donuts */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            <div className="report-panel">
+              <div className="report-panel-head">
+                <div className="report-panel-title"><span className="report-panel-emoji">💳</span> المقبوضات حسب وسيلة الدفع</div>
+              </div>
+              <DonutChart
+                data={paymentDonut}
+                centerLabel="إجمالي المحصّل"
+                centerValue={formatCurrency(periodCollectionsTotal)}
+                valueFormatter={formatCurrency}
+              />
+            </div>
+            <div className="report-panel">
+              <div className="report-panel-head">
+                <div className="report-panel-title"><span className="report-panel-emoji">🧾</span> المصاريف حسب النوع</div>
+              </div>
+              <DonutChart
+                data={expenseDonut}
+                palette={EXPENSE_PALETTE}
+                centerLabel="إجمالي المصاريف"
+                centerValue={formatCurrency(totalExpenses)}
+              />
+            </div>
+          </div>
+
+          {/* Top products + Top debtors */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            <div className="report-panel">
+              <div className="report-panel-head">
+                <div className="report-panel-title"><span className="report-panel-emoji">🔥</span> الأكثر مبيعاً</div>
+                <span className="report-panel-badge">أفضل 5</span>
+              </div>
+              <BarList
+                items={topProducts.map((p) => ({ label: p.name, value: p.qty, sub: formatCurrency(p.revenue) }))}
+                valueFormatter={qtyText}
+                palette={['#3b82f6', '#8b5cf6', '#06b6d4', '#f59e0b', '#ef4444']}
+                emptyText="لا توجد مبيعات في هذه الفترة"
+              />
+            </div>
+            <div className="report-panel">
+              <div className="report-panel-head">
+                <div className="report-panel-title"><span className="report-panel-emoji">👥</span> أعلى العملاء ديناً</div>
+                <button
+                  type="button"
+                  onClick={() => setReportSubTab('customers')}
+                  style={{
+                    background: 'transparent', border: 'none', color: 'var(--color-primary-light)',
+                    fontWeight: 800, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-main)',
+                  }}
+                >
+                  التفاصيل ›
+                </button>
+              </div>
+              <BarList
+                items={topDebtors.map((c) => ({ label: c.name, value: c.totalDebt || 0 }))}
+                palette={DEBT_PALETTE}
+                emptyText="لا توجد ديون مستحقة 🎉"
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ============================================================ */}
+      {/* TAB: FINANCIAL & PROFITS                                     */}
       {/* ============================================================ */}
       {reportSubTab === 'financial' && (
         <>
@@ -255,49 +623,6 @@ export function ReportsPage() {
                 <h3 style={{ fontSize: 16, fontWeight: 900 }}>أرصدة الخزينة والحسابات</h3>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowOpeningModal(true)}
-                  title="تعديل رأس المال والأرصدة الافتتاحية"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    background: 'var(--color-input-bg)',
-                    border: '1px solid var(--color-border)',
-                    color: 'var(--color-text-secondary)',
-                    borderRadius: 8,
-                    padding: '4px 10px',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-main)',
-                  }}
-                >
-                  <span>⚙️</span>
-                  <span>الرصيد الافتتاحي</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowTransferModal(true)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    background: 'var(--color-primary-glow)',
-                    border: '1px solid var(--color-border-active)',
-                    color: 'var(--color-primary-light)',
-                    borderRadius: 8,
-                    padding: '4px 10px',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    fontFamily: 'var(--font-main)',
-                  }}
-                >
-                  <span>🔄</span>
-                  <span>تحويل أموال</span>
-                </button>
                 <span style={{
                   fontSize: 12,
                   fontWeight: 800,
@@ -319,138 +644,49 @@ export function ReportsPage() {
             </div>
 
             <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: '0 0 12px' }}>
-              أرصدة تراكمية (كل الفترات) — اضغط على أي محفظة لعرض حركاتها وحذف أو تعديل أي بند.
+              أرصدة تراكمية (كل الفترات) — اضغط على أي محفظة لعرض حركاتها. الأرصدة الافتتاحية والتحويلات تُدار من صفحة الخزينة والمحافظ.
             </p>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              {/* Cash */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setWalletMethod('cash')}
-                onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('cash') }}
-                title="عرض حركات الصندوق"
-                style={{
-                  background: balances.cash < 0 ? 'var(--kpi-danger-bg)' : 'var(--color-input-bg)',
-                  border: balances.cash < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid var(--color-border)',
-                  borderRadius: 14,
-                  padding: 12,
-                  cursor: 'pointer',
-                }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <span style={{ fontSize: 16 }}>💵</span>
-                  <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>رصيد الكاش (الصندوق)</span>
-                  {balances.cash < 0 && (
-                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-danger-light)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 50, padding: '1px 8px' }}>
-                      ⚠️ عجز
-                    </span>
-                  )}
-                  <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: balances.cash < 0 ? 'var(--color-danger-light)' : 'var(--color-text-primary)', direction: 'ltr' }}>
-                  {formatCurrency(balances.cash)}
-                </div>
-              </div>
-
-              {/* Jawwal Pay */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setWalletMethod('jawwal_pay')}
-                onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('jawwal_pay') }}
-                title="عرض حركات جوال باي"
-                style={{
-                  background: balances.jawwal_pay < 0 ? 'var(--kpi-danger-bg)' : 'rgba(16,185,129,0.08)',
-                  border: balances.jawwal_pay < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid rgba(16,185,129,0.25)',
-                  borderRadius: 14,
-                  padding: 12,
-                  cursor: 'pointer',
-                }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <span style={{ fontSize: 16 }}>📱</span>
-                  <span style={{ fontSize: 12, color: 'var(--color-success-light)', fontWeight: 600 }}>رصيد جوال باي</span>
-                  {balances.jawwal_pay < 0 && (
-                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-danger-light)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 50, padding: '1px 8px' }}>
-                      ⚠️ عجز
-                    </span>
-                  )}
-                  <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: balances.jawwal_pay < 0 ? 'var(--color-danger-light)' : 'var(--color-success-light)', direction: 'ltr' }}>
-                  {formatCurrency(balances.jawwal_pay)}
-                </div>
-              </div>
-
-              {/* PalPay */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setWalletMethod('palpay')}
-                onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('palpay') }}
-                title="عرض حركات بال باي"
-                style={{
-                  background: balances.palpay < 0 ? 'var(--kpi-danger-bg)' : 'rgba(139,92,246,0.08)',
-                  border: balances.palpay < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid rgba(139,92,246,0.25)',
-                  borderRadius: 14,
-                  padding: 12,
-                  cursor: 'pointer',
-                }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <span style={{ fontSize: 16 }}>💳</span>
-                  <span style={{ fontSize: 12, color: 'var(--color-purple-light)', fontWeight: 600 }}>رصيد بال باي (PalPay)</span>
-                  {balances.palpay < 0 && (
-                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-danger-light)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 50, padding: '1px 8px' }}>
-                      ⚠️ عجز
-                    </span>
-                  )}
-                  <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: balances.palpay < 0 ? 'var(--color-danger-light)' : 'var(--color-purple-light)', direction: 'ltr' }}>
-                  {formatCurrency(balances.palpay)}
-                </div>
-              </div>
-
-              {/* Bank of Palestine */}
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setWalletMethod('bop')}
-                onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod('bop') }}
-                title="عرض حركات بنك فلسطين"
-                style={{
-                  background: balances.bop < 0 ? 'var(--kpi-danger-bg)' : 'rgba(59,130,246,0.08)',
-                  border: balances.bop < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid rgba(59,130,246,0.25)',
-                  borderRadius: 14,
-                  padding: 12,
-                  cursor: 'pointer',
-                }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                  <span style={{ fontSize: 16 }}>🏦</span>
-                  <span style={{ fontSize: 12, color: 'var(--color-primary-light)', fontWeight: 600 }}>رصيد بنك فلسطين</span>
-                  {balances.bop < 0 && (
-                    <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-danger-light)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 50, padding: '1px 8px' }}>
-                      ⚠️ عجز
-                    </span>
-                  )}
-                  <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
-                </div>
-                <div style={{ fontSize: 18, fontWeight: 900, color: balances.bop < 0 ? 'var(--color-danger-light)' : 'var(--color-primary-light)', direction: 'ltr' }}>
-                  {formatCurrency(balances.bop)}
-                </div>
-              </div>
+              {wallets.map((w) => {
+                const bal = Number((balances as Record<string, number>)[w.id] ?? 0)
+                return (
+                  <div
+                    key={w.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setWalletMethod(w.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') setWalletMethod(w.id) }}
+                    title={`عرض حركات ${w.name}`}
+                    style={{
+                      background: bal < 0 ? 'var(--kpi-danger-bg)' : 'var(--color-input-bg)',
+                      border: bal < 0 ? '1px solid var(--kpi-danger-border)' : '1px solid var(--color-border)',
+                      borderRadius: 14,
+                      padding: 12,
+                      cursor: 'pointer',
+                      opacity: w.archived ? 0.7 : 1,
+                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                      <span style={{ fontSize: 16 }}>{w.icon}</span>
+                      <span style={{ fontSize: 12, color: 'var(--color-text-muted)', fontWeight: 600 }}>{w.name}</span>
+                      {bal < 0 && (
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-danger-light)', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 50, padding: '1px 8px' }}>
+                          ⚠️ عجز
+                        </span>
+                      )}
+                      <span style={{ marginInlineStart: 'auto', fontSize: 12, color: 'var(--color-text-muted)' }}>›</span>
+                    </div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: bal < 0 ? 'var(--color-danger-light)' : 'var(--color-text-primary)', direction: 'ltr' }}>
+                      {formatCurrency(bal)}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
           {walletMethod && (
             <WalletDetailModal method={walletMethod} onClose={() => setWalletMethod(null)} />
-          )}
-
-          {showTransferModal && (
-            <WalletTransferModal open onClose={() => setShowTransferModal(false)} />
-          )}
-
-          {showOpeningModal && (
-            <WalletOpeningBalanceModal open onClose={() => setShowOpeningModal(false)} />
           )}
 
           {/* Period Selector Tabs */}
@@ -492,33 +728,27 @@ export function ReportsPage() {
             />
           </div>
 
-          {/* Period Collections Breakdown */}
-          <div style={{
-            background: 'var(--color-bg-card)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 16,
-            padding: 16,
-          }}>
-            <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
-              💳 المقبوضات المحصلة حسب وسيلة الدفع
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              <div style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--kpi-period-inset)', border: '1px solid var(--color-border)' }}>
-                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>كاش:</span>
-                <p style={{ fontWeight: 800, fontSize: 15, direction: 'ltr', marginTop: 2 }}>{formatCurrency(periodCollections.cash)}</p>
+          {/* Donuts: collections + wallet balances */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            <div className="report-panel">
+              <div className="report-panel-head">
+                <div className="report-panel-title"><span className="report-panel-emoji">💳</span> المقبوضات المحصلة حسب وسيلة الدفع</div>
               </div>
-              <div style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--kpi-green-bg)', border: '1px solid var(--kpi-green-border)' }}>
-                <span style={{ fontSize: 12, color: 'var(--color-success-light)' }}>جوال باي:</span>
-                <p style={{ fontWeight: 800, fontSize: 15, direction: 'ltr', marginTop: 2, color: 'var(--color-success-light)' }}>{formatCurrency(periodCollections.jawwal_pay)}</p>
+              <DonutChart
+                data={paymentDonut}
+                centerLabel="إجمالي المحصّل"
+                centerValue={formatCurrency(periodCollectionsTotal)}
+              />
+            </div>
+            <div className="report-panel">
+              <div className="report-panel-head">
+                <div className="report-panel-title"><span className="report-panel-emoji">💰</span> توزيع أرصدة الخزينة</div>
               </div>
-              <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.25)' }}>
-                <span style={{ fontSize: 12, color: 'var(--color-purple-light)' }}>بال باي:</span>
-                <p style={{ fontWeight: 800, fontSize: 15, direction: 'ltr', marginTop: 2, color: 'var(--color-purple-light)' }}>{formatCurrency(periodCollections.palpay)}</p>
-              </div>
-              <div style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--kpi-cyan-bg)', border: '1px solid var(--kpi-cyan-border)' }}>
-                <span style={{ fontSize: 12, color: 'var(--color-primary-light)' }}>بنك فلسطين:</span>
-                <p style={{ fontWeight: 800, fontSize: 15, direction: 'ltr', marginTop: 2, color: 'var(--color-primary-light)' }}>{formatCurrency(periodCollections.bop)}</p>
-              </div>
+              <DonutChart
+                data={walletBalanceDonut}
+                centerLabel="إجمالي الأرصدة"
+                centerValue={formatCurrency(Math.max(0, balances.total))}
+              />
             </div>
           </div>
 
@@ -579,7 +809,7 @@ export function ReportsPage() {
                         )}
                       </div>
                       <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2, display: 'block' }}>
-                        {new Date(p.date).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                        {formatDateTime(p.date)}
                         {p.invoiceNumber ? ` · #${p.invoiceNumber}` : ''} · {p.items.length} أصناف
                       </span>
                     </div>
@@ -660,7 +890,7 @@ export function ReportsPage() {
                         )}
                       </div>
                       <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2, display: 'block' }}>
-                        {new Date(inv.createdAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                        {formatDateTime(inv.createdAt)}
                       </span>
                     </div>
 
@@ -673,6 +903,11 @@ export function ReportsPage() {
                           دين: {formatCurrency(inv.debtAmount)}
                         </div>
                       )}
+                      {(inv.refundedAmount || 0) > 0 && (
+                        <div style={{ fontSize: 11, color: 'var(--color-warning-light)', direction: 'ltr' }}>
+                          مرتجع: -{formatCurrency(inv.refundedAmount || 0)}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -683,151 +918,92 @@ export function ReportsPage() {
       )}
 
       {/* ============================================================ */}
-      {/* TAB 3: INVENTORY MOVEMENT & DEBTS */}
+      {/* TAB: INVENTORY                                               */}
       {/* ============================================================ */}
-      {reportSubTab === 'inventory_debt' && (
+      {reportSubTab === 'inventory' && (
         <>
-          {/* Period Selector */}
           {renderPeriodSelector()}
 
-          {/* Activity & Debt KPIs */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 10 }}>
+          {/* Inventory KPIs */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
             <StatCard
-              label="الديون المعلقة"
-              value={formatCurrency(totalOutstandingDebt)}
-              sub={`على ${allCustomers.length} عميل`}
-              icon="warning"
-              variant="danger"
-              ltr
-            />
-            <StatCard
-              label="ديون محصلة"
-              value={formatCurrency(collectedDebtInPeriod)}
-              sub="تحصيل (سيولة)"
-              icon="check"
+              label="قيمة المخزون (بيع)"
+              value={formatCurrency(stockValues.retail)}
+              sub="بسعر البيع الحالي"
+              icon="banknotes"
               variant="success"
               ltr
             />
             <StatCard
-              label="عدد العمليات"
-              value={realInvoices.length}
-              sub="عملية بيع"
-              icon="receipt"
+              label="قيمة المخزون (تكلفة)"
+              value={formatCurrency(stockValues.cost)}
+              sub="رأس المال المجمّد"
+              icon="box"
               variant="brand"
+              ltr
+            />
+            <StatCard
+              label="أصناف ناقصة"
+              value={lowStockProducts.length}
+              sub="بحاجة لتزويد"
+              icon="warning"
+              variant="warning"
+            />
+            <StatCard
+              label="أصناف نفدت"
+              value={outOfStockCount}
+              sub="الكمية = صفر"
+              icon="warning"
+              variant="danger"
+            />
+          </div>
+
+          {/* Category stock distribution donut */}
+          <div className="report-panel">
+            <div className="report-panel-head">
+              <div className="report-panel-title"><span className="report-panel-emoji">🗂️</span> توزيع قيمة المخزون حسب التصنيف</div>
+              <span className="report-panel-badge">بسعر البيع</span>
+            </div>
+            <DonutChart
+              data={categoryStock}
+              centerLabel="قيمة البيع"
+              centerValue={formatCurrency(stockValues.retail)}
+              emptyText="لا يوجد مخزون مسجّل"
             />
           </div>
 
           {/* Top Selling Products */}
-          <div style={{
-            background: 'var(--color-bg-card)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 16,
-            padding: 16,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 800 }}>🔥 الأكثر مبيعاً في هذه الفترة</h3>
-              <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>أفضل 5</span>
+          <div className="report-panel">
+            <div className="report-panel-head">
+              <div className="report-panel-title"><span className="report-panel-emoji">🔥</span> الأكثر مبيعاً في هذه الفترة</div>
+              <span className="report-panel-badge">أفضل 5</span>
             </div>
-
-            {topProducts.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: '16px 0' }}>
-                لا توجد مبيعات مسجلة في هذه الفترة
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {topProducts.map((p, idx) => {
-                  const pct = Math.round((p.qty / maxProductQty) * 100)
-                  return (
-                    <div key={p.name}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 4 }}>
-                        <span style={{ fontWeight: 700 }}>
-                          <span style={{ color: 'var(--color-primary-light)', marginLeft: 6 }}>#{idx + 1}</span>
-                          {p.name}
-                        </span>
-                        <span style={{ color: 'var(--color-text-secondary)' }}>
-                          <strong>{p.qty}</strong> قطعة ({formatCurrency(p.revenue)})
-                        </span>
-                      </div>
-                      <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 4, overflow: 'hidden' }}>
-                        <div style={{
-                          width: `${pct}%`,
-                          height: '100%',
-                          background: 'linear-gradient(90deg, #3b82f6, #8b5cf6)',
-                          borderRadius: 4,
-                        }} />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Top Debtor Customers */}
-          <div style={{
-            background: 'var(--color-bg-card)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 16,
-            padding: 16,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <h3 style={{ fontSize: 15, fontWeight: 800 }}>👥 أعلى العملاء ديناً</h3>
-              <span style={{ fontSize: 12, color: 'var(--color-danger-light)', fontWeight: 700 }}>متابعة التحصيل</span>
-            </div>
-
-            {topDebtors.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: '16px 0' }}>
-                لا توجد ديون مستحقة على أي عميل 🎉
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {topDebtors.map((c, idx) => (
-                  <div
-                    key={c.id}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      padding: '8px 12px',
-                      background: 'rgba(255,255,255,0.03)',
-                      borderRadius: 10,
-                      border: '1px solid var(--color-border)',
-                    }}
-                  >
-                    <div>
-                      <span style={{ fontWeight: 700, fontSize: 14 }}>
-                        <span style={{ color: 'var(--color-danger-light)', marginLeft: 6 }}>#{idx + 1}</span>
-                        {c.name}
-                      </span>
-                      {c.phone && (
-                        <span style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', direction: 'ltr', textAlign: 'right' }}>
-                          {c.phone}
-                        </span>
-                      )}
-                    </div>
-                    <span style={{ fontWeight: 800, color: 'var(--color-danger-light)', direction: 'ltr', fontSize: 14 }}>
-                      {formatCurrency(c.totalDebt)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <BarList
+              items={topProducts.map((p) => ({ label: p.name, value: p.qty, sub: formatCurrency(p.revenue) }))}
+              valueFormatter={qtyText}
+              palette={['#3b82f6', '#8b5cf6', '#06b6d4', '#f59e0b', '#ef4444']}
+              emptyText="لا توجد مبيعات مسجلة في هذه الفترة"
+            />
           </div>
 
           {/* Low Stock Warning */}
-          {lowStockProducts.length > 0 && (
-            <div style={{
-              background: 'rgba(245,158,11,0.08)',
-              border: '1px solid rgba(245,158,11,0.3)',
-              borderRadius: 16,
-              padding: 16,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <span style={{ fontSize: 20 }}>⚠️</span>
-                <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-warning-light)' }}>
-                  تنبيهات المخزون النواقص ({lowStockProducts.length} صنف)
-                </h3>
-              </div>
+          <div style={{
+            background: 'rgba(245,158,11,0.08)',
+            border: '1px solid rgba(245,158,11,0.3)',
+            borderRadius: 16,
+            padding: 16,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <span style={{ fontSize: 20 }}>⚠️</span>
+              <h3 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-warning-light)' }}>
+                تنبيهات المخزون النواقص ({lowStockProducts.length} صنف)
+              </h3>
+            </div>
+            {lowStockProducts.length === 0 ? (
+              <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 13, padding: '6px 0' }}>
+                كل الأصناف ضمن الحد الآمن ✓
+              </p>
+            ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {lowStockProducts.slice(0, 8).map((p) => (
                   <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
@@ -841,8 +1017,167 @@ export function ReportsPage() {
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ============================================================ */}
+      {/* TAB: CUSTOMERS & DEBTS (مستقل تماماً عن المخزون)             */}
+      {/* ============================================================ */}
+      {reportSubTab === 'customers' && (
+        <>
+          {renderPeriodSelector()}
+
+          {/* Debt KPIs */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
+            <StatCard
+              label="الديون المعلقة"
+              value={formatCurrency(totalOutstandingDebt)}
+              sub={`على ${debtors.length} عميل`}
+              icon="warning"
+              variant="danger"
+              ltr
+            />
+            <StatCard
+              label="ديون محصلة"
+              value={formatCurrency(collectedDebtInPeriod)}
+              sub={`خلال ${PERIOD_LABELS[period]}`}
+              icon="check"
+              variant="success"
+              ltr
+            />
+            <StatCard
+              label="عدد المدينين"
+              value={debtors.length}
+              sub="عملاء لديهم رصيد"
+              icon="users"
+              variant="brand"
+            />
+            <StatCard
+              label="متوسط الدين"
+              value={formatCurrency(avgDebt)}
+              sub="لكل عميل مدين"
+              icon="scale"
+              variant="info"
+              ltr
+            />
+            <StatCard
+              label="أرصدة دائنة"
+              value={formatCurrency(totalCustomerCredit)}
+              sub={`مستحقة لـ ${creditCustomers.length} عميل`}
+              icon="banknotes"
+              variant="info"
+              ltr
+            />
+            <StatCard
+              label="صافي الذمم"
+              value={formatCurrency(netReceivables)}
+              sub="الديون − الأرصدة الدائنة"
+              icon="scale"
+              variant={netReceivables >= 0 ? 'success' : 'warning'}
+              ltr
+            />
+          </div>
+
+          {/* Collection rate + debt distribution */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+            <div className="report-panel">
+              <div className="report-panel-head">
+                <div className="report-panel-title"><span className="report-panel-emoji">🎯</span> نسبة التحصيل</div>
+              </div>
+              <RadialGauge
+                value={collectionRate}
+                max={100}
+                size={150}
+                color="var(--color-success-light)"
+                centerText={`${Math.round(collectionRate)}%`}
+                caption="محصّل مقابل المتبقي"
+              />
+              <p style={{ fontSize: 11.5, color: 'var(--color-text-muted)', textAlign: 'center', marginTop: 12 }}>
+                حصّلت {formatCurrency(collectedDebtInPeriod)} · المتبقي {formatCurrency(totalOutstandingDebt)}
+              </p>
+            </div>
+            <div className="report-panel">
+              <div className="report-panel-head">
+                <div className="report-panel-title"><span className="report-panel-emoji">📊</span> توزيع الديون على العملاء</div>
+              </div>
+              <DonutChart
+                data={debtDonut}
+                palette={DEBT_PALETTE}
+                centerLabel="إجمالي الديون"
+                centerValue={formatCurrency(totalOutstandingDebt)}
+                emptyText="لا توجد ديون مستحقة 🎉"
+              />
+            </div>
+          </div>
+
+          {/* Top debtors bars */}
+          <div className="report-panel">
+            <div className="report-panel-head">
+              <div className="report-panel-title"><span className="report-panel-emoji">👥</span> أعلى العملاء ديناً</div>
+              <span className="report-panel-badge">متابعة التحصيل</span>
+            </div>
+            <BarList
+              items={topDebtors.map((c) => ({
+                label: c.name,
+                value: c.totalDebt || 0,
+                sub: c.phone || undefined,
+              }))}
+              palette={DEBT_PALETTE}
+              emptyText="لا توجد ديون مستحقة على أي عميل 🎉"
+            />
+          </div>
+
+          {/* Credit customers */}
+          {creditCustomers.length > 0 && (
+            <div className="report-panel">
+              <div className="report-panel-head">
+                <div className="report-panel-title"><span className="report-panel-emoji">💠</span> أرصدة دائنة للعملاء</div>
+                <span className="report-panel-badge">{creditCustomers.length} عميل</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto' }}>
+                {creditCustomers.slice(0, 20).map((c) => (
+                  <div key={c.id} className="report-debtor-row">
+                    <div style={{ minWidth: 0 }}>
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>{c.name}</span>
+                      {c.phone && (
+                        <span style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', direction: 'ltr', textAlign: 'right' }}>{c.phone}</span>
+                      )}
+                    </div>
+                    <span className="report-debtor-amount" style={{ color: 'var(--color-primary-light)' }}>{formatCurrency(c.creditBalance || 0)}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
+
+          {/* Full debtors list */}
+          <div className="report-panel">
+            <div className="report-panel-head">
+              <div className="report-panel-title"><span className="report-panel-emoji">🧾</span> كشف المدينين</div>
+              <span className="report-panel-badge">{debtors.length} عميل</span>
+            </div>
+            {debtors.length === 0 ? (
+              <p className="chart-empty">لا توجد ديون مستحقة 🎉</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto' }}>
+                {debtors.slice(0, 20).map((c) => (
+                  <div key={c.id} className="report-debtor-row">
+                    <div style={{ minWidth: 0 }}>
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>{c.name}</span>
+                      {c.phone && (
+                        <span style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', direction: 'ltr', textAlign: 'right' }}>
+                          {c.phone}
+                        </span>
+                      )}
+                    </div>
+                    <span className="report-debtor-amount">{formatCurrency(c.totalDebt)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </>
       )}
 
@@ -864,7 +1199,7 @@ export function ReportsPage() {
               flexDirection: 'column',
               gap: 4,
             }}>
-              <div><strong>التاريخ:</strong> {new Date(selectedInvoice.createdAt).toLocaleString('ar-EG')}</div>
+              <div><strong>التاريخ:</strong> {formatDateTime(selectedInvoice.createdAt)}</div>
               {selectedInvoice.customerName && (
                 <div><strong>العميل:</strong> {selectedInvoice.customerName}</div>
               )}
@@ -937,51 +1272,44 @@ export function ReportsPage() {
               )}
             </div>
 
-            {/* Actions */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-              <button
-                type="button"
-                onClick={() => shareInvoiceWhatsApp(selectedInvoice)}
-                style={{
-                  flex: 1,
-                  padding: '11px',
-                  borderRadius: 12,
-                  background: '#25D366',
-                  border: 'none',
-                  color: 'white',
-                  fontWeight: 700,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-main)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 6,
-                }}
-              >
-                <span>مشاركة واتساب</span>
-                <span>💬</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => printSaleInvoice(selectedInvoice)}
-                style={{
-                  padding: '11px 16px',
-                  borderRadius: 12,
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid var(--color-border)',
-                  color: 'var(--color-text-primary)',
-                  fontWeight: 700,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-main)',
-                }}
-              >
-                🖨️ طباعة
-              </button>
-            </div>
+            {/* تصدير: صورة PNG / PDF / واتساب كصورة */}
+            <InvoiceExportActions
+              getTarget={() => reportInvoiceRef.current}
+              filenameBase={`invoice-${selectedInvoice.id ?? ''}`}
+              whatsappPhone={allCustomers.find((c) => c.id === selectedInvoice.customerId)?.phone}
+              whatsappText={`فاتورة مبيعات #${selectedInvoice.id}`}
+            />
+
+            <button
+              type="button"
+              onClick={() => printSaleInvoice(selectedInvoice)}
+              style={{
+                width: '100%',
+                padding: '11px',
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.08)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-text-primary)',
+                fontWeight: 700,
+                fontSize: 14,
+                cursor: 'pointer',
+                fontFamily: 'var(--font-main)',
+              }}
+            >
+              🖨️ طباعة الفاتورة
+            </button>
           </div>
         </Modal>
+      )}
+
+      {/* نسخة مخفية من الفاتورة تُستخدم للتصدير كصورة (خارج النافذة) */}
+      {selectedInvoice && (
+        <div
+          aria-hidden="true"
+          style={{ position: 'fixed', left: -10000, top: 0, width: 460, pointerEvents: 'none', zIndex: -1 }}
+        >
+          <InvoicePrint invoice={selectedInvoice} store={storeInfo} containerRef={reportInvoiceRef} />
+        </div>
       )}
 
     </div>

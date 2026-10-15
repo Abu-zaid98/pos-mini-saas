@@ -1,7 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type Expense, EXPENSE_CATEGORIES } from '../db/db'
 
-export type ExpensePeriod = 'today' | 'week' | 'month' | 'all'
+export type ExpensePeriod = 'today' | 'week' | 'month' | 'all' | 'custom'
+
+export interface ExpenseFilterOptions {
+  fromDate?: string | null
+  toDate?: string | null
+}
 
 export interface ExpenseCategoryItem {
   id: string
@@ -61,7 +66,10 @@ export async function saveExpenseCategories(categories: ExpenseCategoryItem[]) {
   return normalized
 }
 
-export function useExpenses(period: ExpensePeriod = 'all') {
+export function useExpenses(
+  period: ExpensePeriod = 'all',
+  options?: ExpenseFilterOptions,
+) {
   const expenses = useLiveQuery(async () => {
     const all = await db.expenses.orderBy('date').reverse().toArray()
     if (period === 'all') return all
@@ -76,9 +84,16 @@ export function useExpenses(period: ExpensePeriod = 'all') {
       if (period === 'today') return expTime >= startOfDay
       if (period === 'week') return expTime >= startOfWeek
       if (period === 'month') return expTime >= startOfMonth
+      if (period === 'custom') {
+        const fromTs = options?.fromDate ? new Date(options.fromDate + 'T00:00:00').getTime() : NaN
+        const toTs = options?.toDate ? new Date(options.toDate + 'T00:00:00').getTime() + 86_400_000 : NaN
+        if (options?.fromDate && Number.isFinite(fromTs) && expTime < fromTs) return false
+        if (options?.toDate && Number.isFinite(toTs) && expTime >= toTs) return false
+        return true
+      }
       return true
     })
-  }, [period])
+  }, [period, options?.fromDate, options?.toDate])
 
   return expenses ?? []
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import { Modal } from '../ui/Modal'
@@ -6,6 +6,7 @@ import { Icon } from '../ui/Icon'
 import { getStoredTheme, toggleTheme, type Theme } from '../../utils/theme'
 import { useStoreName } from '../../hooks/useStoreName'
 import { CurrentDate } from './CurrentDate'
+import { SubscriptionBadge } from './SubscriptionBadge'
 import { InvoicePrintProvider } from '../invoice/InvoicePrint'
 import { PWAInstallSheet } from '../pwa/PWAInstallSheet'
 import { PWAInstallBanner } from '../pwa/PWAInstallBanner'
@@ -20,22 +21,30 @@ interface AppShellProps {
 export function AppShell({ onLogout }: AppShellProps) {
   const location = useLocation()
   const storeName = useStoreName()
+  const contentRef = useRef<HTMLElement | null>(null)
 
   const pageTitles: Record<string, string> = {
-    '/': `${storeName} كاشير`,
-    '/products': 'المخزون والمشتريات',
-    '/purchases': 'فواتير وسجل المشتريات',
+    '/': storeName ? `${storeName} كاشير` : 'الكاشير',
+    '/products': 'المخزون والمنتجات',
+    '/purchases': 'المشتريات والتوريد',
     '/customers': 'العملاء والديون',
-    '/invoices': 'سجل فواتير البيع',
-    '/expenses': 'المصاريف',
+    '/invoices': 'سجل الفواتير',
+    '/expenses': 'المصاريف والنفقات',
+    '/suppliers': 'الموردون والذمم',
+    '/wallets': 'الخزينة والمحافظ',
     '/reports': 'التقارير والإحصائيات',
     '/settings': 'الإعدادات العامة',
   }
 
-  const title = pageTitles[location.pathname] ?? storeName
+  const title = pageTitles[location.pathname] ?? (storeName || 'ميزان')
   const [logoutModalOpen, setLogoutModalOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(getStoredTheme)
   const [pwaGuideOpen, setPwaGuideOpen] = useState(false)
+
+  // عند التنقل بين الشاشات: افتح كل شاشة من بدايتها (أعلى) لا من موضع تمرير الشاشة السابقة
+  useEffect(() => {
+    contentRef.current?.scrollTo({ top: 0, left: 0 })
+  }, [location.pathname])
 
   const handleToggleTheme = () => {
     const next = toggleTheme()
@@ -63,17 +72,27 @@ export function AppShell({ onLogout }: AppShellProps) {
           width: '100%',
         }}>
           <div style={{ minWidth: 0 }}>
-            <h1 style={{
-              fontSize: 16,
-              fontWeight: 800,
-              color: 'var(--color-text-primary)',
-              letterSpacing: '-0.3px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}>
-              {title}
-            </h1>
+            {/* عنوان الصفحة يظهر في شاشة الكاشير فقط؛ بقية الصفحات لها عنوانها الداخلي */}
+            {/* اسم المشترك + المدة المتبقية: بجانب «كاشير» في شاشة البيع، وفوق التاريخ في بقية الصفحات */}
+            {location.pathname === '/' ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <h1 style={{
+                  fontSize: 14,
+                  fontWeight: 800,
+                  color: 'var(--color-text-primary)',
+                  letterSpacing: '-0.3px',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  minWidth: 0,
+                }}>
+                  {title}
+                </h1>
+                <SubscriptionBadge />
+              </div>
+            ) : (
+              <SubscriptionBadge />
+            )}
             <CurrentDate />
           </div>
 
@@ -87,20 +106,22 @@ export function AppShell({ onLogout }: AppShellProps) {
               background: 'var(--color-bg-elevated)',
               border: '1px solid var(--color-border)',
               borderRadius: 12,
-              padding: '4px 10px',
+              padding: '3px 9px',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
+              gap: 7,
               whiteSpace: 'nowrap',
             }}>
               <img
                 src="/logo.jpeg"
-                alt={storeName}
-                style={{ width: 28, height: 28, borderRadius: 7, objectFit: 'contain', background: '#fff', display: 'block' }}
+                alt={storeName || 'شعار المتجر'}
+                style={{ width: 26, height: 26, borderRadius: 7, objectFit: 'contain', background: '#fff', display: 'block' }}
               />
-              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-text-primary)' }}>
-                {storeName}
-              </span>
+              {storeName.trim() && (
+                <span className="header-store-name" style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-text-primary)' }}>
+                  {storeName}
+                </span>
+              )}
             </div>
 
 
@@ -152,7 +173,7 @@ export function AppShell({ onLogout }: AppShellProps) {
                 }}
               >
                 <Icon name="lock" size={14} />
-                <span>خروج</span>
+                <span className="header-logout-label">خروج</span>
               </button>
             )}
           </div>
@@ -160,7 +181,7 @@ export function AppShell({ onLogout }: AppShellProps) {
       </header>
 
       {/* Page content */}
-      <main className="page-content">
+      <main className="page-content" ref={contentRef}>
         <Outlet context={{ onLogout }} />
       </main>
 
@@ -178,7 +199,7 @@ export function AppShell({ onLogout }: AppShellProps) {
         open={pwaGuideOpen}
         onClose={() => setPwaGuideOpen(false)}
         storageKey="pos_pwa_prompt"
-        appName={storeName}
+        appName={storeName.trim() || 'نظام الكاشير'}
       />
 
       {/* Logout Confirmation Modal */}

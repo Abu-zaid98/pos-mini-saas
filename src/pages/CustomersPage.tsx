@@ -11,12 +11,14 @@ import {
   updateInitialDebt,
   type CustomerLedgerItem,
 } from '../hooks/useCustomers'
-import { Modal, StatCard, SearchBar, Tabs, EmptyState, Icon } from '../components/ui'
+import { Modal, StatCard, SearchBar, Tabs, EmptyState, Icon, PageHeader } from '../components/ui'
 import { printElementById } from '../components/print/printDocument'
-import { StatementPrintHost, downloadStatementCSV } from '../components/customer/StatementPrint'
+import { StatementPrintHost, downloadStatementXlsx } from '../components/customer/StatementPrint'
 import { formatCurrency } from '../utils/currency'
+import { formatDate, formatDateTime } from '../utils/datetime'
 import { type Customer, type PaymentMethod, getPaymentMethodName } from '../db/db'
 import { useStoreName } from '../hooks/useStoreName'
+import { useWallets, activeWallets } from '../hooks/useWallets'
 
 export function CustomersPage() {
   const [search, setSearch] = useState('')
@@ -54,6 +56,9 @@ export function CustomersPage() {
 
   const customers = useCustomers(search, filter)
   const storeName = useStoreName()
+  const allWallets = useWallets()
+  const activeList = activeWallets(allWallets)
+  const wallets = activeList.length ? activeList : allWallets
 
   // Aggregate stats
   const totalOutstandingDebt = customers.reduce((sum, c) => sum + (c.totalDebt || 0), 0)
@@ -188,10 +193,10 @@ export function CustomersPage() {
   // Share ledger statement via WhatsApp
   const shareLedgerWhatsApp = (c: Customer) => {
     const phone = c.phone?.replace(/\D/g, '') || ''
-    const today = new Date().toLocaleDateString('ar-EG', { dateStyle: 'medium' })
+    const today = formatDate(new Date())
 
     let msg = `📋 *كشف حساب — ${c.name}*\n`
-    msg += `المتجر: ${storeName}\n`
+    if (storeName) msg += `المتجر: ${storeName}\n`
     msg += `📅 التاريخ: ${today}\n`
     msg += `--------------------------------\n`
 
@@ -199,7 +204,7 @@ export function CustomersPage() {
       msg += `لا توجد حركات مسجلة\n`
     } else {
       ledgerItems.slice(0, 10).forEach((item) => {
-        const itemDate = item.date.toLocaleDateString('ar-EG')
+        const itemDate = formatDate(item.date)
         if (item.type === 'invoice') {
           msg += `🧾 ${item.title} (${itemDate}): ${formatCurrency(item.amount)}`
           if (item.debt > 0) {
@@ -232,6 +237,12 @@ export function CustomersPage() {
 
   return (
     <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <PageHeader
+        icon="users"
+        title="العملاء والديون"
+        subtitle="متابعة حسابات العملاء والديون المستحقة"
+      />
+
       {/* Top Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
         <StatCard
@@ -732,12 +743,7 @@ export function CustomersPage() {
                 طريقة القبض المستلمة:
               </label>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                {[
-                  { id: 'cash' as PaymentMethod, label: 'نقداً (كاش) 💵' },
-                  { id: 'jawwal_pay' as PaymentMethod, label: 'جوال باي 📱' },
-                  { id: 'palpay' as PaymentMethod, label: 'بال باي 💳' },
-                  { id: 'bop' as PaymentMethod, label: 'بنك فلسطين 🏦' },
-                ].map((m) => (
+                {wallets.map((m) => (
                   <button
                     key={m.id}
                     type="button"
@@ -754,7 +760,7 @@ export function CustomersPage() {
                       fontFamily: 'var(--font-main)',
                     }}
                   >
-                    {m.label}
+                    {m.icon} {m.name}
                   </button>
                 ))}
               </div>
@@ -909,7 +915,7 @@ export function CustomersPage() {
               </button>
               <button
                 type="button"
-                onClick={() => downloadStatementCSV(ledgerCustomer, ledgerItems)}
+                onClick={() => downloadStatementXlsx(ledgerCustomer, ledgerItems)}
                 style={{
                   flex: 1,
                   padding: '10px 12px',
@@ -927,7 +933,7 @@ export function CustomersPage() {
                   gap: 6,
                 }}
               >
-                <span>⬇️ تصدير CSV</span>
+                <span>⬇️ تصدير إكسل</span>
               </button>
             </div>
 
@@ -976,7 +982,7 @@ export function CustomersPage() {
                           )}
                         </div>
                         <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 3 }}>
-                          {item.date.toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}
+                          {formatDateTime(item.date)}
                           {item.note && ` • ${item.note}`}
                         </p>
                       </div>

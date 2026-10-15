@@ -2,10 +2,31 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type PurchaseItem, type PaymentMethod, type PaymentType, type SaleUnit } from '../db/db'
 import { GRAMS_PER_KG, averageCostPerKg, getProductType } from '../utils/units'
 
-export function usePurchases() {
+export function usePurchases(period?: 'all' | 'today' | 'week' | 'month' | 'custom', options?: { fromDate?: string | null; toDate?: string | null }) {
   const purchases = useLiveQuery(async () => {
-    return db.purchases.orderBy('date').reverse().toArray()
-  }, [])
+    let all = await db.purchases.orderBy('date').reverse().toArray()
+    if (period && period !== 'all') {
+      const now = new Date()
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+      const startOfWeek = startOfDay - 6 * 24 * 60 * 60 * 1000
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+      all = all.filter((p) => {
+        const ts = new Date(p.date).getTime()
+        if (period === 'today') return ts >= startOfDay
+        if (period === 'week') return ts >= startOfWeek
+        if (period === 'month') return ts >= startOfMonth
+        if (period === 'custom') {
+          const fromTs = options?.fromDate ? new Date(options.fromDate + 'T00:00:00').getTime() : NaN
+          const toTs = options?.toDate ? new Date(options.toDate + 'T00:00:00').getTime() + 86_400_000 : NaN
+          if (options?.fromDate && Number.isFinite(fromTs) && ts < fromTs) return false
+          if (options?.toDate && Number.isFinite(toTs) && ts >= toTs) return false
+          return true
+        }
+        return true
+      })
+    }
+    return all
+  }, [period, options?.fromDate, options?.toDate])
 
   return purchases ?? []
 }

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Modal, ConfirmModal, CustomSelect, StatCard, SearchBar, SectionHeader, EmptyState, Icon } from '../components/ui'
+import { Button, Modal, ConfirmModal, CustomSelect, StatCard, SearchBar, SectionHeader, EmptyState, Icon, PageHeader } from '../components/ui'
 import { ExpenseModal } from '../components/expenses/ExpenseModal'
-import { getPaymentMethodName, PAYMENT_METHODS } from '../db/db'
+import { getPaymentMethodName, type Expense } from '../db/db'
+import { useWallets, activeWallets } from '../hooks/useWallets'
 import {
   DEFAULT_EXPENSE_CATEGORIES,
   countExpenseUsageByCategory,
@@ -12,29 +13,47 @@ import {
   type ExpensePeriod,
   type ExpenseCategoryItem,
 } from '../hooks/useExpenses'
+import { formatDateTime } from '../utils/datetime'
 
 function formatMoney(value: number): string {
   return Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 }) + ' ₪'
 }
+
+/** مجموعة أيقونات جاهزة لاختيار نوع المصروف (يمكن أيضاً إدخال رمز مخصّص). */
+const EXPENSE_ICON_CHOICES = [
+  '🧾', '⚡', '💧', '🏪', '👥', '🔧', '🚚', '📶', '📢', '📦', '💼',
+  '💰', '💸', '🧰', '🛠️', '📱', '💻', '🖥️', '🧴', '🧻', '☕', '🍽️',
+  '⛽', '🚗', '🛒', '🏠', '🔌', '💡', '📄', '📊', '🖊️', '🗂️', '🏦',
+  '🧑‍💼', '👷', '🧹', '🔩', '🪪', '📋', '❤️', '⭐', '🚰', '🧊', '📅',
+]
+
+const DEFAULT_CATEGORY_ICON = '🧾'
 
 export function ExpensesPage() {
   const [categories, setCategories] = useState<ExpenseCategoryItem[]>(DEFAULT_EXPENSE_CATEGORIES)
   const [search, setSearch] = useState('')
   const [categorySearch, setCategorySearch] = useState('')
   const [period, setPeriod] = useState<ExpensePeriod>('month')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [paymentFilter, setPaymentFilter] = useState('all')
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
   const [categoryEditorOpen, setCategoryEditorOpen] = useState(false)
   const [expenseModalOpen, setExpenseModalOpen] = useState(false)
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [draft, setDraft] = useState({ name: '', description: '', active: true })
+  const [draft, setDraft] = useState({ name: '', description: '', active: true, icon: DEFAULT_CATEGORY_ICON })
   const [deleteExpenseTarget, setDeleteExpenseTarget] = useState<{ id: number; title: string } | null>(null)
   const [deletingExpense, setDeletingExpense] = useState(false)
   const [deleteCategoryTarget, setDeleteCategoryTarget] = useState<{ id: string; name: string; count: number } | null>(null)
   const [deletingCategory, setDeletingCategory] = useState(false)
 
-  const expenses = useExpenses(period)
+  const allWallets = useWallets()
+  const activeList = activeWallets(allWallets)
+  const wallets = activeList.length ? activeList : allWallets
+
+  const expenses = useExpenses(period, { fromDate, toDate })
   const allExpenses = useExpenses('all')
 
   useEffect(() => {
@@ -75,7 +94,7 @@ export function ExpensesPage() {
 
   const handleOpenCreate = () => {
     setEditingId(null)
-    setDraft({ name: '', description: '', active: true })
+    setDraft({ name: '', description: '', active: true, icon: DEFAULT_CATEGORY_ICON })
     setCategoryEditorOpen(true)
   }
 
@@ -85,6 +104,7 @@ export function ExpensesPage() {
       name: item.name,
       description: item.description ?? '',
       active: item.active !== false,
+      icon: item.icon || DEFAULT_CATEGORY_ICON,
     })
     setCategoryEditorOpen(true)
   }
@@ -99,15 +119,17 @@ export function ExpensesPage() {
       return
     }
 
+    const icon = draft.icon.trim() || DEFAULT_CATEGORY_ICON
+
     const updated = editingId
-      ? categories.map((item) => item.id === editingId ? { ...item, name, description: draft.description.trim(), active: draft.active } : item)
-      : [...categories, { id: `cat-${Date.now()}`, name, description: draft.description.trim(), icon: '🧾', active: draft.active }]
+      ? categories.map((item) => item.id === editingId ? { ...item, name, description: draft.description.trim(), icon, active: draft.active } : item)
+      : [...categories, { id: `cat-${Date.now()}`, name, description: draft.description.trim(), icon, active: draft.active }]
 
     const saved = await saveExpenseCategories(updated)
     setCategories(saved)
     setCategoryEditorOpen(false)
     setEditingId(null)
-    setDraft({ name: '', description: '', active: true })
+    setDraft({ name: '', description: '', active: true, icon: DEFAULT_CATEGORY_ICON })
   }
 
   const handleDeleteCategory = (id: string) => {
@@ -149,27 +171,20 @@ export function ExpensesPage() {
   return (
     <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ width: 42, height: 42, borderRadius: 14, background: 'var(--brand-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', boxShadow: '0 8px 20px rgba(19, 127, 120, 0.3)' }}>
-                <Icon name="credit-card" size={22} />
-              </div>
-              <div>
-                <h2 style={{ margin: 0, color: 'var(--color-text-primary)', fontSize: 18, fontWeight: 800 }}>المصاريف والنفقات</h2>
-                <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 12 }}>سجل المصروفات اليومية والفلاتر</p>
-              </div>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button variant="ghost" onClick={() => setCategoryManagerOpen(true)}>إدارة الأنواع</Button>
-            <Button variant="primary" onClick={() => setExpenseModalOpen(true)}>
-              <Icon name="plus" size={15} />
-              <span>إضافة مصروف</span>
-            </Button>
-          </div>
-        </div>
+        <PageHeader
+          icon="credit-card"
+          title="المصاريف والنفقات"
+          subtitle="سجل المصروفات اليومية والفلاتر"
+          actions={
+            <>
+              <Button variant="ghost" onClick={() => setCategoryManagerOpen(true)}>إدارة الأنواع</Button>
+              <Button variant="primary" onClick={() => { setEditingExpense(null); setExpenseModalOpen(true) }}>
+                <Icon name="plus" size={15} />
+                <span>إضافة مصروف</span>
+              </Button>
+            </>
+          }
+        />
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12 }}>
           <StatCard
@@ -199,12 +214,19 @@ export function ExpensesPage() {
           <CustomSelect
             label="الفترة"
             value={period}
-            onChange={(v) => setPeriod(v as ExpensePeriod)}
+            onChange={(v) => {
+              setPeriod(v as ExpensePeriod)
+              if (v !== 'custom') {
+                setFromDate('')
+                setToDate('')
+              }
+            }}
             options={[
               { value: 'today', label: 'اليوم' },
               { value: 'week', label: 'آخر 7 أيام' },
               { value: 'month', label: 'هذا الشهر' },
               { value: 'all', label: 'كل الفترات' },
+              { value: 'custom', label: 'مدة مخصصة' },
             ]}
           />
           <CustomSelect
@@ -222,10 +244,31 @@ export function ExpensesPage() {
             onChange={setPaymentFilter}
             options={[
               { value: 'all', label: 'كل الطرق' },
-              ...PAYMENT_METHODS.map((method) => ({ value: method.id, label: method.label })),
+              ...wallets.map((method) => ({ value: method.id, label: `${method.icon} ${method.name}` })),
             ]}
           />
         </div>
+
+        {period === 'custom' && (
+          <div style={{
+            background: 'var(--color-input-bg)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 14,
+            padding: 12,
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10,
+          }}>
+            <div className="input-wrap">
+              <label className="input-label">من تاريخ</label>
+              <input className="input" type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} />
+            </div>
+            <div className="input-wrap">
+              <label className="input-label">إلى تاريخ</label>
+              <input className="input" type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} />
+            </div>
+          </div>
+        )}
 
         <SearchBar
           value={search}
@@ -245,7 +288,7 @@ export function ExpensesPage() {
               title="لا توجد مصاريف مطابقة"
               description="لا توجد مصاريف تطابق الفلاتر المحددة حالياً. يمكنك تسجيل مصروف جديد بسهولة."
               action={
-                <Button variant="primary" onClick={() => setExpenseModalOpen(true)}>
+                <Button variant="primary" onClick={() => { setEditingExpense(null); setExpenseModalOpen(true) }}>
                   <Icon name="plus" size={15} />
                   <span>إضافة مصروف جديد</span>
                 </Button>
@@ -267,7 +310,7 @@ export function ExpensesPage() {
                     <strong style={{ display: 'block', color: 'var(--color-text-primary)', fontSize: 14 }}>{expense.title}</strong>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 8px', marginTop: 3, color: 'var(--color-text-muted)', fontSize: 11 }}>
                       <span>{expense.category}</span>
-                      <span>{new Date(expense.date).toLocaleString('ar-EG', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                      <span>{formatDateTime(expense.date)}</span>
                       <span>{getPaymentMethodName(expense.paymentMethod)}</span>
                       {expense.notes && <span>{expense.notes}</span>}
                     </div>
@@ -276,6 +319,13 @@ export function ExpensesPage() {
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginInlineStart: 'auto' }}>
                   <strong style={{ color: 'var(--color-danger-light)', direction: 'ltr', whiteSpace: 'nowrap' }}>{formatMoney(expense.amount)}</strong>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    title="تعديل المصروف"
+                    aria-label={`تعديل مصروف ${expense.title}`}
+                    onClick={() => { setEditingExpense(expense); setExpenseModalOpen(true) }}
+                  >تعديل</button>
                   <button
                     type="button"
                     className="btn btn-danger btn-sm"
@@ -322,6 +372,73 @@ export function ExpensesPage() {
                 autoFocus
               />
             </div>
+
+            <div className="input-wrap">
+              <label className="input-label">أيقونة النوع</label>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(40px, 1fr))',
+                gap: 7,
+                maxHeight: 176,
+                overflowY: 'auto',
+                padding: 8,
+                background: 'var(--color-input-bg)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 12,
+              }}>
+                {EXPENSE_ICON_CHOICES.map((icon) => {
+                  const selected = draft.icon === icon
+                  return (
+                    <button
+                      key={icon}
+                      type="button"
+                      onClick={() => setDraft((current) => ({ ...current, icon }))}
+                      aria-label={`اختيار الأيقونة ${icon}`}
+                      aria-pressed={selected}
+                      style={{
+                        height: 40,
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontSize: 19,
+                        borderRadius: 9,
+                        cursor: 'pointer',
+                        lineHeight: 1,
+                        background: selected ? 'var(--brand-gradient-soft)' : 'var(--color-bg-surface)',
+                        border: selected ? '2px solid var(--color-primary-light)' : '1px solid var(--color-border)',
+                        transition: 'all 0.12s ease',
+                      }}
+                    >
+                      {icon}
+                    </button>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>أو رمز مخصّص:</span>
+                <input
+                  className="input"
+                  value={draft.icon}
+                  maxLength={6}
+                  onChange={(event) => setDraft((current) => ({ ...current, icon: event.target.value }))}
+                  placeholder={DEFAULT_CATEGORY_ICON}
+                  aria-label="رمز مخصّص للنوع"
+                  style={{ width: 72, textAlign: 'center', fontSize: 18 }}
+                />
+                <span style={{
+                  width: 40,
+                  height: 40,
+                  display: 'grid',
+                  placeItems: 'center',
+                  fontSize: 20,
+                  borderRadius: 10,
+                  background: 'var(--brand-gradient-soft)',
+                  flexShrink: 0,
+                }}>
+                  {draft.icon.trim() || DEFAULT_CATEGORY_ICON}
+                </span>
+              </div>
+            </div>
+
             <div className="input-wrap">
               <label className="input-label">الوصف</label>
               <textarea
@@ -391,8 +508,9 @@ export function ExpensesPage() {
 
       <ExpenseModal
         open={expenseModalOpen}
-        onClose={() => setExpenseModalOpen(false)}
-        onSuccess={() => setExpenseModalOpen(false)}
+        onClose={() => { setExpenseModalOpen(false); setEditingExpense(null) }}
+        onSuccess={() => { setExpenseModalOpen(false); setEditingExpense(null) }}
+        expense={editingExpense}
       />
 
       <ConfirmModal

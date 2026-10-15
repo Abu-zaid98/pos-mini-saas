@@ -1,15 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { CustomSelect } from '../components/ui/CustomSelect'
 import { Modal } from '../components/ui/Modal'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { InvoicePrint, usePrintInvoice, useStoreInfo } from '../components/invoice/InvoicePrint'
+import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
 import { InvoiceReturnModal } from '../components/invoice/InvoiceReturnModal'
 import { db, type Invoice, type PaymentMethod, type PaymentType } from '../db/db'
 import { useCustomers } from '../hooks/useCustomers'
 import { deleteInvoice, updateInvoiceDetails, useInvoices } from '../hooks/useInvoices'
+import { useWallets, activeWallets } from '../hooks/useWallets'
 import { formatCurrency } from '../utils/currency'
 import { formatLineDiscount, formatLineQty, lineDiscountAmount } from '../utils/units'
-import { Icon, SearchBar, Tabs, StatCard, EmptyState, SectionHeader } from '../components/ui'
+import { formatDateTime } from '../utils/datetime'
+import { downloadXlsx, type XlsxCell } from '../utils/xlsx'
+import { Icon, SearchBar, Tabs, StatCard, EmptyState, PageHeader } from '../components/ui'
 
 type InvoiceFilter = 'all' | PaymentType
 type InvoicePeriod = 'today' | 'yesterday' | 'week' | 'month' | 'all' | 'custom'
@@ -52,6 +56,10 @@ export function InvoicesPage() {
   const [viewMode, setViewMode] = useState<'view' | 'edit'>('view')
   const printInvoice = usePrintInvoice()
   const storeInfo = useStoreInfo()
+  const invoiceDocRef = useRef<HTMLDivElement>(null)
+  const allWallets = useWallets()
+  const activeWalletList = activeWallets(allWallets)
+  const wallets = activeWalletList.length ? activeWalletList : allWallets
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
@@ -103,36 +111,30 @@ export function InvoicesPage() {
     { total: 0, paid: 0, debt: 0 },
   ), [visible])
 
-  const exportCsv = () => {
+  const exportExcel = () => {
     if (visible.length === 0) {
       alert('لا توجد فواتير مطابقة للتصدير في هذه الفترة.')
       return
     }
-    const rows: string[][] = [
+    const rows: XlsxCell[][] = [
       ['رقم الفاتورة', 'التاريخ', 'العميل', 'نوع الدفع', 'الإجمالي', 'المدفوع', 'الدين', 'الأصناف'],
       ...visible.map((inv) => [
-        String(inv.id ?? ''),
-        new Date(inv.createdAt).toLocaleString('ar-EG'),
+        inv.id != null ? String(inv.id) : '',
+        formatDateTime(inv.createdAt),
         inv.customerName || 'بيع مباشر',
         typeLabels[inv.paymentType] || inv.paymentType,
-        String(inv.total || 0),
-        String(inv.paidAmount || 0),
-        String(inv.debtAmount || 0),
+        inv.total || 0,
+        inv.paidAmount || 0,
+        inv.debtAmount || 0,
         inv.items.map((i) => `${i.name} × ${i.qty}`).join(' | '),
       ]),
       [],
-      ['الإجمالي', '', '', '', String(totals.total), String(totals.paid), String(totals.debt), `عدد الفواتير: ${visible.length}`],
+      ['الإجمالي', '', '', '', totals.total, totals.paid, totals.debt, `عدد الفواتير: ${visible.length}`],
     ]
-    const esc = (c: string) => `"${String(c).replace(/"/g, '""')}"`
-    const csv = '﻿' + rows.map((r) => r.map(esc).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
     const stamp = period === 'custom' ? `${fromDate || 'start'}_to_${toDate || 'now'}` : period
-    a.href = url
-    a.download = `invoices-${stamp}-${visible.length}.csv`
-    a.click()
-    URL.revokeObjectURL(url)
+    downloadXlsx(`invoices-${stamp}-${visible.length}.xlsx`, [
+      { name: 'الفواتير', rows, columnWidths: [10, 20, 22, 12, 12, 12, 12, 42] },
+    ])
   }
 
   const openInvoice = (invoice: Invoice) => {
@@ -199,17 +201,19 @@ export function InvoicesPage() {
     <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* Header section with Search */}
       <section className="card" style={{ padding: 16 }}>
-        <SectionHeader
+        <PageHeader
+          icon="receipt"
           title="سجل الفواتير"
-          action={
+          subtitle="كل فواتير البيع مع البحث والتصفية والتصدير"
+          actions={
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span className="badge badge-primary">{visible.length} / {invoices.length}</span>
               <button
                 type="button"
                 className="btn btn-ghost btn-sm"
-                onClick={exportCsv}
+                onClick={exportExcel}
                 disabled={visible.length === 0}
-                title="تصدير الفواتير المعروضة كملف CSV"
+                title="تصدير الفواتير المعروضة كملف Excel"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
               >
                 <Icon name="download" size={15} />
@@ -413,7 +417,7 @@ export function InvoicesPage() {
                       </span>
                       <span>·</span>
                       <span>
-                        {new Date(invoice.createdAt).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}
+                        {formatDateTime(invoice.createdAt)}
                       </span>
                       <span>·</span>
                       <span>{invoice.items.length} أصناف</span>
@@ -458,7 +462,13 @@ export function InvoicesPage() {
 
             {viewMode === 'view' ? (
               <>
-                <InvoicePrint invoice={selected} store={storeInfo} />
+                <InvoicePrint invoice={selected} store={storeInfo} containerRef={invoiceDocRef} />
+                <InvoiceExportActions
+                  getTarget={() => invoiceDocRef.current}
+                  filenameBase={`invoice-${selected.id ?? ''}`}
+                  whatsappPhone={customers.find((c) => c.id === selected.customerId)?.phone}
+                  whatsappText={`فاتورة مبيعات #${selected.id}`}
+                />
                 <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                   <button
                     type="button"
@@ -572,12 +582,10 @@ export function InvoicesPage() {
                       value={editing.paymentMethod}
                       label="طريقة القبض"
                       onChange={(paymentMethod) => setEditing((current) => current && ({ ...current, paymentMethod }))}
-                      options={[
-                        { value: 'cash' as PaymentMethod, label: 'نقداً' },
-                        { value: 'jawwal_pay' as PaymentMethod, label: 'جوال باي' },
-                        { value: 'palpay' as PaymentMethod, label: 'بال باي' },
-                        { value: 'bop' as PaymentMethod, label: 'بنك فلسطين' },
-                      ]}
+                      options={wallets.map((w) => ({
+                        value: w.id as PaymentMethod,
+                        label: `${w.icon} ${w.name}`,
+                      }))}
                     />
                     {editing.paymentType === 'partial' && (
                       <div className="input-wrap">

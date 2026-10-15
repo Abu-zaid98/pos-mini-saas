@@ -3,6 +3,7 @@ import { lic, isPublicKeyConfigured, type LicenseResult, type LocalSubscriptionD
 import { PWAInstallBanner } from "./pwa/PWAInstallBanner";
 import { PWAInstallSheet } from "./pwa/PWAInstallSheet";
 import { getStoredTheme, toggleTheme, type Theme } from "../utils/theme";
+import { formatDate, formatDateTime } from "../utils/datetime";
 import { Icon } from "./ui/Icon";
 
 interface LicenseGuardProps {
@@ -77,7 +78,7 @@ export function LicenseGuard({ children }: LicenseGuardProps) {
           setUpdateToast(null);
         } else {
           setUpdateToast(
-            `تم تحديث بيانات اشتراكك — تاريخ الانتهاء الجديد: ${new Date(after.expiryMs).toLocaleString("ar", { dateStyle: "medium", timeStyle: "short" })}`
+            `تم تحديث بيانات اشتراكك — تاريخ الانتهاء الجديد: ${formatDateTime(after.expiryMs)}`
           );
         }
       }
@@ -1428,7 +1429,7 @@ function RenewalPopup({ info, onClose }: { info: RenewalInfo; onClose: () => voi
                 <span>الانتهاء الجديد</span>
               </span>
               <span style={{ fontSize: 13, fontWeight: 800, color: "var(--color-text-primary, #f9fafb)" }}>
-                {new Date(info.newExpiryMs).toLocaleDateString("ar", { dateStyle: "medium" })}
+                {formatDate(info.newExpiryMs)}
               </span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>

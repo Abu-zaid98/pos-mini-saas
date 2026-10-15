@@ -19,6 +19,7 @@ import {
 import { getSession, setMaxDevices, removeDevice, resetDevices, type AdminSession } from '../sessions'
 import { DEVICE_MAX_OPTIONS, deviceCountLabel } from '../../lib/session-policy'
 import { loadPrivateKey, hasPrivateKey, msToDhms, toDatetimeLocalValue, DAY_MS, formatDurationAr } from '../crypto'
+import { formatDate, formatDateTime } from '../../utils/datetime'
 import { DurationPicker } from '../components/DurationPicker'
 import { useToast, useConfirm } from '../components/feedback'
 import { getPlans, recordPayment, getDefaultCurrency, type PaymentMethodId } from '../billing'
@@ -252,7 +253,7 @@ export function SubscriberDetailPage() {
         privateKeyJwk: pk,
       })
       reload(updated)
-      toast.success('تم التعديل السريع', `الانتهاء الجديد: ${updated.expiryDate.toLocaleString('ar', { dateStyle: 'medium', timeStyle: 'short' })}`)
+      toast.success('تم التعديل السريع', `الانتهاء الجديد: ${formatDateTime(updated.expiryDate)}`)
     } catch (e) {
       toast.error('فشل التعديل', (e as Error).message)
     } finally {
@@ -437,7 +438,7 @@ export function SubscriberDetailPage() {
               <span className={`admin-badge admin-badge-${cfg.color}`}>{cfg.icon} {cfg.label}</span>
             </div>
             <div className="admin-hero-expiry">
-              📅 ينتهي: {sub.expiryDate.toLocaleString('ar', { dateStyle: 'medium', timeStyle: 'short' })}
+              📅 ينتهي: {formatDateTime(sub.expiryDate)}
             </div>
           </div>
         </div>
@@ -508,11 +509,11 @@ export function SubscriberDetailPage() {
             </div>
             <div className="admin-info-row">
               <dt>تاريخ البدء</dt>
-              <dd>{sub.startDate.toLocaleString('ar', { dateStyle: 'medium', timeStyle: 'short' })}</dd>
+              <dd>{formatDateTime(sub.startDate)}</dd>
             </div>
             <div className="admin-info-row">
               <dt>تاريخ الانتهاء</dt>
-              <dd><b>{sub.expiryDate.toLocaleString('ar', { dateStyle: 'full', timeStyle: 'short' })}</b></dd>
+              <dd><b>{formatDateTime(sub.expiryDate)}</b></dd>
             </div>
             <div className="admin-info-row">
               <dt>المتبقي بدقة</dt>
@@ -566,11 +567,11 @@ export function SubscriberDetailPage() {
             </div>
             <div className="admin-info-row">
               <dt>تاريخ الإنشاء</dt>
-              <dd>{sub.createdAt.toLocaleDateString('ar')}</dd>
+              <dd>{formatDate(sub.createdAt)}</dd>
             </div>
             <div className="admin-info-row">
               <dt>آخر تحديث</dt>
-              <dd>{sub.updatedAt.toLocaleString('ar')}</dd>
+              <dd>{formatDateTime(sub.updatedAt)}</dd>
             </div>
           </dl>
         </div>
@@ -680,7 +681,7 @@ export function SubscriberDetailPage() {
             </div>
 
             <div className="admin-current-expiry">
-              ينتهي حالياً: <b>{sub.expiryDate.toLocaleString('ar', { dateStyle: 'medium', timeStyle: 'short' })}</b>
+              ينتهي حالياً: <b>{formatDateTime(sub.expiryDate)}</b>
             </div>
 
             {/* Tabs */}

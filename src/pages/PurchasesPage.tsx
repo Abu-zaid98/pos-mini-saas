@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePurchases, addPurchaseInvoice, deletePurchase, updatePurchaseMeta } from '../hooks/usePurchases'
 import { useSupplierNames } from '../hooks/useSuppliers'
 import { useProducts } from '../hooks/useProducts'
 import { useAccountBalances } from '../hooks/useInvoices'
-import { getPaymentMethodName, PAYMENT_METHODS, type PaymentMethod, type PaymentType, type Product } from '../db/db'
+import { getPaymentMethodName, type PaymentMethod, type PaymentType, type Product } from '../db/db'
+import { useWallets, activeWallets } from '../hooks/useWallets'
 import { formatCurrency } from '../utils/currency'
+import { formatDate, formatTime } from '../utils/datetime'
 import { GRAMS_PER_KG, averageCostPerKg, getProductType, stockLabel } from '../utils/units'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
@@ -15,15 +17,22 @@ import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { Modal } from '../components/ui/Modal'
 import { SupplierPaymentModal } from '../components/purchases/SupplierPaymentModal'
 import { PurchasePrint } from '../components/purchases/PurchasePrint'
+import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
 import { useStoreInfo } from '../components/invoice/InvoicePrint'
 import { printElementById } from '../components/print/printDocument'
-import { Icon, Tabs, StatCard, EmptyState, SearchBar } from '../components/ui'
+import { Icon, Tabs, StatCard, EmptyState, SearchBar, PageHeader } from '../components/ui'
 
 export function PurchasesPage() {
-  const purchases = usePurchases()
+  const [purchasePeriod, setPurchasePeriod] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all')
+  const [purchaseFrom, setPurchaseFrom] = useState('')
+  const [purchaseTo, setPurchaseTo] = useState('')
+  const purchases = usePurchases(purchasePeriod, { fromDate: purchaseFrom, toDate: purchaseTo })
   const allProducts = useProducts()
   const balances = useAccountBalances()
   const supplierNames = useSupplierNames()
+  const allWallets = useWallets()
+  const activeList = activeWallets(allWallets)
+  const wallets = activeList.length ? activeList : allWallets
 
   const [purchaseToDelete, setPurchaseToDelete] = useState<number | null>(null)
   const [deletingPurchase, setDeletingPurchase] = useState(false)
@@ -39,6 +48,7 @@ export function PurchasesPage() {
   const [savingMeta, setSavingMeta] = useState(false)
   const [metaError, setMetaError] = useState('')
   const storeInfo = useStoreInfo()
+  const purchaseDocRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const clear = () => setPrintPurchase(null)
@@ -286,6 +296,12 @@ export function PurchasesPage() {
 
   return (
     <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <PageHeader
+        icon="box"
+        title="المشتريات والتوريد"
+        subtitle="فواتير الشراء من الموردين وحركة البضائع الواردة"
+      />
+
       {/* Top Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
         <StatCard
@@ -326,6 +342,40 @@ export function PurchasesPage() {
             placeholder="ابحث باسم الصنف، المورد، رقم الفاتورة..."
           />
 
+          {/* Period filter */}
+          <div style={{ display: 'grid', gridTemplateColumns: purchasePeriod === 'custom' ? '1fr 1fr 1fr' : '1fr', gap: 10 }}>
+            <CustomSelect
+              label="الفترة"
+              value={purchasePeriod}
+              onChange={(v) => {
+                setPurchasePeriod(v as typeof purchasePeriod)
+                if (v !== 'custom') {
+                  setPurchaseFrom('')
+                  setPurchaseTo('')
+                }
+              }}
+              options={[
+                { value: 'all', label: 'كل الفترات' },
+                { value: 'today', label: 'اليوم' },
+                { value: 'week', label: 'آخر 7 أيام' },
+                { value: 'month', label: 'هذا الشهر' },
+                { value: 'custom', label: 'مدة مخصصة' },
+              ]}
+            />
+            {purchasePeriod === 'custom' && (
+              <>
+                <div className="input-wrap">
+                  <label className="input-label">من تاريخ</label>
+                  <input className="input" type="date" value={purchaseFrom} max={purchaseTo || undefined} onChange={(e) => setPurchaseFrom(e.target.value)} />
+                </div>
+                <div className="input-wrap">
+                  <label className="input-label">إلى تاريخ</label>
+                  <input className="input" type="date" value={purchaseTo} min={purchaseFrom || undefined} onChange={(e) => setPurchaseTo(e.target.value)} />
+                </div>
+              </>
+            )}
+          </div>
+
           {filteredPurchases.length === 0 ? (
             <EmptyState
               icon="package"
@@ -357,16 +407,8 @@ export function PurchasesPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {filteredPurchases.map((purchase) => {
                 const dateObj = new Date(purchase.date)
-                const dateFormatted = dateObj.toLocaleDateString('ar-EG', {
-                  weekday: 'short',
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })
-                const timeFormatted = dateObj.toLocaleTimeString('ar-EG', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })
+                const dateFormatted = formatDate(dateObj)
+                const timeFormatted = formatTime(dateObj)
 
                 return (
                   <div
@@ -484,7 +526,7 @@ export function PurchasesPage() {
                         <span>سجل الدفعات: </span>
                         {purchase.supplierPayments.map((p, pIdx) => (
                           <span key={pIdx} style={{ marginRight: 6 }}>
-                            [{new Date(p.date).toLocaleDateString('ar-EG')}: {formatCurrency(p.amount)}]
+                            [{formatDate(p.date)}: {formatCurrency(p.amount)}]
                           </span>
                         ))}
                       </div>
@@ -733,10 +775,10 @@ export function PurchasesPage() {
                   label="محفظة / صندوق الدفع"
                   value={paymentMethod}
                   onChange={(val) => setPaymentMethod(val)}
-                  options={PAYMENT_METHODS.map((m) => ({
+                  options={wallets.map((m) => ({
                     value: m.id,
-                    label: `${m.icon} ${m.label}`,
-                    description: `الرصيد المتاح: ${formatCurrency(balances[m.id])}`,
+                    label: `${m.icon} ${m.name}`,
+                    description: `الرصيد المتاح: ${formatCurrency(balances[m.id] ?? 0)}`,
                   }))}
                 />
                 <div style={{
@@ -1267,7 +1309,12 @@ export function PurchasesPage() {
 
             {detailMode === 'view' ? (
               <>
-                <PurchasePrint purchase={selectedPurchase} store={storeInfo} />
+                <PurchasePrint purchase={selectedPurchase} store={storeInfo} containerRef={purchaseDocRef} />
+                <InvoiceExportActions
+                  getTarget={() => purchaseDocRef.current}
+                  filenameBase={`purchase-${selectedPurchase.invoiceNumber || selectedPurchase.id || ''}`}
+                  whatsappText={`فاتورة شراء #${selectedPurchase.invoiceNumber || selectedPurchase.id || ''}`}
+                />
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button type="button" className="btn btn-primary" style={{ flex: 2 }} onClick={() => handlePrintPurchase(selectedPurchase)}>
                     🖨️ طباعة الفاتورة
@@ -1317,7 +1364,7 @@ export function PurchasesPage() {
                   label="طريقة الدفع (محفظة المبلغ المدفوع)"
                   value={editPaymentMethod}
                   onChange={(v) => setEditPaymentMethod(v as PaymentMethod)}
-                  options={PAYMENT_METHODS.map((m) => ({ value: m.id, label: `${m.icon} ${m.label}` }))}
+                  options={wallets.map((m) => ({ value: m.id, label: `${m.icon} ${m.name}` }))}
                 />
                 <div className="input-wrap">
                   <label className="input-label">ملاحظات</label>
