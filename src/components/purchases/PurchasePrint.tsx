@@ -72,8 +72,8 @@ export function PurchasePrint({
             <tr key={i}>
               <td className="c muted">{i + 1}</td>
               <td className="item-name">{it.productName}</td>
-              <td className="c">{qtyLabel(it.quantity, it.unit)}</td>
-              <td className="c ltr">{Number(it.costPrice).toFixed(2)}</td>
+              <td className="c">{it.pack ? `${it.packQty} ${it.pack.label} (${it.quantity} حبة)` : qtyLabel(it.quantity, it.unit)}</td>
+              <td className="c ltr">{Number(it.pack ? (it.packCost ?? 0) : it.costPrice).toFixed(2)}</td>
               <td className="c strong ltr">{Number(it.totalCost).toFixed(2)}</td>
             </tr>
           ))}

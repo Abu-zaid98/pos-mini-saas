@@ -216,6 +216,55 @@ describe('buildWalletLedger مع التحويلات والمرتجعات', () =>
     expect(net).toBe(1200)
   })
 
+  it('السلفة النقدية للعميل تظهر كحركة خارجة (loan) ولا تُخلط بالاسترداد', () => {
+    const { entries, totalIn, totalOut, net } = buildWalletLedger(
+      [
+        pay({ id: 1, amount: 300, invoiceId: 11, createdAt: D('2026-10-10T09:00:00') }),
+        // سلفة نقدية صُرفت للعميل (سالب + kind: loan)
+        pay({ id: 2, amount: -100, invoiceId: null, kind: 'loan', note: 'سلفة', createdAt: D('2026-10-10T10:00:00') }),
+      ],
+      [],
+      [],
+      'cash',
+    )
+    expect(totalIn).toBe(300)
+    expect(totalOut).toBe(100)
+    expect(net).toBe(200)
+    const loan = entries.find((e) => e.refId === 2)!
+    expect(loan.source).toBe('loan')
+    expect(loan.kind).toBe('out')
+    expect(loan.amount).toBe(100)
+  })
+
+  it('الاسترداد النقدي من المورد (دفعة سالبة) يظهر كحركة داخلة للمحفظة', () => {
+    const { entries, totalIn, totalOut, net } = buildWalletLedger(
+      [],
+      [
+        {
+          id: 1,
+          supplierName: 'مورد',
+          items: [],
+          totalAmount: 500,
+          paymentMethod: 'cash',
+          supplierPayments: [
+            { amount: 500, paymentMethod: 'cash', date: D('2026-10-01') },
+            { amount: -150, paymentMethod: 'cash', date: D('2026-10-02'), notes: 'مرتجع' },
+          ],
+          date: D('2026-10-01'),
+          createdAt: D('2026-10-01'),
+        },
+      ],
+      [],
+      'cash',
+    )
+    expect(totalIn).toBe(150)
+    expect(totalOut).toBe(500)
+    expect(net).toBe(-350)
+    const refund = entries.find((e) => e.kind === 'in')!
+    expect(refund.source).toBe('purchase')
+    expect(refund.amount).toBe(150)
+  })
+
   it('دفعات سداد الموردين المتعددة تخصم من محافظها المحددة بدقة', () => {
     const b = computeBalances(
       [],
@@ -247,6 +296,7 @@ describe('entryDeleteKind — انحدار: الافتتاحي والمرتجع 
   it('الرصيد الافتتاحي والمرتجع لا يقبلان حذفاً مباشراً (null)', () => {
     expect(entryDeleteKind('opening')).toBeNull()
     expect(entryDeleteKind('refund')).toBeNull()
+    expect(entryDeleteKind('loan')).toBeNull()
   })
 
   it('باقي المصادر تُحذف من جدولها الصحيح', () => {

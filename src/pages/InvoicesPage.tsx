@@ -5,6 +5,8 @@ import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { InvoicePrint, usePrintInvoice, useStoreInfo } from '../components/invoice/InvoicePrint'
 import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
 import { InvoiceReturnModal } from '../components/invoice/InvoiceReturnModal'
+import { PurchasesArchive } from '../components/purchases/PurchasesArchive'
+import { ReturnsArchive } from '../components/invoices/ReturnsArchive'
 import { db, type Invoice, type PaymentMethod, type PaymentType } from '../db/db'
 import { useCustomers } from '../hooks/useCustomers'
 import { deleteInvoice, updateInvoiceDetails, useInvoices } from '../hooks/useInvoices'
@@ -12,11 +14,19 @@ import { useWallets, activeWallets } from '../hooks/useWallets'
 import { formatCurrency } from '../utils/currency'
 import { formatLineDiscount, formatLineQty, lineDiscountAmount } from '../utils/units'
 import { formatDateTime } from '../utils/datetime'
-import { downloadXlsx, type XlsxCell } from '../utils/xlsx'
+import { exportSalesExcel } from '../utils/excelExport'
 import { Icon, SearchBar, Tabs, StatCard, EmptyState, PageHeader } from '../components/ui'
+import type { IconName } from '../components/ui/Icon'
 
 type InvoiceFilter = 'all' | PaymentType | 'refunded'
 type InvoicePeriod = 'today' | 'yesterday' | 'week' | 'month' | 'all' | 'custom'
+type DocType = 'sales' | 'purchases' | 'returns'
+
+const docTypeTabs: { value: DocType; label: string; icon: IconName }[] = [
+  { value: 'sales', label: 'فواتير البيع', icon: 'receipt' },
+  { value: 'purchases', label: 'فواتير الشراء', icon: 'box' },
+  { value: 'returns', label: 'المرتجعات', icon: 'arrow-down' },
+]
 
 const periodTabs = [
   { value: 'all', label: 'الكل' },
@@ -48,6 +58,7 @@ const typeLabels: Record<PaymentType, string> = {
 export function InvoicesPage() {
   const invoices = useInvoices({ dateRange: 'all' })
   const customers = useCustomers()
+  const [docType, setDocType] = useState<DocType>('sales')
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<InvoiceFilter>('all')
   const [period, setPeriod] = useState<InvoicePeriod>('all')
@@ -129,33 +140,8 @@ export function InvoicesPage() {
       alert('لا توجد فواتير مطابقة للتصدير في هذه الفترة.')
       return
     }
-    const rows: XlsxCell[][] = [
-      ['رقم الفاتورة', 'التاريخ', 'العميل', 'نوع الدفع', 'الإجمالي الأصلي', 'المرتجع', 'صافي المبيعات', 'المدفوع', 'الدين', 'الأصناف'],
-      ...visible.map((inv) => {
-        const refunded = inv.refundedAmount || 0
-        const isFullyRefunded = refunded >= (inv.total || 0) && (inv.total || 0) > 0
-        const typeLabel = isFullyRefunded ? 'مرتجع بالكامل' : (typeLabels[inv.paymentType] || inv.paymentType)
-        const net = Math.max(0, (inv.total || 0) - refunded)
-        return [
-          inv.id != null ? String(inv.id) : '',
-          formatDateTime(inv.createdAt),
-          inv.customerName || 'بيع مباشر',
-          typeLabel,
-          inv.total || 0,
-          refunded,
-          net,
-          inv.paidAmount || 0,
-          inv.debtAmount || 0,
-          inv.items.map((i) => `${i.name} × ${i.qty}`).join(' | '),
-        ]
-      }),
-      [],
-      ['الإجمالي', '', '', '', '', totals.refunded, totals.total, totals.paid, totals.debt, `عدد الفواتير: ${visible.length}`],
-    ]
-    const stamp = period === 'custom' ? `${fromDate || 'start'}_to_${toDate || 'now'}` : period
-    downloadXlsx(`invoices-${stamp}-${visible.length}.xlsx`, [
-      { name: 'الفواتير', rows, columnWidths: [10, 20, 22, 14, 12, 10, 12, 12, 12, 42] },
-    ])
+    // ملف متعدد الأوراق: الفواتير + الأصناف + المرتجعات
+    exportSalesExcel(visible)
   }
 
   const openInvoice = (invoice: Invoice) => {
@@ -220,40 +206,51 @@ export function InvoicesPage() {
 
   return (
     <div className="page-frame" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      {/* Header section with Search */}
+      {/* Header + Document Type tabs */}
       <section className="card" style={{ padding: 16 }}>
         <PageHeader
           icon="receipt"
-          title="سجل الفواتير"
-          subtitle="كل فواتير البيع مع البحث والتصفية والتصدير"
-          actions={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="badge badge-primary">{visible.length} / {invoices.length}</span>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={exportExcel}
-                disabled={visible.length === 0}
-                title="تصدير الفواتير المعروضة كملف Excel"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
-              >
-                <Icon name="download" size={15} />
-                <span>تصدير</span>
-              </button>
-            </div>
-          }
+          title="سجل المستندات"
+          subtitle="فواتير البيع والشراء والمرتجعات في مكان واحد"
         />
         <div style={{ marginTop: 12 }}>
-          <SearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder="ابحث برقم الفاتورة، العميل أو اسم المنتج..."
-          />
+          <Tabs tabs={docTypeTabs} value={docType} onChange={(t) => setDocType(t as DocType)} />
         </div>
       </section>
 
-      {/* Filter & Period Controls */}
-      <section className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {docType === 'sales' && (
+        <>
+          {/* Sales toolbar: search + export */}
+          <section className="card" style={{ padding: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <Icon name="receipt" size={16} />
+                <span>بحث وتصدير فواتير البيع</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="badge badge-primary">{visible.length} / {invoices.length}</span>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={exportExcel}
+                  disabled={visible.length === 0}
+                  title="تصدير الفواتير المعروضة كملف Excel"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Icon name="download" size={15} />
+                  <span>تصدير</span>
+                </button>
+              </div>
+            </div>
+            <SearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="ابحث برقم الفاتورة، العميل أو اسم المنتج..."
+            />
+          </section>
+
+          {/* Filter & Period Controls */}
+          <section className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 8 }}>الفترة الزمنية</div>
           <Tabs
@@ -492,6 +489,11 @@ export function InvoicesPage() {
           })}
         </div>
       )}
+        </>
+      )}
+
+      {docType === 'purchases' && <PurchasesArchive />}
+      {docType === 'returns' && <ReturnsArchive />}
 
       {/* Invoice Details & Edit Modal */}
       {selected && editing && (

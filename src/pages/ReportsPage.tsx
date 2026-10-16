@@ -6,9 +6,10 @@ import { useCustomers } from '../hooks/useCustomers'
 import { useExpenses, getCategoryIcon } from '../hooks/useExpenses'
 import { formatCurrency } from '../utils/currency'
 import { formatLineQty, getProductType, isLowStock, isOutOfStock, lineDiscountAmount } from '../utils/units'
-import { invoiceNetRevenue, invoiceNetProfit } from '../utils/reports'
+import { invoiceNetRevenue, invoiceNetProfit, computeReturnsSummary } from '../utils/reports'
 import { formatDateTime } from '../utils/datetime'
-import { Modal, Tabs, StatCard, PageHeader } from '../components/ui'
+import { exportFullExcel, type ExportRange } from '../utils/excelExport'
+import { Modal, Tabs, StatCard, PageHeader, Icon } from '../components/ui'
 import { InvoicePrint, usePrintInvoice, useStoreInfo } from '../components/invoice/InvoicePrint'
 import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
 import { WalletDetailModal } from '../components/wallet/WalletDetailModal'
@@ -46,6 +47,22 @@ const MUTED_COLOR = '#94a3b8'
 
 function dayStart(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+/** يحوّل فلتر الفترة إلى نطاق تصدير (تاريخ البداية شامل، والنهاية حصرية). */
+function buildExportRange(period: PeriodFilter, fromDate: string, toDate: string): ExportRange | undefined {
+  const now = new Date()
+  const tomorrow = new Date(dayStart(now).getTime() + 86_400_000)
+  if (period === 'today') return { from: dayStart(now), to: tomorrow }
+  if (period === 'week') return { from: dayStart(new Date(now.getTime() - 6 * 86_400_000)), to: tomorrow }
+  if (period === 'month') return { from: new Date(now.getFullYear(), now.getMonth(), 1), to: tomorrow }
+  if (period === 'custom') {
+    return {
+      from: fromDate ? new Date(`${fromDate}T00:00:00`) : undefined,
+      to: toDate ? new Date(new Date(`${toDate}T00:00:00`).getTime() + 86_400_000) : undefined,
+    }
+  }
+  return undefined
 }
 
 /** يبني سلسلة زمنية للمبيعات حسب الفترة (بالساعة/اليوم/الشهر) */
@@ -188,8 +205,9 @@ export function ReportsPage() {
         total: s.total + (p.totalAmount || 0),
         paid: s.paid + (p.paidAmount ?? p.totalAmount ?? 0),
         debt: s.debt + (p.debtAmount ?? 0),
+        returns: s.returns + (Number(p.returnedAmount) || 0),
       }),
-      { total: 0, paid: 0, debt: 0 },
+      { total: 0, paid: 0, debt: 0, returns: 0 },
     )
   }, [periodPurchases])
 
@@ -208,6 +226,12 @@ export function ReportsPage() {
   const grossSalesProfit = useMemo(
     () => realInvoices.reduce((sum, inv) => sum + invoiceNetProfit(inv), 0),
     [realInvoices],
+  )
+
+  // ملخّص المرتجعات (بيع + شراء) — الإجمالي الخام مقابل الصافي
+  const returnsSummary = useMemo(
+    () => computeReturnsSummary(realInvoices, periodPurchases),
+    [realInvoices, periodPurchases],
   )
 
   // Operating Expenses
@@ -471,6 +495,20 @@ export function ReportsPage() {
         icon="chart-bar"
         title="التقارير والإحصائيات"
         subtitle="لوحة تحليلات شاملة للمبيعات والأرباح والمخزون والديون"
+        actions={
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              void exportFullExcel(buildExportRange(period, fromDate, toDate))
+            }}
+            title="تصدير تقرير مفصل (كل الأوراق) إلى Excel"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Icon name="download" size={16} />
+            <span>تصدير Excel</span>
+          </button>
+        }
       />
 
       {/* TOP SEGMENTED REPORT TABS */}
@@ -728,6 +766,44 @@ export function ReportsPage() {
             />
           </div>
 
+          {/* Returns summary — صافي المرتجعات (بيع + شراء) */}
+          <div className="report-panel">
+            <div className="report-panel-head">
+              <div className="report-panel-title">
+                <span className="report-panel-emoji">↩️</span> صافي المرتجعات — {PERIOD_LABELS[period]}
+              </div>
+              <span className="report-panel-badge">
+                {returnsSummary.salesReturnCount + returnsSummary.purchaseReturnCount} حركة مرتجع
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+              {/* مرتجع البيع */}
+              <div style={{ padding: '12px 14px', borderRadius: 14, background: 'var(--kpi-danger-bg)', border: '1px solid var(--kpi-danger-border)' }}>
+                <div style={{ fontSize: 12, color: 'var(--color-danger-light)', fontWeight: 700, marginBottom: 4 }}>↩️ مرتجع البيع</div>
+                <div style={{ fontSize: 20, fontWeight: 900, direction: 'ltr', color: 'var(--color-danger-light)' }}>
+                  {formatCurrency(returnsSummary.salesReturns)}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span>مبيعات خام: <b style={{ direction: 'ltr' }}>{formatCurrency(returnsSummary.salesGross)}</b></span>
+                  <span>صافي المبيعات: <b style={{ direction: 'ltr', color: 'var(--color-success-light)' }}>{formatCurrency(returnsSummary.salesNet)}</b></span>
+                </div>
+              </div>
+
+              {/* مرتجع الشراء */}
+              <div style={{ padding: '12px 14px', borderRadius: 14, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)' }}>
+                <div style={{ fontSize: 12, color: 'var(--color-warning-light)', fontWeight: 700, marginBottom: 4 }}>↩️ مرتجع الشراء</div>
+                <div style={{ fontSize: 20, fontWeight: 900, direction: 'ltr', color: 'var(--color-warning-light)' }}>
+                  {formatCurrency(returnsSummary.purchaseReturns)}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span>مشتريات خام: <b style={{ direction: 'ltr' }}>{formatCurrency(returnsSummary.purchasesGross)}</b></span>
+                  <span>صافي المشتريات: <b style={{ direction: 'ltr', color: 'var(--color-success-light)' }}>{formatCurrency(returnsSummary.purchasesNet)}</b></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Donuts: collections + wallet balances */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
             <div className="report-panel">
@@ -762,10 +838,14 @@ export function ReportsPage() {
             <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 12 }}>
               📥 مشتريات الفترة ({periodPurchases.length})
             </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, marginBottom: 12 }}>
               <div style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--kpi-period-inset)', border: '1px solid var(--color-border)', textAlign: 'center' }}>
                 <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>إجمالي الشراء</span>
                 <p style={{ fontWeight: 800, fontSize: 15, direction: 'ltr', marginTop: 2 }}>{formatCurrency(purchaseTotals.total)}</p>
+              </div>
+              <div style={{ padding: '8px 12px', borderRadius: 10, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', textAlign: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--color-warning-light)' }}>مرتجع الشراء</span>
+                <p style={{ fontWeight: 800, fontSize: 15, direction: 'ltr', marginTop: 2, color: 'var(--color-warning-light)' }}>{formatCurrency(purchaseTotals.returns)}</p>
               </div>
               <div style={{ padding: '8px 12px', borderRadius: 10, background: 'var(--kpi-green-bg)', border: '1px solid var(--kpi-green-border)', textAlign: 'center' }}>
                 <span style={{ fontSize: 11, color: 'var(--color-success-light)' }}>مدفوع للموردين</span>

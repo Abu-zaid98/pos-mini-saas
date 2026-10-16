@@ -31,6 +31,7 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
   const [paymentType, setPaymentType] = useState<PaymentType>('cash')
   const [partialPaid, setPartialPaid] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
+  const [packLabel, setPackLabel] = useState('')
   const [dateStr, setDateStr] = useState(() => new Date().toISOString().slice(0, 16))
   const [notes, setNotes] = useState('')
   const [error, setError] = useState('')
@@ -44,6 +45,7 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
       setCustomSupplier(false)
       setPaymentType('cash')
       setPartialPaid('')
+      setPackLabel('')
       setNotes('')
       setDateStr(new Date().toISOString().slice(0, 16))
       setError('')
@@ -53,22 +55,46 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
   if (!product || getProductType(product) === 'service') return null
 
   const isWeighted = getProductType(product) === 'weighted'
+  const packOptions = product.packs ?? []
+  const pack = !isWeighted && packLabel ? (packOptions.find((pk) => pk.label === packLabel) ?? null) : null
+  const factor = pack?.factor ?? 1
   // الموزون: الإدخال بالكيلو والتكلفة للكيلو — يُحوّل للجرام عند الحفظ
+  // عند اختيار عبوة (علبة/كرتونة): الإدخال بعدد العبوات وتكلفة العبوة
   const currentStock = product.quantity
   const numAddedDisplay = isWeighted ? parseFloat(addedQty) || 0 : parseInt(addedQty) || 0
-  const numAdded = isWeighted ? Math.round(numAddedDisplay * GRAMS_PER_KG) : numAddedDisplay
+  const numAdded = pack
+    ? Math.round(numAddedDisplay * factor)
+    : isWeighted
+      ? Math.round(numAddedDisplay * GRAMS_PER_KG)
+      : numAddedDisplay
   const newStock = currentStock + numAdded
   const numCost = parseFloat(costPrice) || 0
-  const totalCost = numAddedDisplay * numCost
+  const unitCost = pack ? numCost / factor : numCost
+  const totalCost = Math.round(numAddedDisplay * numCost * 100) / 100
 
   const fmtStock = (gramsOrPieces: number) =>
     isWeighted ? `${Math.round((gramsOrPieces / GRAMS_PER_KG) * 1000) / 1000} كغ` : String(gramsOrPieces)
 
   // متوسط التكلفة المتوقع بعد التوريد (مرجح بالمخزون)
   const toPricing = (base: number) => isWeighted ? base / GRAMS_PER_KG : base
+  const addPricingQty = pack ? numAdded : numAddedDisplay
+  const addUnitCost = pack ? unitCost : numCost
   const projectedAvg = numAddedDisplay > 0
-    ? averageCostPerKg(toPricing(currentStock), Number(product.costPrice) || 0, numAddedDisplay, numCost)
+    ? averageCostPerKg(toPricing(currentStock), Number(product.costPrice) || 0, addPricingQty, addUnitCost)
     : Number(product.costPrice) || 0
+
+  const handlePackChange = (label: string) => {
+    setPackLabel(label)
+    const pk = packOptions.find((p) => p.label === label)
+    if (pk) {
+      const suggested = pk.cost && pk.cost > 0
+        ? pk.cost
+        : Math.round((Number(product.costPrice) || 0) * pk.factor * 100) / 100
+      setCostPrice(String(suggested))
+    } else {
+      setCostPrice(String(product.costPrice ?? ''))
+    }
+  }
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
@@ -100,7 +126,7 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
       await addQuickRestock({
         productId: product.id!,
         addedQuantity: numAdded,
-        newCostPrice: numCost,
+        newCostPrice: unitCost,
         supplierName: supplierName.trim(),
         paymentMethod: paymentType === 'debt' ? undefined : paymentMethod,
         paidAmount: paid,
@@ -108,6 +134,9 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
         paymentType,
         date: dateStr ? new Date(dateStr) : new Date(),
         notes: notes.trim(),
+        pack: pack ? { label: pack.label, factor: pack.factor } : undefined,
+        packQty: pack ? numAddedDisplay : undefined,
+        packCost: pack ? numCost : undefined,
       })
 
       onSuccess?.()
@@ -142,7 +171,7 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
             onClick={handleSubmit}
             style={{ flex: 2 }}
           >
-            ✓ تأكيد توريد {numAddedDisplay > 0 ? (isWeighted ? `(${numAddedDisplay} كغ)` : `(${numAdded} قطعة)`) : ''}
+            ✓ تأكيد توريد {numAddedDisplay > 0 ? (pack ? `(${numAddedDisplay} ${pack.label})` : isWeighted ? `(${numAddedDisplay} كغ)` : `(${numAdded} قطعة)`) : ''}
           </Button>
         </div>
       }
@@ -184,7 +213,7 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
           <div>
             <div style={{ fontSize: 11, color: 'var(--color-primary)' }}>الكمية المشتراة</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--color-primary-light)' }}>
-              {isWeighted ? `${numAddedDisplay} كغ` : numAdded}
+              {pack ? `${numAddedDisplay} ${pack.label}` : isWeighted ? `${numAddedDisplay} كغ` : numAdded}
             </div>
           </div>
           <div style={{ fontSize: 20, color: 'var(--color-success)' }}>=</div>
@@ -196,11 +225,43 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
           </div>
         </div>
 
+        {/* اختيار الوحدة عند وجود عبوات */}
+        {packOptions.length > 0 && (
+          <div>
+            <label className="input-label" style={{ marginBottom: 6, display: 'block' }}>وحدة التوريد</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {[{ label: '', text: '🛒 بالحبة' }, ...packOptions.map((pk) => ({ label: pk.label, text: `📦 ${pk.label} (${pk.factor})` }))].map((opt) => {
+                const active = opt.label === packLabel
+                return (
+                  <button
+                    key={opt.label || '__piece'}
+                    type="button"
+                    onClick={() => handlePackChange(opt.label)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      border: active ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                      background: active ? 'rgba(59,130,246,0.15)' : 'var(--color-bg-card)',
+                      color: active ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-main)',
+                    }}
+                  >
+                    {opt.text}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Added Quantity & Cost Price */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Input
-            label={isWeighted ? 'الكمية المضافة (كغ) *' : 'الكمية المضافة *'}
-            placeholder={isWeighted ? 'مثال: 2.5' : 'مثال: 100'}
+            label={pack ? `عدد ${pack.label} *` : isWeighted ? 'الكمية المضافة (كغ) *' : 'الكمية المضافة *'}
+            placeholder={pack ? 'مثال: 3' : isWeighted ? 'مثال: 2.5' : 'مثال: 100'}
             value={addedQty}
             onChange={(e) => setAddedQty(e.target.value)}
             inputMode="decimal"
@@ -209,13 +270,19 @@ export function QuickRestockModal({ open, onClose, product, onSuccess }: QuickRe
           />
 
           <Input
-            label={isWeighted ? 'سعر تكلفة الكيلو ₪ *' : 'سعر تكلفة الشراء ₪ *'}
+            label={pack ? `تكلفة ${pack.label} ₪ *` : isWeighted ? 'سعر تكلفة الكيلو ₪ *' : 'سعر تكلفة الشراء ₪ *'}
             placeholder="0.00"
             value={costPrice}
             onChange={(e) => setCostPrice(e.target.value)}
             inputMode="decimal"
             required
-            hint={numAddedDisplay > 0 ? `متوسط التكلفة بعد التوريد: ${projectedAvg.toFixed(2)} ₪${isWeighted ? '/كغ' : ''}` : undefined}
+            hint={
+              numAddedDisplay > 0
+                ? pack
+                  ? `تكلفة الحبة: ${unitCost.toFixed(2)} ₪ · متوسط جديد: ${projectedAvg.toFixed(2)} ₪`
+                  : `متوسط التكلفة بعد التوريد: ${projectedAvg.toFixed(2)} ₪${isWeighted ? '/كغ' : ''}`
+                : undefined
+            }
           />
         </div>
 

@@ -62,8 +62,8 @@ export function ProductForm({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [partialPaid, setPartialPaid] = useState('')
   const [supplyNotes, setSupplyNotes] = useState('')
-  // عبوات البيع (للسلع): {label, factor, price} كنصوص للإدخال
-  const [packs, setPacks] = useState<{ label: string; factor: string; price: string }[]>([])
+  // عبوات البيع/الشراء (للسلع): {label, factor, price, cost} كنصوص للإدخال
+  const [packs, setPacks] = useState<{ label: string; factor: string; price: string; cost: string }[]>([])
   // تاريخ الصلاحية (للسلع والموزون)
   const [expiryDate, setExpiryDate] = useState('')
   // للخدمات: سعر مفتوح + مدة بالدقائق
@@ -81,7 +81,7 @@ export function ProductForm({
       if (product) {
         const t = getProductType(product)
         setItemType(t)
-        setPacks((product.packs ?? []).map((pk) => ({ label: pk.label, factor: String(pk.factor), price: String(pk.price) })))
+        setPacks((product.packs ?? []).map((pk) => ({ label: pk.label, factor: String(pk.factor), price: String(pk.price), cost: pk.cost != null ? String(pk.cost) : '' })))
         setExpiryDate(toDateInputValue(product.expiryDate))
         setOpenPrice(product.openPrice === true)
         setDuration(product.durationMinutes ? String(product.durationMinutes) : '')
@@ -174,6 +174,7 @@ export function ProductForm({
           label: pk.label.trim(),
           factor: Math.floor(+pk.factor),
           price: Math.round(+pk.price * 100) / 100,
+          cost: +pk.cost > 0 ? Math.round(+pk.cost * 100) / 100 : undefined,
         }))
       : []
     const data = {
@@ -706,7 +707,7 @@ export function ProductForm({
             </div>
           )}
 
-          {/* Packs (goods only) — علبة/كرتونة بسعر خاص */}
+          {/* Packs (goods only) — علبة/كرتونة بسعر بيع وتكلفة شراء */}
           {!isService && !isWeighted && (
             <div style={{
               background: 'rgba(59,130,246,0.06)',
@@ -717,57 +718,96 @@ export function ProductForm({
               flexDirection: 'column',
               gap: 8,
             }}>
-              <strong style={{ fontSize: 13 }}>📦 عبوات البيع <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(اختياري — علبة/كرتونة)</span></strong>
-              {packs.map((pk, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  <input
-                    className="input"
-                    placeholder="الاسم: علبة"
-                    value={pk.label}
-                    onChange={(e) => setPacks((arr) => arr.map((r, i) => i === idx ? { ...r, label: e.target.value } : r))}
-                    style={{ flex: 1.2 }}
-                  />
-                  <input
-                    className="input"
-                    type="number"
-                    min="2"
-                    placeholder="العدد"
-                    title="عدد القطع في العبوة"
-                    value={pk.factor}
-                    onChange={(e) => setPacks((arr) => arr.map((r, i) => i === idx ? { ...r, factor: e.target.value } : r))}
-                    style={{ flex: 1 }}
-                  />
-                  <input
-                    className="input"
-                    type="number"
-                    min="0"
-                    step="any"
-                    placeholder="السعر ₪"
-                    value={pk.price}
-                    onChange={(e) => setPacks((arr) => arr.map((r, i) => i === idx ? { ...r, price: e.target.value } : r))}
-                    style={{ flex: 1 }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setPacks((arr) => arr.filter((_, i) => i !== idx))}
-                    style={{ background: 'none', border: 'none', color: 'var(--color-danger-light)', cursor: 'pointer', fontSize: 15 }}
-                  >✕</button>
-                </div>
-              ))}
+              <strong style={{ fontSize: 13 }}>📦 عبوات البيع والشراء <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(اختياري — علبة/كرتونة)</span></strong>
+              {packs.map((pk, idx) => {
+                const factorN = Math.floor(+pk.factor) || 0
+                const costN = +pk.cost || 0
+                const priceN = +pk.price || 0
+                const unitCost = factorN >= 1 && costN > 0 ? costN / factorN : null
+                const unitSale = factorN >= 1 && priceN > 0 ? priceN / factorN : null
+                const packProfit = costN > 0 && priceN > 0 ? priceN - costN : null
+                return (
+                  <div key={idx} style={{
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 10,
+                    padding: 8,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    background: 'var(--color-bg-card)',
+                  }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        className="input"
+                        placeholder="الاسم: علبة / كرتونة"
+                        value={pk.label}
+                        onChange={(e) => setPacks((arr) => arr.map((r, i) => i === idx ? { ...r, label: e.target.value } : r))}
+                        style={{ flex: 1.6 }}
+                      />
+                      <input
+                        className="input"
+                        type="number"
+                        min="2"
+                        placeholder="عدد الحبات"
+                        title="إجمالي عدد الحبات في العبوة (للعلبة أو الكرتونة)"
+                        value={pk.factor}
+                        onChange={(e) => setPacks((arr) => arr.map((r, i) => i === idx ? { ...r, factor: e.target.value } : r))}
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPacks((arr) => arr.filter((_, i) => i !== idx))}
+                        style={{ background: 'none', border: 'none', color: 'var(--color-danger-light)', cursor: 'pointer', fontSize: 15 }}
+                      >✕</button>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input
+                        className="input"
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="تكلفة شراء العبوة ₪"
+                        title="تكلفة شراء العبوة (اختياري)"
+                        value={pk.cost}
+                        onChange={(e) => setPacks((arr) => arr.map((r, i) => i === idx ? { ...r, cost: e.target.value } : r))}
+                        style={{ flex: 1 }}
+                      />
+                      <input
+                        className="input"
+                        type="number"
+                        min="0"
+                        step="any"
+                        placeholder="سعر بيع العبوة ₪"
+                        title="سعر بيع العبوة"
+                        value={pk.price}
+                        onChange={(e) => setPacks((arr) => arr.map((r, i) => i === idx ? { ...r, price: e.target.value } : r))}
+                        style={{ flex: 1 }}
+                      />
+                    </div>
+                    {(unitCost !== null || unitSale !== null) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 11, color: 'var(--color-text-muted)' }}>
+                        {unitCost !== null && <span>تكلفة الحبة: <b style={{ color: 'var(--color-primary-light)' }}>{unitCost.toFixed(2)} ₪</b></span>}
+                        {unitSale !== null && <span>بيع الحبة: <b style={{ color: 'var(--color-text-primary)' }}>{unitSale.toFixed(2)} ₪</b></span>}
+                        {packProfit !== null && <span>ربح العبوة: <b style={{ color: 'var(--color-success-light)' }}>{packProfit.toFixed(2)} ₪</b></span>}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
               {packs.some((_, i) => errors[`pack${i}`]) && (
-                <span style={{ fontSize: 12, color: 'var(--color-danger-light)' }}>⚠ كل عبوة تحتاج اسماً وعدداً ≥ 2 وسعراً أكبر من صفر</span>
+                <span style={{ fontSize: 12, color: 'var(--color-danger-light)' }}>⚠ كل عبوة تحتاج اسماً وعدد حبات ≥ 2 وسعر بيع أكبر من صفر</span>
               )}
               {packs.length < 3 && (
                 <button
                   type="button"
-                  onClick={() => setPacks((arr) => [...arr, { label: '', factor: '', price: '' }])}
+                  onClick={() => setPacks((arr) => [...arr, { label: '', factor: '', price: '', cost: '' }])}
                   className="btn btn-ghost btn-sm"
                 >
                   + إضافة عبوة
                 </button>
               )}
               <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: 0 }}>
-                مثال: علبة = 12 قطعة بسعر 55 ₪ — تُخصم 12 من المخزون عند بيع علبة
+                «عدد الحبات» هو الإجمالي: علبة = 12، وكرتونة = 72 (6 علب × 12). تُخصم الحبات من المخزون عند البيع، وتُضاف عند التوريد بالعبوة.
               </p>
             </div>
           )}

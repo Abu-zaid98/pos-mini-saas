@@ -44,6 +44,10 @@ export async function addQuickRestock(params: {
   paidAmount?: number
   debtAmount?: number
   paymentType?: PaymentType
+  /** العبوة المشتراة (علبة/كرتونة) — لقطة للعرض فقط */
+  pack?: { label: string; factor: number }
+  packQty?: number
+  packCost?: number
 }) {
   return db.transaction('rw', [db.products, db.purchases], async () => {
     const product = await db.products.get(params.productId)
@@ -87,6 +91,9 @@ export async function addQuickRestock(params: {
       costPrice: Math.round(inputCost * 100) / 100,
       totalCost,
       unit,
+      pack: params.pack,
+      packQty: params.pack ? params.packQty : undefined,
+      packCost: params.pack ? params.packCost : undefined,
     }
 
     // 3. Record purchase invoice
@@ -114,6 +121,12 @@ export async function addPurchaseInvoice(params: {
     quantity: number
     /** التكلفة بوحدة التسعير (للحبة أو للكيلو) */
     costPrice: number
+    /** العبوة المشتراة (علبة/كرتونة) — لقطة للعرض */
+    pack?: { label: string; factor: number }
+    /** عدد العبوات */
+    packQty?: number
+    /** تكلفة العبوة الواحدة */
+    packCost?: number
   }>
   paymentMethod?: PaymentMethod
   paidAmount?: number
@@ -158,6 +171,9 @@ export async function addPurchaseInvoice(params: {
         costPrice: it.costPrice,
         totalCost: itemTotal,
         unit: pType === 'weighted' ? 'kg' : 'piece',
+        pack: it.pack,
+        packQty: it.pack ? it.packQty : undefined,
+        packCost: it.pack ? it.packCost : undefined,
       })
 
       totalAmount += itemTotal
@@ -231,11 +247,14 @@ export async function deletePurchase(id: number) {
     // حذفها يمحو الدين من كشف المورد ويرفع رصيد المحفظة وهمياً
     const laterPayments = purchase.supplierPayments?.length || 0
     const outstandingDebt = Number(purchase.debtAmount) || 0
-    if (laterPayments > 0 || outstandingDebt > 0) {
+    const hasReturns = (purchase.returnedItems?.length || 0) > 0
+    if (laterPayments > 0 || outstandingDebt > 0 || hasReturns) {
       throw new Error(
         outstandingDebt > 0
           ? `لا يمكن حذف الفاتورة: عليها دين مستحق للمورد (${outstandingDebt} ₪). سدده أولاً من زر «سداد دفعة للمورد» ثم احذف.`
-          : 'لا يمكن حذف الفاتورة: عليها دفعات مسددة مسجلة. حذفها سيخل بتطابق المحفظة — راجع سجل الدفعات أولاً.'
+          : hasReturns
+            ? 'لا يمكن حذف الفاتورة: عليها مرتجعات مسجلة للمورد. حذفها سيخل بتطابق المخزون — راجع سجل المرتجعات أولاً.'
+            : 'لا يمكن حذف الفاتورة: عليها دفعات مسددة مسجلة. حذفها سيخل بتطابق المحفظة — راجع سجل الدفعات أولاً.'
       )
     }
 
@@ -254,6 +273,110 @@ export async function deletePurchase(id: number) {
     }
 
     await db.purchases.delete(id)
+  })
+}
+
+export interface PurchaseRefundItemInput {
+  productId: number
+  productName: string
+  /** الكمية بالوحدات الأساسية (قطع للسلع، جرام للموزون) */
+  quantity: number
+  unit?: SaleUnit
+  costPrice: number
+  refundAmount: number
+  reason?: string
+}
+
+export interface ProcessPurchaseReturnInput {
+  purchaseId: number
+  items: PurchaseRefundItemInput[]
+  /** cash = استرداد نقدي من المورد إلى محفظة، debt = خصم من دين المورد */
+  refundMethod: 'cash' | 'debt'
+  paymentMethod?: PaymentMethod
+  note?: string
+}
+
+/**
+ * تسجيل مرتجع مشتريات (إرجاع بضاعة للمورد):
+ * 1. خصم الكميات المرتجعة من المخزون.
+ * 2. التسوية المالية: إما خصم من دين المورد، أو استرداد نقدي يدخل المحفظة المختارة.
+ * 3. حفظ سجل المرتجع على فاتورة الشراء.
+ */
+export async function returnPurchaseItems(data: ProcessPurchaseReturnInput): Promise<void> {
+  if (!data.items || data.items.length === 0) {
+    throw new Error('يرجى تحديد الأصناف المراد إرجاعها')
+  }
+  const totalRefund = Math.round(data.items.reduce((s, it) => s + (Number(it.refundAmount) || 0), 0) * 100) / 100
+  if (totalRefund <= 0) throw new Error('مبلغ الاسترداد يجب أن يكون أكبر من صفر')
+
+  return db.transaction('rw', [db.purchases, db.products], async () => {
+    const purchase = await db.purchases.get(data.purchaseId)
+    if (!purchase) throw new Error('فاتورة الشراء غير موجودة')
+
+    const now = new Date()
+
+    // 1. خصم الكميات المرتجعة من المخزون
+    for (const item of data.items) {
+      if (item.productId > 0 && item.quantity > 0) {
+        const product = await db.products.get(item.productId)
+        if (product) {
+          const newQty = Math.max(0, Math.round((product.quantity - item.quantity) * 1000) / 1000)
+          await db.products.update(item.productId, { quantity: newQty, updatedAt: now })
+        }
+      }
+    }
+
+    const currentDebt = Math.round((Number(purchase.debtAmount) || 0) * 100) / 100
+    const currentPaid = Math.round((Number(purchase.paidAmount) || 0) * 100) / 100
+    let newDebt = currentDebt
+    const supplierPayments = [...(purchase.supplierPayments || [])]
+
+    if (data.refundMethod === 'debt') {
+      if (totalRefund > currentDebt + 0.001) {
+        throw new Error(`مبلغ المرتجع (${totalRefund} ₪) أكبر من دين المورد المتبقي (${currentDebt} ₪). اختر «استرداد نقدي» للجزء الزائد.`)
+      }
+      newDebt = Math.round((currentDebt - totalRefund) * 100) / 100
+    } else {
+      // استرداد نقدي: نضمن تسجيل الدفعة الأولى في السجل ثم نضيف حركة استرداد سالبة
+      // (المبلغ السالب يزيد رصيد المحفظة داخل معادلة الأرصدة)
+      if (supplierPayments.length === 0 && currentPaid > 0) {
+        supplierPayments.push({
+          amount: currentPaid,
+          paymentMethod: purchase.paymentMethod || 'cash',
+          date: purchase.date,
+          notes: 'الدفعة الأولى عند التوريد',
+        })
+      }
+      supplierPayments.push({
+        amount: -totalRefund,
+        paymentMethod: data.paymentMethod || 'cash',
+        date: now,
+        notes: data.note?.trim() || 'استرداد نقدي — مرتجع للمورد',
+      })
+    }
+
+    const newPaymentType: PaymentType = newDebt === 0 ? 'cash' : (currentPaid > 0 ? 'partial' : 'debt')
+
+    const newReturns: import('../db/db').PurchaseReturnedItem[] = data.items.map((it) => ({
+      productId: it.productId,
+      productName: it.productName,
+      quantity: it.quantity,
+      unit: it.unit,
+      costPrice: it.costPrice,
+      refundAmount: Math.round((Number(it.refundAmount) || 0) * 100) / 100,
+      refundMethod: data.refundMethod,
+      method: data.refundMethod === 'cash' ? (data.paymentMethod || 'cash') : undefined,
+      reason: it.reason?.trim() || data.note?.trim() || '',
+      date: now,
+    }))
+
+    await db.purchases.update(data.purchaseId, {
+      debtAmount: newDebt,
+      paymentType: newPaymentType,
+      supplierPayments,
+      returnedItems: [...(purchase.returnedItems || []), ...newReturns],
+      returnedAmount: Math.round(((Number(purchase.returnedAmount) || 0) + totalRefund) * 100) / 100,
+    })
   })
 }
 

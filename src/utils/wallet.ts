@@ -184,7 +184,7 @@ export function computeBalances(
   return b
 }
 
-export type WalletEntrySource = 'sale' | 'collection' | 'purchase' | 'expense' | 'transfer' | 'refund' | 'opening' | 'adjustment'
+export type WalletEntrySource = 'sale' | 'collection' | 'purchase' | 'expense' | 'transfer' | 'refund' | 'loan' | 'opening' | 'adjustment'
 
 export interface WalletEntry {
   key: string
@@ -257,19 +257,35 @@ export function buildWalletLedger(
     if (methodOf(p.method) !== method) continue
     const amt = Number(p.amount) || 0
     if (amt < 0) {
-      // حركة استرداد نقدي (خارج من الصندوق)
-      entries.push({
-        key: `pay-ref-${p.id}`,
-        dateMs: new Date(p.createdAt).getTime(),
-        date: new Date(p.createdAt),
-        kind: 'out',
-        source: 'refund',
-        title: p.invoiceId ? `استرداد نقدي لفاتورة #${p.invoiceId}` : 'استرداد نقدي',
-        sub: p.note || undefined,
-        amount: Math.abs(amt),
-        refId: Number(p.id),
-        invoiceId: p.invoiceId,
-      })
+      if (p.kind === 'loan') {
+        // سلفة نقدية صُرفت للعميل من هذه المحفظة (دين على العميل)
+        entries.push({
+          key: `pay-loan-${p.id}`,
+          dateMs: new Date(p.createdAt).getTime(),
+          date: new Date(p.createdAt),
+          kind: 'out',
+          source: 'loan',
+          title: 'سلفة نقدية لعميل',
+          sub: p.note || undefined,
+          amount: Math.abs(amt),
+          refId: Number(p.id),
+          invoiceId: null,
+        })
+      } else {
+        // حركة استرداد نقدي (خارج من الصندوق)
+        entries.push({
+          key: `pay-ref-${p.id}`,
+          dateMs: new Date(p.createdAt).getTime(),
+          date: new Date(p.createdAt),
+          kind: 'out',
+          source: 'refund',
+          title: p.invoiceId ? `استرداد نقدي لفاتورة #${p.invoiceId}` : 'استرداد نقدي',
+          sub: p.note || undefined,
+          amount: Math.abs(amt),
+          refId: Number(p.id),
+          invoiceId: p.invoiceId,
+        })
+      }
     } else if (p.invoiceId) {
       entries.push({
         key: `pay-${p.id}`,
@@ -304,8 +320,23 @@ export function buildWalletLedger(
       pur.supplierPayments.forEach((sp, idx) => {
         if (methodOf(sp.paymentMethod) !== method) return
         const amt = Number(sp.amount) || 0
-        if (amt <= 0) return
         const date = new Date(sp.date)
+        if (amt < 0) {
+          // استرداد نقدي من المورد (مرتجع مشتريات) — داخل للمحفظة
+          entries.push({
+            key: `pur-ref-${pur.id}-${idx}`,
+            dateMs: date.getTime(),
+            date,
+            kind: 'in',
+            source: 'purchase',
+            title: pur.supplierName?.trim() ? `استرداد من: ${pur.supplierName}` : 'استرداد من مورد',
+            sub: sp.notes || (pur.invoiceNumber ? `فاتورة #${pur.invoiceNumber}` : 'مرتجع مشتريات'),
+            amount: Math.abs(amt),
+            refId: Number(pur.id),
+          })
+          return
+        }
+        if (amt <= 0) return
         entries.push({
           key: `pur-sp-${pur.id}-${idx}`,
           dateMs: date.getTime(),

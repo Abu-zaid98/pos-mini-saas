@@ -3,11 +3,11 @@ import { usePurchases, addPurchaseInvoice, deletePurchase, updatePurchaseMeta } 
 import { useSupplierNames } from '../hooks/useSuppliers'
 import { useProducts } from '../hooks/useProducts'
 import { useAccountBalances } from '../hooks/useInvoices'
-import { getPaymentMethodName, type PaymentMethod, type PaymentType, type Product } from '../db/db'
+import { getPaymentMethodName, type PaymentMethod, type PaymentType, type Product, type SalePack } from '../db/db'
 import { useWallets, activeWallets } from '../hooks/useWallets'
 import { formatCurrency } from '../utils/currency'
 import { formatDate, formatTime } from '../utils/datetime'
-import { GRAMS_PER_KG, averageCostPerKg, getProductType, stockLabel } from '../utils/units'
+import { GRAMS_PER_KG, averageCostPerKg, getProductType, stockLabel, packLineMath } from '../utils/units'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { BarcodeScanner } from '../components/ui/BarcodeScanner'
@@ -16,11 +16,13 @@ import { CustomSelect } from '../components/ui/CustomSelect'
 import { ConfirmModal } from '../components/ui/ConfirmModal'
 import { Modal } from '../components/ui/Modal'
 import { SupplierPaymentModal } from '../components/purchases/SupplierPaymentModal'
+import { PurchaseReturnModal } from '../components/purchases/PurchaseReturnModal'
 import { PurchasePrint } from '../components/purchases/PurchasePrint'
 import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
 import { useStoreInfo } from '../components/invoice/InvoicePrint'
 import { printElementById } from '../components/print/printDocument'
 import { Icon, Tabs, StatCard, EmptyState, SearchBar, PageHeader } from '../components/ui'
+import { exportPurchasesExcel } from '../utils/excelExport'
 
 export function PurchasesPage() {
   const [purchasePeriod, setPurchasePeriod] = useState<'all' | 'today' | 'week' | 'month' | 'custom'>('all')
@@ -37,6 +39,7 @@ export function PurchasesPage() {
   const [purchaseToDelete, setPurchaseToDelete] = useState<number | null>(null)
   const [deletingPurchase, setDeletingPurchase] = useState(false)
   const [payingPurchase, setPayingPurchase] = useState<import('../db/db').Purchase | null>(null)
+  const [returningPurchase, setReturningPurchase] = useState<import('../db/db').Purchase | null>(null)
   const [selectedPurchase, setSelectedPurchase] = useState<import('../db/db').Purchase | null>(null)
   const [detailMode, setDetailMode] = useState<'view' | 'edit'>('view')
   const [printPurchase, setPrintPurchase] = useState<import('../db/db').Purchase | null>(null)
@@ -114,7 +117,19 @@ export function PurchasesPage() {
   const [dateStr, setDateStr] = useState(() => new Date().toISOString().slice(0, 16))
   const [notes, setNotes] = useState('')
   const [selectedItems, setSelectedItems] = useState<
-    Array<{ product: Product; quantity: number; costPrice: number }>
+    Array<{
+      product: Product
+      /** الكمية بالوحدات الأساسية (قطع للسلع، كغ للموزون) */
+      quantity: number
+      /** التكلفة بوحدة التسعير (للحبة أو للكيلو) */
+      costPrice: number
+      /** العبوة المختارة (علبة/كرتونة) — فارغة يعني الشراء بالحبة */
+      pack?: SalePack | null
+      /** عدد العبوات المشتراة */
+      packQty?: number
+      /** تكلفة العبوة الواحدة */
+      packCost?: number
+    }>
   >([])
 
   // Product selection modal/picker
@@ -222,6 +237,60 @@ export function PurchasesPage() {
     setSelectedItems(updated)
   }
 
+  // ── الشراء بالعبوة (علبة/كرتونة) ──
+  // عند اختيار عبوة: الإدخال يصبح بعدد العبوات وتكلفة العبوة،
+  // وتُحوَّل القيم تلقائياً إلى: كمية أساسية بالحبات + تكلفة الحبة.
+  const handleSetUnit = (index: number, baseLabel: '' | string) => {
+    const updated = [...selectedItems]
+    const it = updated[index]
+    if (!it) return
+    clearDraftsFor(it.product.id)
+    const packs = it.product.packs ?? []
+
+    if (!baseLabel) {
+      // رجوع إلى الحبة
+      updated[index] = { ...it, pack: null, packQty: undefined, packCost: undefined }
+      setSelectedItems(updated)
+      return
+    }
+
+    const pack = packs.find((pk) => pk.label === baseLabel)
+    if (!pack) return
+    const suggestedCost = pack.cost && pack.cost > 0
+      ? pack.cost
+      : Math.round((Number(it.product.costPrice) || 0) * pack.factor * 100) / 100
+    const m = packLineMath(1, suggestedCost, pack.factor)
+    updated[index] = {
+      ...it,
+      pack,
+      packQty: 1,
+      packCost: suggestedCost,
+      quantity: m.baseQty,
+      costPrice: m.unitCost,
+    }
+    setSelectedItems(updated)
+  }
+
+  const handleUpdatePackQty = (index: number, qty: number) => {
+    const updated = [...selectedItems]
+    const it = updated[index]
+    if (!it?.pack) return
+    const n = Math.max(0, qty)
+    const m = packLineMath(n, it.packCost ?? 0, it.pack.factor)
+    updated[index] = { ...it, packQty: n, quantity: m.baseQty, costPrice: m.unitCost }
+    setSelectedItems(updated)
+  }
+
+  const handleUpdatePackCost = (index: number, cost: number) => {
+    const updated = [...selectedItems]
+    const it = updated[index]
+    if (!it?.pack) return
+    const c = Math.max(0, cost)
+    const m = packLineMath(it.packQty ?? 0, c, it.pack.factor)
+    updated[index] = { ...it, packCost: c, quantity: m.baseQty, costPrice: m.unitCost }
+    setSelectedItems(updated)
+  }
+
   const handleRemoveItem = (index: number) => {
     clearDraftsFor(selectedItems[index]?.product.id)
     setSelectedItems(selectedItems.filter((_, i) => i !== index))
@@ -266,6 +335,9 @@ export function PurchasesPage() {
           // الموزون يُدخل بالكيلو ويُخزن بالجرام
           quantity: getProductType(it.product) === 'weighted' ? Math.round(it.quantity * GRAMS_PER_KG) : it.quantity,
           costPrice: it.costPrice,
+          pack: it.pack ? { label: it.pack.label, factor: it.pack.factor } : undefined,
+          packQty: it.pack ? it.packQty : undefined,
+          packCost: it.pack ? it.packCost : undefined,
         })),
         paymentMethod: paymentType === 'debt' ? undefined : paymentMethod,
         paidAmount: paid,
@@ -300,6 +372,19 @@ export function PurchasesPage() {
         icon="box"
         title="المشتريات والتوريد"
         subtitle="فواتير الشراء من الموردين وحركة البضائع الواردة"
+        actions={
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => exportPurchasesExcel(purchases)}
+            disabled={purchases.length === 0}
+            title="تصدير المشتريات بكل التفاصيل إلى Excel"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <Icon name="download" size={16} />
+            <span>تصدير Excel</span>
+          </button>
+        }
       />
 
       {/* Top Stats Cards */}
@@ -442,6 +527,19 @@ export function PurchasesPage() {
                               رقم #{purchase.invoiceNumber}
                             </span>
                           )}
+                          {(purchase.returnedAmount ?? 0) > 0 && (
+                            <span style={{
+                              background: 'rgba(245,158,11,0.15)',
+                              border: '1px solid rgba(245,158,11,0.35)',
+                              padding: '2px 8px',
+                              borderRadius: 6,
+                              fontSize: 11,
+                              fontWeight: 800,
+                              color: 'var(--color-warning-light)',
+                            }}>
+                              ↩️ مرتجع {formatCurrency(purchase.returnedAmount || 0)}
+                            </span>
+                          )}
                         </div>
                         <div style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <Icon name="calendar" size={13} />
@@ -498,10 +596,16 @@ export function PurchasesPage() {
 
                           <div style={{ textAlign: 'left' }}>
                             <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                              +{it.unit === 'kg' ? `${Math.round((it.quantity / GRAMS_PER_KG) * 1000) / 1000} كغ` : `${it.quantity} حبة`}
+                              +{it.pack
+                                ? `${it.packQty} ${it.pack.label} (${it.quantity} حبة)`
+                                : it.unit === 'kg'
+                                  ? `${Math.round((it.quantity / GRAMS_PER_KG) * 1000) / 1000} كغ`
+                                  : `${it.quantity} حبة`}
                             </span>
                             <span style={{ fontSize: 11, color: 'var(--color-text-muted)', marginRight: 6 }}>
-                              × {it.costPrice.toFixed(2)} ₪ = {it.totalCost.toFixed(2)} ₪
+                              {it.pack
+                                ? `× ${(it.packCost ?? 0).toFixed(2)} ₪ = ${it.totalCost.toFixed(2)} ₪`
+                                : `× ${it.costPrice.toFixed(2)} ₪ = ${it.totalCost.toFixed(2)} ₪`}
                             </span>
                           </div>
                         </div>
@@ -554,6 +658,27 @@ export function PurchasesPage() {
                       >
                         <Icon name="eye" size={14} />
                         <span>عرض / طباعة / تعديل</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setReturningPurchase(purchase)}
+                        style={{
+                          background: 'rgba(245,158,11,0.12)',
+                          border: '1px solid rgba(245,158,11,0.3)',
+                          color: 'var(--color-warning-light)',
+                          borderRadius: 8,
+                          padding: '6px 12px',
+                          fontSize: 12.5,
+                          fontWeight: 800,
+                          cursor: 'pointer',
+                          fontFamily: 'var(--font-main)',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
+                      >
+                        <Icon name="arrow-down" size={14} />
+                        <span>إرجاع للمورد</span>
                       </button>
                       {(purchase.debtAmount ?? 0) > 0 && (
                         <button
@@ -1027,6 +1152,9 @@ export function PurchasesPage() {
                     )
                     : Number(item.product.costPrice) || 0
 
+                  const packOptions = item.product.packs ?? []
+                  const hasPacks = !isWeighted && packOptions.length > 0
+
                   const fmtStock = (base: number) =>
                     isWeighted ? `${Math.round((base / GRAMS_PER_KG) * 1000) / 1000} كغ` : String(base)
 
@@ -1069,21 +1197,53 @@ export function PurchasesPage() {
                         </button>
                       </div>
 
+                      {/* اختيار الوحدة: حبة / علبة / كرتونة */}
+                      {hasPacks && (
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {[{ label: '', text: '🛒 بالحبة' }, ...packOptions.map((pk) => ({ label: pk.label, text: `📦 ${pk.label} (${pk.factor})` }))].map((opt) => {
+                            const active = opt.label === '' ? !item.pack : item.pack?.label === opt.label
+                            return (
+                              <button
+                                key={opt.label || '__piece'}
+                                type="button"
+                                onClick={() => handleSetUnit(idx, opt.label)}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: 8,
+                                  border: active ? '1.5px solid var(--color-primary)' : '1px solid var(--color-border)',
+                                  background: active ? 'rgba(59,130,246,0.15)' : 'var(--color-bg-card)',
+                                  color: active ? 'var(--color-primary-light)' : 'var(--color-text-secondary)',
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  fontFamily: 'var(--font-main)',
+                                }}
+                              >
+                                {opt.text}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: 8, alignItems: 'center' }}>
                         <div>
                           <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 2 }}>
-                            {isWeighted ? 'الكمية المضافة (كغ)' : 'الكمية المضافة'}
+                            {item.pack ? `عدد ${item.pack.label}` : isWeighted ? 'الكمية المضافة (كغ)' : 'الكمية المضافة'}
                           </label>
                           <input
                             type="number"
                             min="0"
-                            step={isWeighted ? '0.1' : '1'}
-                            value={draft?.qty ?? item.quantity}
+                            step={isWeighted && !item.pack ? '0.1' : '1'}
+                            value={draft?.qty ?? (item.pack ? (item.packQty ?? 0) : item.quantity)}
                             onChange={(e) => {
                               const raw = e.target.value
                               setDraft(item.product.id, 'qty', raw)
                               const num = parseFloat(raw)
-                              if (Number.isFinite(num) && num > 0) handleUpdateItemQty(idx, num)
+                              if (Number.isFinite(num) && num > 0) {
+                                if (item.pack) handleUpdatePackQty(idx, num)
+                                else handleUpdateItemQty(idx, num)
+                              }
                             }}
                             onBlur={() => setDraft(item.product.id, 'qty', undefined)}
                             className="input"
@@ -1093,18 +1253,21 @@ export function PurchasesPage() {
 
                         <div>
                           <label style={{ fontSize: 11, color: 'var(--color-text-muted)', display: 'block', marginBottom: 2 }}>
-                            {isWeighted ? 'تكلفة الكيلو ₪' : 'سعر التكلفة ₪'}
+                            {item.pack ? `تكلفة ${item.pack.label} ₪` : isWeighted ? 'تكلفة الكيلو ₪' : 'سعر التكلفة ₪'}
                           </label>
                           <input
                             type="number"
                             step="0.1"
                             min="0"
-                            value={draft?.cost ?? item.costPrice}
+                            value={draft?.cost ?? (item.pack ? (item.packCost ?? 0) : item.costPrice)}
                             onChange={(e) => {
                               const raw = e.target.value
                               setDraft(item.product.id, 'cost', raw)
                               const num = parseFloat(raw)
-                              if (Number.isFinite(num) && num >= 0) handleUpdateItemCost(idx, num)
+                              if (Number.isFinite(num) && num >= 0) {
+                                if (item.pack) handleUpdatePackCost(idx, num)
+                                else handleUpdateItemCost(idx, num)
+                              }
                             }}
                             onBlur={() => setDraft(item.product.id, 'cost', undefined)}
                             className="input"
@@ -1117,9 +1280,20 @@ export function PurchasesPage() {
                           <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--color-primary-light)' }}>
                             {subtotal.toFixed(2)} ₪
                           </div>
-                          <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
-                            متوسط جديد: {projectedAvg.toFixed(2)} ₪
-                          </div>
+                          {item.pack ? (
+                            <>
+                              <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                                = {item.packQty} × {(item.packCost ?? 0).toFixed(2)} ₪
+                              </div>
+                              <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                                تكلفة الحبة: {item.costPrice.toFixed(2)} ₪
+                              </div>
+                            </>
+                          ) : (
+                            <div style={{ fontSize: 10, color: 'var(--color-text-muted)' }}>
+                              متوسط جديد: {projectedAvg.toFixed(2)} ₪
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1280,6 +1454,16 @@ export function PurchasesPage() {
         />
       )}
 
+      {/* Purchase Return Modal (إرجاع بضاعة للمورد) */}
+      {returningPurchase && (
+        <PurchaseReturnModal
+          open
+          purchase={returningPurchase}
+          onClose={() => setReturningPurchase(null)}
+          onSuccess={() => setReturningPurchase(null)}
+        />
+      )}
+
       {/* Purchase Detail: view / print / edit */}
       {selectedPurchase && (
         <Modal
@@ -1324,6 +1508,14 @@ export function PurchasesPage() {
                       💳 سداد
                     </button>
                   )}
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ flex: 1, color: 'var(--color-warning-light)' }}
+                    onClick={() => setReturningPurchase(selectedPurchase)}
+                  >
+                    ↩️ إرجاع للمورد
+                  </button>
                   <button
                     type="button"
                     className="btn btn-ghost"

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   useCustomers,
   addCustomer,
@@ -10,13 +10,16 @@ import {
   getInitialDebt,
   updateInitialDebt,
   type CustomerLedgerItem,
+  type DebtKind,
 } from '../hooks/useCustomers'
 import { Modal, StatCard, SearchBar, Tabs, EmptyState, Icon, PageHeader } from '../components/ui'
 import { printElementById } from '../components/print/printDocument'
 import { StatementPrintHost, downloadStatementXlsx } from '../components/customer/StatementPrint'
+import { InvoicePrint, usePrintInvoice, useStoreInfo } from '../components/invoice/InvoicePrint'
+import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
 import { formatCurrency } from '../utils/currency'
 import { formatDate, formatDateTime } from '../utils/datetime'
-import { type Customer, type PaymentMethod, getPaymentMethodName } from '../db/db'
+import { type Customer, type Invoice, type PaymentMethod, getPaymentMethodName, db } from '../db/db'
 import { useStoreName } from '../hooks/useStoreName'
 import { useWallets, activeWallets } from '../hooks/useWallets'
 
@@ -35,6 +38,8 @@ export function CustomersPage() {
   const [debtCustomer, setDebtCustomer] = useState<Customer | null>(null)
   const [newDebtAmount, setNewDebtAmount] = useState('')
   const [newDebtNote, setNewDebtNote] = useState('')
+  const [newDebtKind, setNewDebtKind] = useState<DebtKind>('balance')
+  const [newDebtMethod, setNewDebtMethod] = useState<PaymentMethod>('cash')
   const [isSavingDebt, setIsSavingDebt] = useState(false)
 
   // Payment modal state
@@ -44,18 +49,25 @@ export function CustomersPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
   const [paymentNote, setPaymentNote] = useState('')
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false)
+  // هل فُتح السداد من داخل كشف الحساب؟ (لإعادة فتح الكشف بعد الحفظ)
+  const [returnToLedgerAfterPayment, setReturnToLedgerAfterPayment] = useState(false)
 
   // Ledger modal state
   const [ledgerModalOpen, setLedgerModalOpen] = useState(false)
   const [ledgerCustomer, setLedgerCustomer] = useState<Customer | null>(null)
   const [ledgerItems, setLedgerItems] = useState<CustomerLedgerItem[]>([])
   const [isLoadingLedger, setIsLoadingLedger] = useState(false)
+  // الفاتورة المعروضة داخل كشف الحساب (null = عرض قائمة الحركات)
+  const [ledgerInvoice, setLedgerInvoice] = useState<Invoice | null>(null)
+  const ledgerInvoiceRef = useRef<HTMLDivElement>(null)
 
   // Delete confirm
   const [deleteConfirm, setDeleteConfirm] = useState<Customer | null>(null)
 
   const customers = useCustomers(search, filter)
   const storeName = useStoreName()
+  const storeInfo = useStoreInfo()
+  const printInvoice = usePrintInvoice()
   const allWallets = useWallets()
   const activeList = activeWallets(allWallets)
   const wallets = activeList.length ? activeList : allWallets
@@ -107,15 +119,27 @@ export function CustomersPage() {
   const handleOpenAddDebt = (customer: Customer) => {
     setDebtCustomer(customer)
     setNewDebtAmount('')
-    setNewDebtNote('دين إضافي على الحساب')
+    setNewDebtNote('')
+    setNewDebtKind('balance')
+    setNewDebtMethod(wallets[0]?.id || 'cash')
     setDebtModalOpen(true)
   }
 
   const handleSaveDebt = async () => {
     if (!debtCustomer?.id) return
+    if (newDebtKind === 'loan' && !newDebtMethod) {
+      alert('يرجى تحديد المحفظة التي صُرفت منها السلفة')
+      return
+    }
     setIsSavingDebt(true)
     try {
-      await addCustomerDebt({ customerId: debtCustomer.id, amount: parseFloat(newDebtAmount), note: newDebtNote })
+      await addCustomerDebt({
+        customerId: debtCustomer.id,
+        amount: parseFloat(newDebtAmount),
+        note: newDebtNote,
+        kind: newDebtKind,
+        method: newDebtKind === 'loan' ? newDebtMethod : undefined,
+      })
       setDebtModalOpen(false)
       if (ledgerCustomer?.id === debtCustomer.id) await handleOpenLedger(debtCustomer)
     } catch (error) {
@@ -138,11 +162,18 @@ export function CustomersPage() {
   }
 
   // Open payment modal
-  const handleOpenPayment = (c: Customer) => {
+  // ملاحظة: بدل ترك كشف الحساب مفتوحاً (فيحجب نافذة السداد بنفس z-index)،
+  // نغلق الكشف ثم نعيد فتحه بعد حفظ الدفعة — فيعمل زر «+ دفعة» بشكل صحيح.
+  const handleOpenPayment = (c: Customer, fromLedger = false) => {
     setPaymentCustomer(c)
     setPaymentAmount(c.totalDebt > 0 ? c.totalDebt.toString() : '')
     setPaymentMethod('cash')
     setPaymentNote('سداد دفعة من الحساب')
+    setReturnToLedgerAfterPayment(fromLedger)
+    if (fromLedger) {
+      setLedgerModalOpen(false)
+      setLedgerInvoice(null)
+    }
     setPaymentModalOpen(true)
   }
 
@@ -163,8 +194,9 @@ export function CustomersPage() {
         note: paymentNote,
       })
       setPaymentModalOpen(false)
-      // If ledger is also open for this customer, refresh it
-      if (ledgerCustomer?.id === paymentCustomer.id) {
+      // إن كان السداد قد بدأ من داخل كشف الحساب، نعيد فتح الكشف بالبيانات المحدّثة
+      if (returnToLedgerAfterPayment) {
+        setReturnToLedgerAfterPayment(false)
         await handleOpenLedger(paymentCustomer)
       }
     } catch (err) {
@@ -178,12 +210,18 @@ export function CustomersPage() {
   // Open ledger
   const handleOpenLedger = async (c: Customer) => {
     setLedgerCustomer(c)
+    setLedgerInvoice(null)
     setLedgerModalOpen(true)
     setIsLoadingLedger(true)
     try {
       if (c.id) {
-        const items = await getCustomerLedger(c.id)
+        const [items, fresh] = await Promise.all([
+          getCustomerLedger(c.id),
+          db.customers.get(c.id),
+        ])
         setLedgerItems(items)
+        // نحدّث بيانات العميل من قاعدة البيانات حتى يظهر الرصيد الصحيح بعد أي سداد
+        if (fresh) setLedgerCustomer(fresh)
       }
     } finally {
       setIsLoadingLedger(false)
@@ -647,13 +685,91 @@ export function CustomersPage() {
         type="box"
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 12, padding: 12, fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>
-            سيُضاف المبلغ إلى دين العميل ويظهر كحركة مستقلة في كشف الحساب.
+          <div>
+            <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6, fontWeight: 700 }}>نوع الدين *</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
+              {([
+                { id: 'balance' as DebtKind, label: 'رصيد سابق', icon: '🗂️' },
+                { id: 'goods' as DebtKind, label: 'بضاعة آجلة', icon: '📦' },
+                { id: 'loan' as DebtKind, label: 'سلفة نقدية', icon: '🤲' },
+              ]).map((k) => {
+                const active = newDebtKind === k.id
+                return (
+                  <button
+                    key={k.id}
+                    type="button"
+                    onClick={() => setNewDebtKind(k.id)}
+                    style={{
+                      padding: '9px 6px',
+                      borderRadius: 10,
+                      border: active ? '1px solid transparent' : '1px solid var(--color-border)',
+                      background: active ? 'var(--brand-gradient)' : 'rgba(255,255,255,0.04)',
+                      color: active ? '#fff' : 'var(--color-text-secondary)',
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-main)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 3,
+                    }}
+                  >
+                    <span style={{ fontSize: 16 }}>{k.icon}</span>
+                    <span>{k.label}</span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
+
+          <div style={{
+            background: newDebtKind === 'loan' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.08)',
+            border: newDebtKind === 'loan' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(239,68,68,0.2)',
+            borderRadius: 12, padding: 12, fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.7,
+          }}>
+            {newDebtKind === 'loan'
+              ? '🤲 سلفة نقدية: سيُخصم المبلغ فعلياً من المحفظة المختارة ويُضاف ديناً على العميل.'
+              : newDebtKind === 'goods'
+                ? '📦 بضاعة آجلة بدون فاتورة: تُضاف ديناً على العميل (لا تُخصم من المخزون هنا — الأفضل تسجيلها كفاتورة بيع).'
+                : '🗂️ رصيد سابق / تسوية: يُضاف ديناً على العميل بلا أي أثر على المحفظة أو المخزون.'}
+          </div>
+
           <div>
             <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 5, fontWeight: 700 }}>المبلغ *</label>
             <input type="number" min="0.01" step="0.01" placeholder="0.00 ₪" value={newDebtAmount} onChange={(event) => setNewDebtAmount(event.target.value)} className="input" style={{ direction: 'ltr', textAlign: 'right' }} />
           </div>
+
+          {newDebtKind === 'loan' && (
+            <div>
+              <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 6, fontWeight: 700 }}>
+                المحفظة التي صُرفت منها السلفة *
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                {wallets.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setNewDebtMethod(m.id)}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 10,
+                      border: newDebtMethod === m.id ? '1px solid transparent' : '1px solid var(--color-border)',
+                      background: newDebtMethod === m.id ? 'var(--brand-gradient)' : 'rgba(255,255,255,0.04)',
+                      color: newDebtMethod === m.id ? '#fff' : 'var(--color-text-secondary)',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      fontFamily: 'var(--font-main)',
+                    }}
+                  >
+                    {m.icon} {m.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <label style={{ fontSize: 13, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 5 }}>سبب الدين / ملاحظة</label>
             <input type="text" placeholder="مثال: بضاعة آجلة خارج الفاتورة" value={newDebtNote} onChange={(event) => setNewDebtNote(event.target.value)} className="input" />
@@ -824,11 +940,49 @@ export function CustomersPage() {
       {/* MODAL: CUSTOMER LEDGER (كشف الحساب) */}
       <Modal
         open={ledgerModalOpen}
-        onClose={() => setLedgerModalOpen(false)}
-        title={ledgerCustomer ? `كشف حساب: ${ledgerCustomer.name}` : 'كشف الحساب'}
+        onClose={() => { setLedgerModalOpen(false); setLedgerInvoice(null) }}
+        title={
+          ledgerInvoice
+            ? `فاتورة #${ledgerInvoice.id}`
+            : ledgerCustomer
+              ? `كشف حساب: ${ledgerCustomer.name}`
+              : 'كشف الحساب'
+        }
         type="sheet"
       >
-        {ledgerCustomer && (
+        {ledgerCustomer && ledgerInvoice ? (
+          /* ── عرض فاتورة من داخل كشف الحساب + تنزيلها كصورة / طباعة ── */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '80vh', overflowY: 'auto' }}>
+            <button
+              type="button"
+              onClick={() => setLedgerInvoice(null)}
+              className="btn btn-ghost btn-sm"
+              style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+            >
+              <Icon name="arrow-right" size={16} />
+              <span>رجوع إلى كشف الحساب</span>
+            </button>
+
+            <InvoicePrint invoice={ledgerInvoice} store={storeInfo} containerRef={ledgerInvoiceRef} />
+
+            <InvoiceExportActions
+              getTarget={() => ledgerInvoiceRef.current}
+              filenameBase={`invoice-${ledgerInvoice.id ?? ''}`}
+              whatsappPhone={ledgerCustomer.phone}
+              whatsappText={`فاتورة مبيعات #${ledgerInvoice.id ?? ''}`}
+            />
+
+            <button
+              type="button"
+              onClick={() => printInvoice(ledgerInvoice)}
+              className="btn btn-primary"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
+              <Icon name="printer" size={18} />
+              <span>طباعة الفاتورة</span>
+            </button>
+          </div>
+        ) : ledgerCustomer ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxHeight: '80vh', overflowY: 'auto' }}>
             {/* Summary Box */}
             <div style={{
@@ -871,7 +1025,7 @@ export function CustomersPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleOpenPayment(ledgerCustomer)}
+                  onClick={() => handleOpenPayment(ledgerCustomer, true)}
                   style={{
                     padding: '8px 12px',
                     borderRadius: 10,
@@ -952,63 +1106,87 @@ export function CustomersPage() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {ledgerItems.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        background: 'var(--color-bg-card)',
-                        border: '1px solid var(--color-border)',
-                        borderRadius: 12,
-                        padding: '12px 14px',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 16 }}>{item.type === 'invoice' ? '🧾' : '💰'}</span>
-                          <span style={{ fontSize: 14, fontWeight: 700 }}>{item.title}</span>
-                          {item.payment?.method && (
-                            <span style={{
-                              fontSize: 10,
-                              background: 'rgba(255,255,255,0.08)',
-                              padding: '2px 6px',
-                              borderRadius: 6,
-                              color: 'var(--color-text-muted)',
-                            }}>
-                              {getPaymentMethodName(item.payment.method)}
+                  {ledgerItems.map((item) => {
+                    // فاتورة البيع الحقيقية فقط تُفتح للعرض/الطباعة (لا قيود الدين اليدوية)
+                    const isRealSale = !!item.invoice && item.invoice.items.some((it) => it.productId !== 0)
+                    const openable = item.type === 'invoice' && isRealSale
+                    const openInvoice = () => { if (item.invoice) setLedgerInvoice(item.invoice) }
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={openable ? openInvoice : undefined}
+                        role={openable ? 'button' : undefined}
+                        tabIndex={openable ? 0 : undefined}
+                        onKeyDown={openable ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInvoice() }
+                        } : undefined}
+                        style={{
+                          background: 'var(--color-bg-card)',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: 12,
+                          padding: '12px 14px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: 8,
+                          cursor: openable ? 'pointer' : 'default',
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <span style={{ fontSize: 16 }}>{item.type === 'invoice' ? '🧾' : '💰'}</span>
+                            <span style={{ fontSize: 14, fontWeight: 700 }}>{item.title}</span>
+                            {item.payment?.method && (
+                              <span style={{
+                                fontSize: 10,
+                                background: 'rgba(255,255,255,0.08)',
+                                padding: '2px 6px',
+                                borderRadius: 6,
+                                color: 'var(--color-text-muted)',
+                              }}>
+                                {getPaymentMethodName(item.payment.method)}
+                              </span>
+                            )}
+                          </div>
+                          <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 3 }}>
+                            {formatDateTime(item.date)}
+                            {item.note && ` • ${item.note}`}
+                          </p>
+                          {openable && (
+                            <span style={{ fontSize: 11, color: 'var(--color-primary-light)', fontWeight: 700 }}>
+                              اضغط لعرض الفاتورة وتنزيلها كصورة
                             </span>
                           )}
                         </div>
-                        <p style={{ fontSize: 11, color: 'var(--color-text-muted)', marginTop: 3 }}>
-                          {formatDateTime(item.date)}
-                          {item.note && ` • ${item.note}`}
-                        </p>
-                      </div>
 
-                      <div style={{ textAlign: 'left' }}>
-                        <div style={{
-                          fontSize: 14,
-                          fontWeight: 800,
-                          color: item.type === 'invoice' ? 'var(--color-text-primary)' : 'var(--color-success-light)',
-                          direction: 'ltr',
-                        }}>
-                          {item.type === 'payment' ? `-${formatCurrency(item.amount)}` : formatCurrency(item.amount)}
-                        </div>
-                        {item.type === 'invoice' && item.debt > 0 && (
-                          <div style={{ fontSize: 11, color: 'var(--color-danger-light)', direction: 'ltr' }}>
-                            دين: {formatCurrency(item.debt)}
+                        <div style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          <div>
+                            <div style={{
+                              fontSize: 14,
+                              fontWeight: 800,
+                              color: item.type === 'invoice' ? 'var(--color-text-primary)' : 'var(--color-success-light)',
+                              direction: 'ltr',
+                            }}>
+                              {item.type === 'payment' ? `-${formatCurrency(item.amount)}` : formatCurrency(item.amount)}
+                            </div>
+                            {item.type === 'invoice' && item.debt > 0 && (
+                              <div style={{ fontSize: 11, color: 'var(--color-danger-light)', direction: 'ltr' }}>
+                                دين: {formatCurrency(item.debt)}
+                              </div>
+                            )}
                           </div>
-                        )}
+                          {openable && (
+                            <Icon name="chevron-left" size={16} color="var(--color-text-muted)" />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
           </div>
-        )}
+        ) : null}
       </Modal>
 
       {/* Hidden statement print root */}

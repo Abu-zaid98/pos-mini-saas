@@ -25,6 +25,8 @@ import {
   isNearExpiry,
   toDateInputValue,
   packPieces,
+  packLineMath,
+  packCostFromUnit,
   formatServiceDuration,
   lineDiscountAmount,
   lineNet,
@@ -203,6 +205,42 @@ describe('العبوات', () => {
   it('الخصم بالحبة = الكمية × المعامل', () => {
     expect(packPieces(2, { label: 'علبة', factor: 12, price: 55 })).toBe(24)
     expect(packPieces(3, undefined)).toBe(3)
+  })
+})
+
+describe('الشراء بالعبوة — packLineMath', () => {
+  it('3 علب × 60 ₪ والعلبة 12 حبة ⟹ 36 حبة وتكلفة الحبة 5 وإجمالي 180', () => {
+    const m = packLineMath(3, 60, 12)
+    expect(m.baseQty).toBe(36)
+    expect(m.unitCost).toBe(5)
+    expect(m.lineTotal).toBe(180)
+  })
+
+  it('كرتونة 72 حبة بتكلفة 240 ⟹ تكلفة الحبة 3.333...', () => {
+    const m = packLineMath(1, 240, 72)
+    expect(m.baseQty).toBe(72)
+    expect(m.unitCost).toBeCloseTo(3.333333, 5)
+    expect(m.lineTotal).toBe(240)
+  })
+
+  it('يرفع المعامل لأقل من 1 إلى 1 ويتجاهل السالب', () => {
+    expect(packLineMath(5, 10, 0).baseQty).toBe(5)
+    expect(packLineMath(5, 10, 0).unitCost).toBe(10)
+    expect(packLineMath(-3, -5, 12)).toEqual({ baseQty: 0, unitCost: 0, lineTotal: 0 })
+  })
+
+  it('إجمالي السطر = عدد العبوات × تكلفة العبوة دائماً', () => {
+    expect(packLineMath(7, 12.5, 6).lineTotal).toBe(87.5)
+    expect(packLineMath(7, 12.5, 6).baseQty).toBe(42)
+  })
+})
+
+describe('packCostFromUnit — تكلفة العبوة من تكلفة الحبة', () => {
+  it('تكلفة الحبة 5 والعلبة 12 ⟹ 60', () => {
+    expect(packCostFromUnit(5, 12)).toBe(60)
+  })
+  it('تعالج المعامل الصفري كـ 1', () => {
+    expect(packCostFromUnit(5, 0)).toBe(5)
   })
 })
 

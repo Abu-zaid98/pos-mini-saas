@@ -18,6 +18,7 @@ const SOURCE_ICON: Record<WalletEntryWithRunning['source'], string> = {
   expense: '💸',
   transfer: '🔄',
   refund: '↩️',
+  loan: '🤲',
   opening: '🏁',
   adjustment: '🧮',
 }

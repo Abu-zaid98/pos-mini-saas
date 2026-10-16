@@ -320,6 +320,32 @@ export function packPieces(qty: number, pack: SalePack | undefined): number {
   return (Number(qty) || 0) * (pack?.factor || 1)
 }
 
+/**
+ * حسابات سطر الشراء/التوريد بعبوة:
+ * من (عدد العبوات × تكلفة العبوة) إلى الكمية الأساسية بالحبات،
+ * وتكلفة الحبة، وإجمالي السطر.
+ * `factor` = عدد الحبات في العبوة (يُعالج كـ ≥ 1).
+ */
+export function packLineMath(
+  packQty: number,
+  packCost: number,
+  factor: number,
+): { baseQty: number; unitCost: number; lineTotal: number } {
+  const q = Math.max(0, Number(packQty) || 0)
+  const c = Math.max(0, Number(packCost) || 0)
+  const f = Math.max(1, Math.floor(Number(factor) || 1))
+  const baseQty = Math.round(q * f * 1000) / 1000
+  const unitCost = Math.round((c / f) * 1e6) / 1e6
+  const lineTotal = Math.round(q * c * 100) / 100
+  return { baseQty, unitCost, lineTotal }
+}
+
+/** تكلفة العبوة المشتقة من تكلفة الحبة: الحبة × عدد الحبات */
+export function packCostFromUnit(unitCost: number, factor: number): number {
+  const f = Math.max(1, Math.floor(Number(factor) || 1))
+  return Math.round((Number(unitCost) || 0) * f * 100) / 100
+}
+
 function trimNum(n: number): string {
   const r = Math.round(n * 1000) / 1000
   return String(r)

@@ -70,10 +70,12 @@ export const SALE_UNITS: { id: SaleUnit; label: string; short: string }[] = [
  */
 export interface SalePack {
   label: string
-  /** عدد القطع في العبوة */
+  /** عدد القطع في العبوة (إجمالي الحبات — للعلبة والكرتونة معاً) */
   factor: number
-  /** سعر العبوة */
+  /** سعر بيع العبوة */
   price: number
+  /** تكلفة شراء العبوة (اختياري — تُستخدم كقيمة افتراضية عند التوريد بالعبوة) */
+  cost?: number
 }
 
 /**
@@ -228,7 +230,16 @@ export interface Payment {
   method?: PaymentMethod
   note: string
   createdAt: Date
+  /**
+   * نوع الحركة (اختياري للتوافق مع السجلات القديمة):
+   * - sale: دفعة بيع مرتبطة بفاتورة
+   * - collection: سند قبض / تحصيل دين
+   * - loan: سلفة نقدية صُرفت للعميل من محفظة (المبلغ سالب ولا يرتبط بفاتورة)
+   */
+  kind?: PaymentKind
 }
+
+export type PaymentKind = 'sale' | 'collection' | 'loan'
 
 export interface Setting {
   key: string
@@ -272,6 +283,15 @@ export interface PurchaseItem {
   totalCost: number
   /** وحدة التسعير/العرض — للسجلات القديمة تُعامل كقطع */
   unit?: SaleUnit
+  /**
+   * العبوة التي تم الشراء بها (علبة/كرتونة) — لقطة للعرض فقط.
+   * المخزون وتكلفة الحبة محسوبان دائماً بالحبة الأساسية.
+   */
+  pack?: { label: string; factor: number }
+  /** عدد العبوات المشتراة (للعرض) */
+  packQty?: number
+  /** تكلفة العبوة الواحدة (للعرض) */
+  packCost?: number
 }
 
 export interface SupplierPayment {
@@ -279,6 +299,23 @@ export interface SupplierPayment {
   paymentMethod: PaymentMethod
   date: Date
   notes?: string
+}
+
+/** بند مرتجع لمورد (إرجاع بضاعة من فاتورة شراء) */
+export interface PurchaseReturnedItem {
+  productId: number
+  productName: string
+  /** الكمية بالوحدات الأساسية (قطع للسلع، جرام للموزون) */
+  quantity: number
+  unit?: SaleUnit
+  costPrice: number
+  refundAmount: number
+  /** cash = استرداد نقدي من المورد، debt = خصم من دين المورد */
+  refundMethod: 'cash' | 'debt'
+  /** محفظة الاسترداد (لطريقة cash فقط) */
+  method?: PaymentMethod
+  reason?: string
+  date: Date
 }
 
 export interface Purchase {
@@ -296,6 +333,10 @@ export interface Purchase {
   paymentMethod?: PaymentMethod
   /** سجل الدفعات المسددة للمورد (الدفعة الأولى والدفعات اللاحقة) */
   supplierPayments?: SupplierPayment[]
+  /** الأصناف المرتجعة للمورد (إرجاع بضاعة واردة) */
+  returnedItems?: PurchaseReturnedItem[]
+  /** إجمالي قيمة المرتجعات للمورد */
+  returnedAmount?: number
   date: Date
   notes?: string
   createdAt: Date

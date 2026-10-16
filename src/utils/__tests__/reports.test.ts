@@ -2,8 +2,15 @@
  * reports.test.ts — ترابط التقارير المالية: صافي الإيراد والربح بعد المرتجعات
  */
 import { describe, it, expect } from 'vitest'
-import { invoiceNetRevenue, invoiceNetProfit } from '../reports'
-import type { Invoice } from '../../db/db'
+import {
+  invoiceNetRevenue,
+  invoiceNetProfit,
+  sumSalesReturns,
+  sumPurchaseReturns,
+  purchaseNetTotal,
+  computeReturnsSummary,
+} from '../reports'
+import type { Invoice, Purchase } from '../../db/db'
 
 /** فاتورة مبسّطة للاختبار */
 function inv(over: Partial<Invoice> = {}): Invoice {
@@ -115,5 +122,71 @@ describe('invoiceNetProfit — ربح البضاعة بعد المرتجعات',
     })
     // صافي السطر 150 − تكلفة 120 = 30
     expect(invoiceNetProfit(invoice)).toBe(30)
+  })
+})
+
+/** فاتورة شراء مبسّطة للاختبار */
+function pur(over: Partial<Purchase> = {}): Purchase {
+  return {
+    id: 1,
+    items: [],
+    totalAmount: 0,
+    paidAmount: 0,
+    debtAmount: 0,
+    paymentType: 'cash',
+    date: new Date('2026-10-05T10:00:00'),
+    createdAt: new Date('2026-10-05T10:00:00'),
+    ...over,
+  } as Purchase
+}
+
+describe('ملخّص المرتجعات — صافي المرتجعات (بيع + شراء)', () => {
+  it('sumSalesReturns يتجاهل قيود الديون الوهمية ويجمع المرتجعات', () => {
+    const list = [
+      inv({ total: 200, refundedAmount: 50 }),
+      inv({ total: 100, refundedAmount: 0 }),
+      // قيد دين يدوي (productId = 0) — لا يُحتسب ضمن مرتجعات البيع
+      inv({ items: [{ productId: 0, name: 'دين', qty: 1, price: 999, costPrice: 0 }], total: 999, refundedAmount: 999 }),
+    ]
+    expect(sumSalesReturns(list)).toBe(50)
+  })
+
+  it('sumPurchaseReturns يجمع مرتجعات الشراء', () => {
+    expect(sumPurchaseReturns([pur({ returnedAmount: 30 }), pur({ returnedAmount: 70 }), pur({})])).toBe(100)
+  })
+
+  it('purchaseNetTotal = الإجمالي − المرتجع ولا ينزل تحت الصفر', () => {
+    expect(purchaseNetTotal(pur({ totalAmount: 500, returnedAmount: 120 }))).toBe(380)
+    expect(purchaseNetTotal(pur({ totalAmount: 80, returnedAmount: 200 }))).toBe(0)
+  })
+
+  it('computeReturnsSummary يفصل الخام عن المرتجع والصافي للبيع والشراء', () => {
+    const invoices = [
+      inv({ total: 1000, refundedAmount: 200 }),
+      inv({ total: 500, refundedAmount: 0 }),
+      inv({ items: [{ productId: 0, name: 'دين', qty: 1, price: 300, costPrice: 0 }], total: 300, refundedAmount: 0 }),
+    ]
+    const purchases = [
+      pur({ totalAmount: 800, returnedAmount: 100 }),
+      pur({ totalAmount: 200, returnedAmount: 50 }),
+    ]
+    const s = computeReturnsSummary(invoices, purchases)
+    expect(s.salesGross).toBe(1500) // يستثني قيد الدين (300)
+    expect(s.salesReturns).toBe(200)
+    expect(s.salesNet).toBe(1300)
+    expect(s.salesReturnCount).toBe(1)
+    expect(s.purchasesGross).toBe(1000)
+    expect(s.purchaseReturns).toBe(150)
+    expect(s.purchasesNet).toBe(850)
+    expect(s.purchaseReturnCount).toBe(2)
+  })
+
+  it('بلا مرتجعات: الصافي = الخام والعدد صفر', () => {
+    const s = computeReturnsSummary([inv({ total: 400 })], [pur({ totalAmount: 250 })])
+    expect(s.salesReturns).toBe(0)
+    expect(s.salesNet).toBe(400)
+    expect(s.purchaseReturns).toBe(0)
+    expect(s.purchasesNet).toBe(250)
+    expect(s.salesReturnCount + s.purchaseReturnCount).toBe(0)
   })
 })

@@ -97,15 +97,38 @@ export async function updateCustomer(id: number, data: Partial<Customer>) {
   return db.customers.update(id, data)
 }
 
-/** Add an off-invoice debt and retain it as a visible ledger entry. */
-export async function addCustomerDebt(data: { customerId: number; amount: number; note?: string }) {
+/** نوع الدين اليدوي المسجّل على العميل */
+export type DebtKind = 'balance' | 'loan' | 'goods'
+
+/**
+ * سجل دين يدوي على العميل (خارج الفاتورة):
+ * - balance: رصيد سابق / تسوية — بلا أثر على المحفظة أو المخزون.
+ * - goods:   بضاعة آجلة بدون فاتورة — بلا أثر على المحفظة (المخزون يُضبط عبر فاتورة بيع عند الإمكان).
+ * - loan:    سلفة نقدية صُرفت للعميل من محفظة — يجب تحديد المحفظة ويُخصم منها فعلياً.
+ * ويُحفظ دائماً كحركة ظاهرة في كشف الحساب (كرصيد مدين).
+ */
+export async function addCustomerDebt(data: {
+  customerId: number
+  amount: number
+  note?: string
+  kind?: DebtKind
+  method?: PaymentMethod
+}) {
   const amount = Number(data.amount) || 0
   if (amount <= 0) throw new Error('أدخل مبلغ دين أكبر من صفر')
+  const kind: DebtKind = data.kind || 'balance'
 
-  return db.transaction('rw', [db.customers, db.invoices], async () => {
+  return db.transaction('rw', [db.customers, db.invoices, db.payments], async () => {
     const customer = await db.customers.get(data.customerId)
     if (!customer) throw new Error('العميل غير موجود')
-    const note = data.note?.trim() || 'دين إضافي مسجل على الحساب'
+    const note = data.note?.trim() || (
+      kind === 'loan' ? 'سلفة نقدية من المحفظة'
+        : kind === 'goods' ? 'بضاعة آجلة خارج الفاتورة'
+          : 'دين إضافي مسجل على الحساب'
+    )
+    const now = new Date()
+
+    // سطر الكشف (مدين) — يظهر باسم واضح لا كفاتورة بيع
     await db.invoices.add({
       customerId: data.customerId,
       customerName: customer.name,
@@ -119,8 +142,22 @@ export async function addCustomerDebt(data: { customerId: number; amount: number
       debtAmount: amount,
       paymentType: 'debt',
       note,
-      createdAt: new Date(),
+      createdAt: now,
     })
+
+    // سلفة نقدية: خروج فعلي من المحفظة المحددة (السالب يخفض رصيد المحفظة)
+    if (kind === 'loan') {
+      const method = data.method || 'cash'
+      await db.payments.add({
+        customerId: data.customerId,
+        invoiceId: null,
+        amount: -amount,
+        method,
+        note: note || `سلفة نقدية عبر ${getPaymentMethodName(method)}`,
+        kind: 'loan',
+        createdAt: now,
+      })
+    }
 
     const nextBalance = normalizeCustomerBalance(customer.totalDebt || 0, customer.creditBalance || 0, amount)
     await db.customers.update(data.customerId, nextBalance)
@@ -251,19 +288,24 @@ export interface CustomerLedgerItem {
 }
 
 export async function getCustomerLedger(customerId: number): Promise<CustomerLedgerItem[]> {
-  const [invoices, payments] = await Promise.all([
+  const [invoices, paymentRows] = await Promise.all([
     db.invoices.where('customerId').equals(customerId).toArray(),
     db.payments.where('customerId').equals(customerId).toArray(),
   ])
 
+  // السندات السالبة (استرداد نقدي / سلفة) حركات محفظة لا تحصيلات —
+  // تُعرض من حركتها المدينة في الكشف أعلاه وليست سندات قبض للعميل.
+  const payments = paymentRows.filter((p) => (Number(p.amount) || 0) > 0)
+
   const ledger: CustomerLedgerItem[] = []
 
   for (const inv of invoices) {
+    const isManualDebt = inv.items.length > 0 && inv.items.every((it) => it.productId === 0)
     ledger.push({
       id: `inv-${inv.id}`,
       date: new Date(inv.createdAt),
       type: 'invoice',
-      title: `فاتورة #${inv.id}`,
+      title: isManualDebt ? (inv.items[0]?.name || 'قيد دين يدوي') : `فاتورة #${inv.id}`,
       amount: inv.total,
       paid: inv.paidAmount,
       debt: inv.debtAmount,

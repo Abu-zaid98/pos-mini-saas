@@ -10,6 +10,7 @@ import { Modal } from '../components/ui/Modal'
 import { lic, type LicenseResult } from '../lib/license'
 import { Icon, ConfirmModal, useToast, type IconName } from '../components/ui'
 import { exportTransactionsToExcel, resetTransactionsData } from '../utils/dataReset'
+import { exportFullExcel } from '../utils/excelExport'
 
 interface SettingsSectionProps {
   icon: IconName
@@ -85,6 +86,8 @@ export function SettingsPage() {
   // تأكيد تهيئة البيانات: تصدير الحركات إلى إكسل ثم تصفيرها
   const [resetOpen, setResetOpen] = useState(false)
   const [resetting, setResetting] = useState(false)
+  // تصدير التقرير الشامل التفصيلي (كل الأوراق)
+  const [exportingFull, setExportingFull] = useState(false)
 
   const {
     canInstall,
@@ -231,6 +234,19 @@ export function SettingsPage() {
     } catch (err) {
       console.error(err)
       toast.error('تعذّر تصدير النسخة الاحتياطية، حاول مرة أخرى')
+    }
+  }
+
+  const handleFullExcelExport = async () => {
+    setExportingFull(true)
+    try {
+      await exportFullExcel()
+      toast.success('تم تصدير التقرير الشامل بكل التفاصيل إلى Excel')
+    } catch (err) {
+      console.error(err)
+      toast.error('تعذّر تصدير التقرير، حاول مرة أخرى')
+    } finally {
+      setExportingFull(false)
     }
   }
 
@@ -1026,8 +1042,8 @@ export function SettingsPage() {
       {/* Backup Section */}
       <SettingsSection
         icon="download"
-        title="النسخ الاحتياطي"
-        subtitle="خيارات متقدمة — احفظ نسخة أسبوعياً لاسترجاعها عند الحاجة"
+        title="النسخ الاحتياطية وتقرير شامل"
+        subtitle="احفظ نسخة للاسترجاع، أو صدّر تقرير Excel بكل التفاصيل"
         badge={
           <span style={{
             fontSize: 12,
@@ -1041,57 +1057,131 @@ export function SettingsPage() {
           </span>
         }
       >
-        <div>
-          <p style={{ fontSize: 12, color: 'var(--color-text-muted)', marginTop: 0 }}>
-            احفظ نسخة من بياناتك أسبوعياً لاسترجاعها عند الحاجة.
-          </p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {/* مجموعة النسخ الاحتياطية */}
+          <div>
+            <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--color-text-secondary)', margin: '0 0 6px' }}>
+              النسخ الاحتياطية
+            </p>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '0 0 10px' }}>
+              احفظ نسخة من بياناتك أسبوعياً لاسترجاعها عند الحاجة.
+            </p>
 
-          <button
-            onClick={handleExport}
-            style={{
-              width: '100%',
-              padding: '14px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              background: 'transparent',
-              border: 'none',
-              borderBottom: '1px solid var(--color-border)',
-              cursor: 'pointer',
-              color: 'var(--color-text-primary)',
-              textAlign: 'right',
-              fontFamily: 'var(--font-main)',
-            }}
-          >
-            <Icon name="download" size={20} color="var(--color-primary-light)" />
-            <div>
-              <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>حفظ نسخة احتياطية</p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '2px 0 0' }}>تحميل ملف نسخة كامل يحتوي المنتجات والديون والفواتير</p>
-            </div>
-          </button>
+            <div style={{ border: '1px solid var(--color-border)', borderRadius: 14, overflow: 'hidden' }}>
+              <button
+                onClick={handleExport}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  background: 'transparent',
+                  border: 'none',
+                  borderBottom: '1px solid var(--color-border)',
+                  cursor: 'pointer',
+                  color: 'var(--color-text-primary)',
+                  textAlign: 'right',
+                  fontFamily: 'var(--font-main)',
+                }}
+              >
+                <Icon name="download" size={20} color="var(--color-primary-light)" />
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>حفظ نسخة احتياطية</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '2px 0 0' }}>تحميل ملف نسخة كامل يحتوي المنتجات والديون والفواتير</p>
+                </div>
+              </button>
 
-          <button
-            onClick={handleImport}
-            style={{
-              width: '100%',
-              padding: '14px 16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--color-text-primary)',
-              textAlign: 'right',
-              fontFamily: 'var(--font-main)',
-            }}
-          >
-            <Icon name="upload" size={20} color="var(--color-success-light)" />
-            <div>
-              <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>استرجاع نسخة سابقة</p>
-              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '2px 0 0' }}>اختر ملف النسخة لاسترجاع كل السجلات السابقة</p>
+              <button
+                onClick={handleImport}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--color-text-primary)',
+                  textAlign: 'right',
+                  fontFamily: 'var(--font-main)',
+                }}
+              >
+                <Icon name="upload" size={20} color="var(--color-success-light)" />
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>استرجاع نسخة سابقة</p>
+                  <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '2px 0 0' }}>اختر ملف النسخة لاسترجاع كل السجلات السابقة</p>
+                </div>
+              </button>
             </div>
-          </button>
+          </div>
+
+          {/* تقرير Excel — كتلة منفصلة بهوية إكسل الخضراء */}
+          <div style={{ borderTop: '1px dashed var(--color-border)', paddingTop: 16 }}>
+            <p style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--color-text-secondary)', margin: '0 0 10px' }}>
+              تقرير شامل (Excel)
+            </p>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+                padding: 14,
+                borderRadius: 14,
+                border: '1px solid rgba(16,185,129,0.35)',
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.03))',
+              }}
+            >
+              <span
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: 13,
+                  flexShrink: 0,
+                  display: 'grid',
+                  placeItems: 'center',
+                  background: 'rgba(16,185,129,0.18)',
+                  color: '#16a34a',
+                }}
+              >
+                <Icon name="excel" size={26} />
+              </span>
+
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>تصدير تقرير Excel شامل</p>
+                <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: '2px 0 0', lineHeight: 1.6 }}>
+                  كل التفاصيل في ملف واحد: مبيعات ومشتريات بالعبوات، مرتجعات، دفعات، مصاريف، أرصدة وملخص مالي.
+                </p>
+              </div>
+
+              <button
+                onClick={handleFullExcelExport}
+                disabled={exportingFull}
+                style={{
+                  flexShrink: 0,
+                  padding: '10px 16px',
+                  borderRadius: 12,
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #10b981, #059669)',
+                  color: 'white',
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: exportingFull ? 'default' : 'pointer',
+                  opacity: exportingFull ? 0.6 : 1,
+                  fontFamily: 'var(--font-main)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 6px 16px rgba(16,185,129,0.28)',
+                }}
+              >
+                <Icon name="download" size={16} />
+                <span>{exportingFull ? 'جارٍ...' : 'تصدير'}</span>
+              </button>
+            </div>
+          </div>
         </div>
       </SettingsSection>
 
