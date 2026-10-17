@@ -190,3 +190,107 @@ describe('ملخّص المرتجعات — صافي المرتجعات (بيع 
     expect(s.salesReturnCount + s.purchaseReturnCount).toBe(0)
   })
 })
+
+// ─────────────────────────────────────────────
+// تحقيق الربح مع كل حالات الخصم (نسبة/ثابت/فاتورة/عبوة/موزون)
+//
+// القاعدة الذهبية: ربح الفاتورة يجب أن يساوي دائماً
+//   صافي الإيراد − مجموع التكلفة
+// بغضّ النظر عن نوع الخصم أو مكانه (سطر أم فاتورة). هذه الاختبارات
+// تحاكي بالضبط ما يخزّنه شاشة البيع في الفاتورة.
+// ─────────────────────────────────────────────
+
+interface LineLike {
+  productId: number
+  name: string
+  qty: number
+  price: number
+  costPrice: number
+  discount?: { type: 'percent' | 'fixed'; value: number }
+}
+
+/** يبني فاتورة كما تبنيها شاشة البيع تماماً، ويُرجع الفاتورة + مجموع التكلفة */
+function buildSale(items: LineLike[], invoiceDiscount: { type: 'percent' | 'fixed'; value: number } | null = null) {
+  const subtotal = items.reduce((s, i) => s + i.qty * i.price, 0)
+  const lineDisc = items.reduce((s, i) => {
+    const gross = i.qty * i.price
+    if (!i.discount || i.discount.value <= 0) return s
+    return s + (i.discount.type === 'percent'
+      ? (gross * Math.min(100, i.discount.value)) / 100
+      : Math.min(gross, i.discount.value))
+  }, 0)
+  const base = Math.max(0, subtotal - lineDisc)
+  const discountAmount = !invoiceDiscount || invoiceDiscount.value <= 0
+    ? 0
+    : invoiceDiscount.type === 'percent'
+      ? (base * Math.min(100, invoiceDiscount.value)) / 100
+      : Math.min(base, invoiceDiscount.value)
+  const total = Math.max(0, base - discountAmount)
+  const cost = items.reduce((s, i) => s + i.qty * i.costPrice, 0)
+  const invoice = inv({
+    items: items.map((i) => ({ ...i })) as Invoice['items'],
+    subtotal,
+    discountType: invoiceDiscount ? invoiceDiscount.type : null,
+    discountValue: invoiceDiscount?.value ?? 0,
+    discountAmount,
+    itemDiscountAmount: lineDisc,
+    total,
+  })
+  return { invoice, cost }
+}
+
+describe('تحقيق الربح = صافي الإيراد − التكلفة (كل حالات الخصم)', () => {
+  const cases: Array<{ name: string; items: LineLike[]; inv?: { type: 'percent' | 'fixed'; value: number } }> = [
+    { name: 'حبة بلا خصم', items: [{ productId: 1, name: 'حبة', qty: 3, price: 10, costPrice: 6 }] },
+    { name: 'خصم نسبة على الحبة', items: [{ productId: 1, name: 'حبة', qty: 3, price: 10, costPrice: 6, discount: { type: 'percent', value: 10 } }] },
+    { name: 'خصم ثابت على الحبة', items: [{ productId: 1, name: 'حبة', qty: 3, price: 10, costPrice: 6, discount: { type: 'fixed', value: 5 } }] },
+    { name: 'خصم يتجاوز إجمالي السطر (يُحدّ)', items: [{ productId: 1, name: 'حبة', qty: 1, price: 10, costPrice: 6, discount: { type: 'fixed', value: 50 } }] },
+    // العبوة: تكلفتها = تكلفة الحبة × عدد الحبات (2 × 12 = 24)، سعرها 27
+    { name: 'كرتونة بلا خصم', items: [{ productId: 2, name: 'كرتونة', qty: 2, price: 27, costPrice: 24 }] },
+    { name: 'خصم نسبة على الكرتونة', items: [{ productId: 2, name: 'كرتونة', qty: 2, price: 27, costPrice: 24, discount: { type: 'percent', value: 10 } }] },
+    { name: 'خصم ثابت على الكرتونة', items: [{ productId: 2, name: 'كرتونة', qty: 1, price: 27, costPrice: 24, discount: { type: 'fixed', value: 5 } }] },
+    { name: 'موزون', items: [{ productId: 3, name: 'موزون', qty: 1.5, price: 20, costPrice: 14 }] },
+    {
+      name: 'مختلط + خصم فاتورة نسبة',
+      items: [
+        { productId: 1, name: 'حبة', qty: 2, price: 10, costPrice: 6 },
+        { productId: 2, name: 'كرتونة', qty: 1, price: 27, costPrice: 24, discount: { type: 'percent', value: 10 } },
+      ],
+      inv: { type: 'percent', value: 10 },
+    },
+    {
+      name: 'مختلط + خصم فاتورة ثابت',
+      items: [
+        { productId: 1, name: 'حبة', qty: 3, price: 10, costPrice: 6, discount: { type: 'fixed', value: 5 } },
+        { productId: 3, name: 'موزون', qty: 0.75, price: 20, costPrice: 14 },
+      ],
+      inv: { type: 'fixed', value: 5 },
+    },
+  ]
+
+  for (const c of cases) {
+    it(c.name, () => {
+      const { invoice, cost } = buildSale(c.items, c.inv ?? null)
+      const expected = Math.round((invoiceNetRevenue(invoice) - cost) * 100) / 100
+      const actual = Math.round(invoiceNetProfit(invoice) * 100) / 100
+      expect(actual).toBeCloseTo(expected, 2)
+    })
+  }
+
+  it('الكرتونة المخفّضة 10%: الإيراد 24.3 والتكلفة 24 ⇒ ربح موجب 0.3', () => {
+    const { invoice } = buildSale([
+      { productId: 2, name: 'كرتونة', qty: 1, price: 27, costPrice: 24, discount: { type: 'percent', value: 10 } },
+    ])
+    expect(invoiceNetRevenue(invoice)).toBe(24.3)
+    expect(invoiceNetProfit(invoice)).toBe(0.3)
+  })
+
+  it('الكرتونة المخفّضة 10% مع تكلفة أعلى من سعر البيع ⇒ خسارة حقيقية (سلوك صحيح)', () => {
+    // تكلفة الحبة 2.75 × 12 = 33 للكرتونة، بيع 27 بخصم 10% = 24.3
+    const { invoice } = buildSale([
+      { productId: 2, name: 'كرتونة', qty: 1, price: 27, costPrice: 33, discount: { type: 'percent', value: 10 } },
+    ])
+    expect(invoiceNetRevenue(invoice)).toBe(24.3)
+    expect(invoiceNetProfit(invoice)).toBe(-8.7)
+  })
+})

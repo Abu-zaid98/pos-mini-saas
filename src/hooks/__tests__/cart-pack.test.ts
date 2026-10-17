@@ -63,6 +63,39 @@ describe('تبديل العبوة حبة <-> كرتونة', () => {
   })
 })
 
+// البلاغ: صنف بالبيع بالعبوة، وله تكلفة شراء عبوة مُدخلة في بطاقة الصنف،
+// لكن الفاتورة كانت تتجاهلها وتحسب (تكلفة الحبة × العدد) فيظهر الربح خاطئاً.
+describe('تكلفة العبوة عند البيع (تحقيق الربح)', () => {
+  const cartonWithCost = { label: 'كرتونة', factor: 30, price: 90, cost: 80 }
+
+  it('تعتمد تكلفة شراء العبوة المُدخلة إن وُجدت', () => {
+    // حبة بيعها 3 وتكلفتها 2.3
+    const line = { ...pieceLine(), price: 3, basePrice: 3, costPrice: 2.3, baseCost: 2.3 }
+    const out = applyPackChange(line, cartonWithCost)
+    expect(out.price).toBe(90)
+    expect(out.costPrice).toBe(80) // لا 2.3 × 30 = 69
+  })
+
+  it('ربح بيع العبوة = سعر بيع العبوة − تكلفة شراء العبوة (10)', () => {
+    const line = { ...pieceLine(), price: 3, basePrice: 3, costPrice: 2.3, baseCost: 2.3 }
+    const out = applyPackChange(line, cartonWithCost)
+    expect(out.qty * (out.price - out.costPrice)).toBe(10)
+  })
+
+  it('تُشتق من تكلفة الحبة × العدد إذا لم تُدخل تكلفة العبوة', () => {
+    const out = applyPackChange(pieceLine(), carton) // carton بلا cost
+    expect(out.costPrice).toBe(60) // 3 × 20
+  })
+
+  it('العودة للحبة تسترجع تكلفة/سعر الحبة الأصليين بعد عبوة بتكلفة مُدخلة', () => {
+    const line = { ...pieceLine(), price: 3, basePrice: 3, costPrice: 2.3, baseCost: 2.3 }
+    const packed = applyPackChange(line, cartonWithCost)
+    const back = applyPackChange(packed, null)
+    expect(back.price).toBe(3)
+    expect(back.costPrice).toBe(2.3)
+  })
+})
+
 describe('دمج سطور السلة (canMergeCartLine)', () => {
   const weighted = (over: Partial<CartItem> = {}): CartItem => ({
     productId: 7,

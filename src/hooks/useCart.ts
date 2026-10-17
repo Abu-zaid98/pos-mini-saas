@@ -87,6 +87,10 @@ function withLineIds(items: CartItem[]): CartItem[] {
  * منطق تبديل العبوة النقي (قابل للاختبار): عند إلغاء العبوة يُسترجع
  * سعر/تكلفة الحبة الأصليان المحفوظان وقت الإضافة — لا يُشتقان من سعر
  * العبوة الذي قد يتضمن خصماً على الكمية (كان يظهر سعر التكلفة بدل البيع).
+ *
+ * تكلفة العبوة عند البيع: تُعتمد «تكلفة شراء العبوة» المُدخلة في بطاقة
+ * الصنف إن وُجدت (لتطابق ربح العبوة الظاهر هناك)، وإلا تُشتق من
+ * تكلفة الحبة × عدد الحبات في العبوة.
  */
 export function applyPackChange(item: CartItem, pack: SalePack | null): CartItem {
   const factorNow = item.pack?.factor ?? 1
@@ -96,12 +100,14 @@ export function applyPackChange(item: CartItem, pack: SalePack | null): CartItem
   if (!pack) {
     return { ...item, pack: undefined, qty: 1, price: Math.round(piecePrice * 100) / 100, costPrice: Math.round(pieceCost * 100) / 100 }
   }
+  // تكلفة العبوة: المُدخلة أولاً، ثم الاشتقاق من الحبة
+  const packCost = Number(pack.cost) > 0 ? Number(pack.cost) : pieceCost * pack.factor
   return {
     ...item,
     pack,
     qty: 1,
     price: pack.price,
-    costPrice: Math.round(pieceCost * pack.factor * 100) / 100,
+    costPrice: Math.round(packCost * 100) / 100,
   }
 }
 

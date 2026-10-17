@@ -73,9 +73,18 @@ export async function addQuickRestock(params: {
     const paymentType = params.paymentType || (debt > 0 ? (paid > 0 ? 'partial' : 'debt') : 'cash')
 
     // 1. Update product quantity and costPrice
+    //    تحديث تكلفة العبوة المُدخلة في بطاقة الصنف (إن تورّد بعبوة) لتظل مطابقة عند البيع
+    const nextQuickPacks = params.pack && Number(params.packCost) > 0 && product.packs?.some((pk) => pk.label === params.pack!.label)
+      ? product.packs.map((pk) =>
+          pk.label === params.pack!.label
+            ? { ...pk, cost: Math.round(Number(params.packCost) * 100) / 100 }
+            : pk,
+        )
+      : undefined
     await db.products.update(params.productId, {
       quantity: newQuantity,
       costPrice,
+      ...(nextQuickPacks ? { packs: nextQuickPacks } : {}),
       updatedAt: new Date(),
     })
 
@@ -155,9 +164,18 @@ export async function addPurchaseInvoice(params: {
       const avgCost = Math.round(averageCostPerKg(toPricing(oldQuantity), Number(product.costPrice) || 0, pricingQty, it.costPrice) * 100) / 100
 
       // Update product stock and average cost price
+      //    وتحديث تكلفة العبوة المُدخلة عند الشراء بعبوة معروفة في بطاقة الصنف
+      const nextPacks = it.pack && Number(it.packCost) > 0 && product.packs?.some((pk) => pk.label === it.pack!.label)
+        ? product.packs.map((pk) =>
+            pk.label === it.pack!.label
+              ? { ...pk, cost: Math.round(Number(it.packCost) * 100) / 100 }
+              : pk,
+          )
+        : undefined
       await db.products.update(it.productId, {
         quantity: newQuantity,
         costPrice: avgCost,
+        ...(nextPacks ? { packs: nextPacks } : {}),
         updatedAt: new Date(),
       })
 

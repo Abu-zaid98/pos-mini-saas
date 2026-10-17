@@ -136,6 +136,28 @@ describe('addPurchaseInvoice — الشراء بالعبوة', () => {
     expect(purchase?.items[0].pack).toBeUndefined()
     expect(purchase?.items[0].packQty).toBeUndefined()
   })
+
+  it('الشراء بعبوة يُحدّث تكلفة العبوة المُدخلة في بطاقة الصنف (لبقاء الربح صحيحاً)', async () => {
+    const pid = await seedProduct() // علبة cost 60، كرتونة cost 240
+    await addPurchaseInvoice({
+      items: [
+        {
+          productId: pid,
+          quantity: 24, // علبتان × 12
+          costPrice: 66 / 12,
+          pack: { label: 'علبة', factor: 12 },
+          packQty: 2,
+          packCost: 66,
+        },
+      ],
+      date: D(),
+    })
+
+    const product = await db.products.get(pid)
+    expect(product?.packs?.find((pk) => pk.label === 'علبة')?.cost).toBe(66)
+    // العبوة الأخرى تبقى كما هي
+    expect(product?.packs?.find((pk) => pk.label === 'كرتونة')?.cost).toBe(240)
+  })
 })
 
 describe('addQuickRestock — التوريد السريع بالعبوة', () => {
@@ -165,5 +187,21 @@ describe('addQuickRestock — التوريد السريع بالعبوة', () =>
     expect(purchases[0].items[0].pack?.label).toBe('كرتونة')
     expect(purchases[0].items[0].packQty).toBe(1)
     expect(purchases[0].items[0].packCost).toBe(240)
+  })
+
+  it('التوريد السريع بعبوة يُحدّث تكلفة العبوة في بطاقة الصنف', async () => {
+    const pid = await seedProduct() // كرتونة cost 240
+    await addQuickRestock({
+      productId: pid,
+      addedQuantity: 72,
+      newCostPrice: 250 / 72,
+      pack: { label: 'كرتونة', factor: 72 },
+      packQty: 1,
+      packCost: 250,
+      date: D(),
+    })
+
+    const product = await db.products.get(pid)
+    expect(product?.packs?.find((pk) => pk.label === 'كرتونة')?.cost).toBe(250)
   })
 })

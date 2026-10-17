@@ -25,7 +25,7 @@ import {
 } from '../db/db'
 import { formatDate, formatDateTime } from './datetime'
 import { getPaymentMethodName } from './wallets'
-import { GRAMS_PER_KG, lineDiscountAmount, lineProfit } from './units'
+import { GRAMS_PER_KG, lineDiscountAmount } from './units'
 import { invoiceNetRevenue, invoiceNetProfit } from './reports'
 import { computeBalances, parseAdjustments, type AccountBalances } from './wallet'
 import { downloadXlsx, type XlsxCell, type XlsxSheet } from './xlsx'
@@ -123,6 +123,8 @@ export function salesItemRows(invoices: Invoice[]): XlsxCell[][] {
     for (const it of inv.items) {
       if (it.productId === 0) continue
       const gross = (Number(it.qty) || 0) * (Number(it.price) || 0)
+      const disc = lineDiscountAmount(it)
+      const lineCost = (Number(it.qty) || 0) * (Number(it.costPrice) || 0)
       const stockQty = it.pack
         ? (Number(it.qty) || 0) * it.pack.factor
         : it.unit === 'kg'
@@ -138,9 +140,10 @@ export function salesItemRows(invoices: Invoice[]): XlsxCell[][] {
         r2(stockQty),
         r2(it.price),
         r2(it.costPrice),
-        lineDiscountAmount(it),
-        r2(gross - lineDiscountAmount(it)),
-        r2(lineProfit(it)),
+        disc,
+        r2(gross - disc),
+        // ربح السطر الصافي = إجمالي السطر بعد الخصم − التكلفة (مطابق لتقارير الأرباح)
+        r2(gross - disc - lineCost),
         it.pack ? `${it.pack.label} (${it.pack.factor})` : '',
       ])
     }

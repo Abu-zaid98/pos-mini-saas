@@ -725,6 +725,7 @@ export function ProductForm({
                 const priceN = +pk.price || 0
                 const unitCost = factorN >= 1 && costN > 0 ? costN / factorN : null
                 const unitSale = factorN >= 1 && priceN > 0 ? priceN / factorN : null
+                const unitProfit = unitCost !== null && unitSale !== null ? unitSale - unitCost : null
                 const packProfit = costN > 0 && priceN > 0 ? priceN - costN : null
                 return (
                   <div key={idx} style={{
@@ -788,6 +789,7 @@ export function ProductForm({
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, fontSize: 11, color: 'var(--color-text-muted)' }}>
                         {unitCost !== null && <span>تكلفة الحبة: <b style={{ color: 'var(--color-primary-light)' }}>{unitCost.toFixed(2)} ₪</b></span>}
                         {unitSale !== null && <span>بيع الحبة: <b style={{ color: 'var(--color-text-primary)' }}>{unitSale.toFixed(2)} ₪</b></span>}
+                        {unitProfit !== null && <span>ربح الحبة: <b style={{ color: 'var(--color-success-light)' }}>{unitProfit.toFixed(2)} ₪</b></span>}
                         {packProfit !== null && <span>ربح العبوة: <b style={{ color: 'var(--color-success-light)' }}>{packProfit.toFixed(2)} ₪</b></span>}
                       </div>
                     )}
@@ -808,6 +810,8 @@ export function ProductForm({
               )}
               <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: 0 }}>
                 «عدد الحبات» هو الإجمالي: علبة = 12، وكرتونة = 72 (6 علب × 12). تُخصم الحبات من المخزون عند البيع، وتُضاف عند التوريد بالعبوة.
+                <br />
+                عند البيع بالعبوة يُحسب ربحها من «سعر بيع العبوة − تكلفة شراء العبوة»؛ وإن تركت التكلفة فارغة يُقدَّر ربحها من «تكلفة الحبة × عدد الحبات».
               </p>
             </div>
           )}
