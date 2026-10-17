@@ -125,6 +125,38 @@ function RouterRoot() {
   const location = useLocation()
   const isAdmin = location.pathname.startsWith('/admin')
 
+  // تبديل ملف الـ Manifest وبيانات العنوان ديناميكياً بحسب المسار (POS مقابل لوحة التحكم)
+  // هذا يتيح تثبيت لوحة التحكم كتطبيق PWA مستقل عن تطبيق الكاشير
+  useEffect(() => {
+    const manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]')
+    const themeMeta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')
+    const titleMeta = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]')
+
+    if (isAdmin) {
+      if (manifestLink) {
+        manifestLink.setAttribute('href', '/manifest-admin.json')
+      }
+      if (themeMeta) {
+        themeMeta.setAttribute('content', '#18181b')
+      }
+      if (titleMeta) {
+        titleMeta.setAttribute('content', 'لوحة تحكم ميزان')
+      }
+      document.title = 'لوحة تحكم ميزان | الإدارة'
+    } else {
+      if (manifestLink) {
+        manifestLink.setAttribute('href', '/manifest.webmanifest')
+      }
+      if (themeMeta) {
+        themeMeta.setAttribute('content', '#101613')
+      }
+      if (titleMeta) {
+        titleMeta.setAttribute('content', 'ميزان')
+      }
+      document.title = 'ميزان | نظام المبيعات والمخزون'
+    }
+  }, [isAdmin])
+
   if (isAdmin) {
     // لوحة التحكم — لا تحتاج LicenseGuard ولا Dexie
     return (

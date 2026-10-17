@@ -11,8 +11,9 @@ export default defineConfig({
       // وضع prompt: النسخة الجديدة تنتظر حتى يضغط المستخدم "تحديث"
       // (يُعرض إشعار مدمج عبر PWAUpdateBanner بدل التحديث الصامت)
       registerType: 'prompt',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons/*.png'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'icons/*.png', 'manifest-admin.json'],
       manifest: {
+        id: '/pos-app',
         name: 'ميزان',
         short_name: 'ميزان',
         description: 'ميزان — إدارة المبيعات، المخزون، الديون والمصاريف.',
@@ -24,6 +25,15 @@ export default defineConfig({
         start_url: '/',
         lang: 'ar',
         dir: 'rtl',
+        shortcuts: [
+          {
+            name: 'لوحة التحكم',
+            short_name: 'الإدارة',
+            description: 'فتح لوحة تحكم الإدارة والاشتراكات',
+            url: '/admin',
+            icons: [{ src: 'icons/meezan-icon-192.png', sizes: '192x192' }]
+          }
+        ],
         icons: [
           {
             src: 'icons/meezan-icon-192.png',
