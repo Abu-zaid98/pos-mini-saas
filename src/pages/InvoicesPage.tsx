@@ -15,7 +15,7 @@ import { formatCurrency } from '../utils/currency'
 import { formatLineDiscount, formatLineQty, lineDiscountAmount } from '../utils/units'
 import { formatDateTime } from '../utils/datetime'
 import { exportSalesExcel } from '../utils/excelExport'
-import { Icon, SearchBar, Tabs, StatCard, EmptyState, PageHeader } from '../components/ui'
+import { Icon, SearchBar, Tabs, StatCard, EmptyState, PageHeader, PeriodFilter } from '../components/ui'
 import type { IconName } from '../components/ui/Icon'
 
 type InvoiceFilter = 'all' | PaymentType | 'refunded'
@@ -251,77 +251,14 @@ export function InvoicesPage() {
 
           {/* Filter & Period Controls */}
           <section className="card" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 8 }}>الفترة الزمنية</div>
-          <Tabs
-            tabs={periodTabs}
-            value={period}
-            onChange={(p) => {
-              setPeriod(p as InvoicePeriod)
-              if (p !== 'custom') {
-                setFromDate('')
-                setToDate('')
-              }
-            }}
-          />
-        </div>
-
-        {period === 'custom' && (
-          <div style={{
-            background: 'var(--color-input-bg)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 14,
-            padding: 12,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10,
-          }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <div className="input-wrap">
-                <label className="input-label">من تاريخ</label>
-                <input
-                  className="input"
-                  type="date"
-                  value={fromDate}
-                  max={toDate || undefined}
-                  onChange={(e) => setFromDate(e.target.value)}
-                />
-              </div>
-              <div className="input-wrap">
-                <label className="input-label">إلى تاريخ</label>
-                <input
-                  className="input"
-                  type="date"
-                  value={toDate}
-                  min={fromDate || undefined}
-                  onChange={(e) => setToDate(e.target.value)}
-                />
-              </div>
-            </div>
-            {(fromDate || toDate) && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'var(--color-primary-light)', fontWeight: 700 }}>
-                  الفترة: {fromDate || 'البداية'} ← {toDate || 'اليوم'}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => { setFromDate(''); setToDate('') }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-text-muted)',
-                    fontSize: 12,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                    fontFamily: 'var(--font-main)',
-                  }}
-                >
-                  مسح التاريخ
-                </button>
-              </div>
-            )}
-          </div>
-        )}
+        <PeriodFilter
+          period={period}
+          onPeriodChange={(p) => setPeriod(p as InvoicePeriod)}
+          from={fromDate}
+          to={toDate}
+          onRangeChange={(f, t) => { setFromDate(f); setToDate(t) }}
+          options={periodTabs}
+        />
 
         <div>
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 8 }}>نوع الدفع</div>

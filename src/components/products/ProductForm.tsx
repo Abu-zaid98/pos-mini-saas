@@ -5,6 +5,7 @@ import { Input } from '../ui/Input'
 import { Button } from '../ui/Button'
 import { BarcodeScanner } from '../ui/BarcodeScanner'
 import { CustomSelect } from '../ui/CustomSelect'
+import { DatePicker } from '../ui/DatePicker'
 import { addProduct, updateProduct } from '../../hooks/useProducts'
 import { addQuickRestock } from '../../hooks/usePurchases'
 import { useCategories } from '../../hooks/useCategories'
@@ -818,13 +819,17 @@ export function ProductForm({
 
           {/* Expiry date (goods + weighted) */}
           {!isService && (
-            <Input
+            <DatePicker
               label="تاريخ انتهاء الصلاحية (اختياري)"
-              type="date"
               value={expiryDate}
-              onChange={(e) => setExpiryDate(e.target.value)}
-              hint="يمنع البيع بعد الانتهاء وينبه قبلها بـ 30 يوم"
+              onChange={setExpiryDate}
+              placeholder="بدون تاريخ انتهاء"
             />
+          )}
+          {!isService && (
+            <p style={{ fontSize: 11, color: 'var(--color-text-muted)', margin: '-6px 0 0' }}>
+              يمنع البيع بعد الانتهاء وينبّه قبلها بـ 30 يوم
+            </p>
           )}
 
 

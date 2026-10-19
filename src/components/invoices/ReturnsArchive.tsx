@@ -7,18 +7,28 @@
 import { useMemo, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db, type SaleUnit } from '../../db/db'
-import { Icon, SearchBar, Tabs, StatCard, EmptyState } from '../ui'
+import { Icon, SearchBar, Tabs, PeriodFilter, StatCard, EmptyState } from '../ui'
 import { formatCurrency } from '../../utils/currency'
 import { formatDateTime } from '../../utils/datetime'
+import { withinPeriod } from '../../utils/dateRange'
 import { GRAMS_PER_KG } from '../../utils/units'
 import { exportReturnsExcel } from '../../utils/excelExport'
 
 type Kind = 'all' | 'sale' | 'purchase'
+type Period = 'all' | 'today' | 'week' | 'month' | 'custom'
 
 const kindTabs = [
   { value: 'all', label: 'الكل' },
   { value: 'sale', label: 'مرتجع بيع' },
   { value: 'purchase', label: 'مرتجع شراء' },
+]
+
+const periodTabs = [
+  { value: 'all', label: 'كل الفترات' },
+  { value: 'today', label: 'اليوم' },
+  { value: 'week', label: 'آخر 7 أيام' },
+  { value: 'month', label: 'هذا الشهر' },
+  { value: 'custom', label: 'مخصص' },
 ]
 
 interface ReturnLine {
@@ -47,6 +57,9 @@ export function ReturnsArchive() {
   const invoices = useLiveQuery(() => db.invoices.toArray(), []) ?? []
   const purchases = useLiveQuery(() => db.purchases.toArray(), []) ?? []
   const [kind, setKind] = useState<Kind>('all')
+  const [period, setPeriod] = useState<Period>('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [search, setSearch] = useState('')
 
   const events = useMemo<ReturnEvent[]>(() => {
@@ -93,10 +106,11 @@ export function ReturnsArchive() {
     const q = search.trim().toLowerCase()
     return events.filter((e) => {
       if (kind !== 'all' && e.kind !== kind) return false
+      if (!withinPeriod(e.date, period, fromDate, toDate)) return false
       if (!q) return true
       return e.party.toLowerCase().includes(q) || e.refLabel.toLowerCase().includes(q) || e.lines.some((l) => l.name.toLowerCase().includes(q))
     })
-  }, [events, kind, search])
+  }, [events, kind, search, period, fromDate, toDate])
 
   const totals = useMemo(() => visible.reduce(
     (s, e) => ({
@@ -134,6 +148,14 @@ export function ReturnsArchive() {
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 8 }}>نوع المرتجع</div>
           <Tabs tabs={kindTabs} value={kind} onChange={(k) => setKind(k as Kind)} />
         </div>
+        <PeriodFilter
+          period={period}
+          onPeriodChange={(p) => setPeriod(p as Period)}
+          from={fromDate}
+          to={toDate}
+          onRangeChange={(f, t) => { setFromDate(f); setToDate(t) }}
+          options={periodTabs}
+        />
       </section>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>

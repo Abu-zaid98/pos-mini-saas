@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   useCustomers,
   addCustomer,
@@ -12,13 +12,14 @@ import {
   type CustomerLedgerItem,
   type DebtKind,
 } from '../hooks/useCustomers'
-import { Modal, StatCard, SearchBar, Tabs, EmptyState, Icon, PageHeader } from '../components/ui'
+import { Modal, StatCard, SearchBar, Tabs, EmptyState, Icon, PageHeader, DatePicker } from '../components/ui'
 import { printElementById } from '../components/print/printDocument'
 import { StatementPrintHost, downloadStatementXlsx } from '../components/customer/StatementPrint'
 import { InvoicePrint, usePrintInvoice, useStoreInfo } from '../components/invoice/InvoicePrint'
 import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
 import { formatCurrency } from '../utils/currency'
 import { formatDate, formatDateTime } from '../utils/datetime'
+import { rangeLabel, withinRange } from '../utils/dateRange'
 import { type Customer, type Invoice, type PaymentMethod, getPaymentMethodName, db } from '../db/db'
 import { useStoreName } from '../hooks/useStoreName'
 import { useWallets, activeWallets } from '../hooks/useWallets'
@@ -56,6 +57,8 @@ export function CustomersPage() {
   const [ledgerModalOpen, setLedgerModalOpen] = useState(false)
   const [ledgerCustomer, setLedgerCustomer] = useState<Customer | null>(null)
   const [ledgerItems, setLedgerItems] = useState<CustomerLedgerItem[]>([])
+  const [ledgerFrom, setLedgerFrom] = useState('')
+  const [ledgerTo, setLedgerTo] = useState('')
   const [isLoadingLedger, setIsLoadingLedger] = useState(false)
   // الفاتورة المعروضة داخل كشف الحساب (null = عرض قائمة الحركات)
   const [ledgerInvoice, setLedgerInvoice] = useState<Invoice | null>(null)
@@ -75,6 +78,19 @@ export function CustomersPage() {
   // Aggregate stats
   const totalOutstandingDebt = customers.reduce((sum, c) => sum + (c.totalDebt || 0), 0)
   const indebtedCount = customers.filter((c) => (c.totalDebt || 0) > 0).length
+
+  // كشف الحساب: فلتر فترة مخصصة (من – إلى) بلا تغيير في الرصيد الإجمالي
+  const hasLedgerRange = !!(ledgerFrom || ledgerTo)
+  const visibleLedgerItems = useMemo(
+    () => (hasLedgerRange
+      ? ledgerItems.filter((item) => withinRange(item.date, ledgerFrom, ledgerTo))
+      : ledgerItems),
+    [ledgerItems, hasLedgerRange, ledgerFrom, ledgerTo],
+  )
+  const ledgerPeriodTotals = useMemo(() => ({
+    invoices: visibleLedgerItems.filter((i) => i.type === 'invoice').reduce((s, i) => s + (Number(i.amount) || 0), 0),
+    payments: visibleLedgerItems.filter((i) => i.type === 'payment').reduce((s, i) => s + (Number(i.amount) || 0), 0),
+  }), [visibleLedgerItems])
 
   // Open add / edit modal
   const handleOpenAdd = () => {
@@ -211,6 +227,8 @@ export function CustomersPage() {
   const handleOpenLedger = async (c: Customer) => {
     setLedgerCustomer(c)
     setLedgerInvoice(null)
+    setLedgerFrom('')
+    setLedgerTo('')
     setLedgerModalOpen(true)
     setIsLoadingLedger(true)
     try {
@@ -236,12 +254,13 @@ export function CustomersPage() {
     let msg = `📋 *كشف حساب — ${c.name}*\n`
     if (storeName) msg += `المتجر: ${storeName}\n`
     msg += `📅 التاريخ: ${today}\n`
+    if (hasLedgerRange) msg += `🗓 الفترة: ${rangeLabel(ledgerFrom, ledgerTo)}\n`
     msg += `--------------------------------\n`
 
-    if (ledgerItems.length === 0) {
+    if (visibleLedgerItems.length === 0) {
       msg += `لا توجد حركات مسجلة\n`
     } else {
-      ledgerItems.slice(0, 10).forEach((item) => {
+      visibleLedgerItems.slice(0, 10).forEach((item) => {
         const itemDate = formatDate(item.date)
         if (item.type === 'invoice') {
           msg += `🧾 ${item.title} (${itemDate}): ${formatCurrency(item.amount)}`
@@ -254,7 +273,7 @@ export function CustomersPage() {
           msg += `💰 سند قبض (${itemDate}): -${formatCurrency(item.amount)}\n`
         }
       })
-      if (ledgerItems.length > 10) {
+      if (visibleLedgerItems.length > 10) {
         msg += `... والمزيد من الحركات السابقة\n`
       }
     }
@@ -1069,7 +1088,7 @@ export function CustomersPage() {
               </button>
               <button
                 type="button"
-                onClick={() => downloadStatementXlsx(ledgerCustomer, ledgerItems)}
+                onClick={() => downloadStatementXlsx(ledgerCustomer, visibleLedgerItems)}
                 style={{
                   flex: 1,
                   padding: '10px 12px',
@@ -1093,20 +1112,53 @@ export function CustomersPage() {
 
             {/* History List */}
             <div>
+              <div className="period-filter-custom" style={{ marginBottom: 12 }}>
+                <div className="period-range-fields">
+                  <DatePicker
+                    label="من تاريخ"
+                    value={ledgerFrom}
+                    max={ledgerTo || undefined}
+                    onChange={setLedgerFrom}
+                  />
+                  <DatePicker
+                    label="إلى تاريخ"
+                    value={ledgerTo}
+                    min={ledgerFrom || undefined}
+                    onChange={setLedgerTo}
+                  />
+                </div>
+                <div className="period-range-foot">
+                  <span className="period-range-summary">
+                    {hasLedgerRange
+                      ? `${rangeLabel(ledgerFrom, ledgerTo)} · فواتير ${formatCurrency(ledgerPeriodTotals.invoices)} · سندات ${formatCurrency(ledgerPeriodTotals.payments)}`
+                      : 'كل الحركات'}
+                  </span>
+                  {hasLedgerRange && (
+                    <button
+                      type="button"
+                      className="period-range-clear"
+                      onClick={() => { setLedgerFrom(''); setLedgerTo('') }}
+                    >
+                      مسح التاريخ
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <h4 style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: 'var(--color-text-secondary)' }}>
-                سجل الفواتير وسندات القبض:
+                سجل الفواتير وسندات القبض ({visibleLedgerItems.length}):
               </h4>
 
               {isLoadingLedger ? (
                 <p style={{ textAlign: 'center', color: 'var(--color-text-muted)', padding: 20 }}>جارٍ التحميل...</p>
-              ) : ledgerItems.length === 0 ? (
+              ) : visibleLedgerItems.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--color-text-muted)' }}>
                   <div style={{ fontSize: 30, marginBottom: 6 }}>📜</div>
-                  <p>لا توجد حركات مسجلة لهذا العميل حتى الآن</p>
+                  <p>{hasLedgerRange ? 'لا توجد حركات في الفترة المحددة' : 'لا توجد حركات مسجلة لهذا العميل حتى الآن'}</p>
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {ledgerItems.map((item) => {
+                  {visibleLedgerItems.map((item) => {
                     // فاتورة البيع الحقيقية فقط تُفتح للعرض/الطباعة (لا قيود الدين اليدوية)
                     const isRealSale = !!item.invoice && item.invoice.items.some((it) => it.productId !== 0)
                     const openable = item.type === 'invoice' && isRealSale
@@ -1190,7 +1242,7 @@ export function CustomersPage() {
       </Modal>
 
       {/* Hidden statement print root */}
-      <StatementPrintHost customer={ledgerModalOpen ? ledgerCustomer : null} items={ledgerItems} />
+      <StatementPrintHost customer={ledgerModalOpen ? ledgerCustomer : null} items={visibleLedgerItems} range={hasLedgerRange ? { from: ledgerFrom, to: ledgerTo } : undefined} />
 
       {/* MODAL: DELETE CONFIRM */}
       {deleteConfirm && (

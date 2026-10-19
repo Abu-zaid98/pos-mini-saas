@@ -21,7 +21,7 @@ import { PurchasePrint } from '../components/purchases/PurchasePrint'
 import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
 import { useStoreInfo } from '../components/invoice/InvoicePrint'
 import { printElementById } from '../components/print/printDocument'
-import { Icon, Tabs, StatCard, EmptyState, SearchBar, PageHeader } from '../components/ui'
+import { Icon, Tabs, StatCard, EmptyState, SearchBar, PageHeader, PeriodFilter } from '../components/ui'
 import { exportPurchasesExcel } from '../utils/excelExport'
 
 export function PurchasesPage() {
@@ -428,38 +428,21 @@ export function PurchasesPage() {
           />
 
           {/* Period filter */}
-          <div style={{ display: 'grid', gridTemplateColumns: purchasePeriod === 'custom' ? '1fr 1fr 1fr' : '1fr', gap: 10 }}>
-            <CustomSelect
-              label="الفترة"
-              value={purchasePeriod}
-              onChange={(v) => {
-                setPurchasePeriod(v as typeof purchasePeriod)
-                if (v !== 'custom') {
-                  setPurchaseFrom('')
-                  setPurchaseTo('')
-                }
-              }}
-              options={[
-                { value: 'all', label: 'كل الفترات' },
-                { value: 'today', label: 'اليوم' },
-                { value: 'week', label: 'آخر 7 أيام' },
-                { value: 'month', label: 'هذا الشهر' },
-                { value: 'custom', label: 'مدة مخصصة' },
-              ]}
-            />
-            {purchasePeriod === 'custom' && (
-              <>
-                <div className="input-wrap">
-                  <label className="input-label">من تاريخ</label>
-                  <input className="input" type="date" value={purchaseFrom} max={purchaseTo || undefined} onChange={(e) => setPurchaseFrom(e.target.value)} />
-                </div>
-                <div className="input-wrap">
-                  <label className="input-label">إلى تاريخ</label>
-                  <input className="input" type="date" value={purchaseTo} min={purchaseFrom || undefined} onChange={(e) => setPurchaseTo(e.target.value)} />
-                </div>
-              </>
-            )}
-          </div>
+          <PeriodFilter
+            variant="select"
+            period={purchasePeriod}
+            onPeriodChange={(v) => setPurchasePeriod(v as typeof purchasePeriod)}
+            from={purchaseFrom}
+            to={purchaseTo}
+            onRangeChange={(f, t) => { setPurchaseFrom(f); setPurchaseTo(t) }}
+            options={[
+              { value: 'all', label: 'كل الفترات' },
+              { value: 'today', label: 'اليوم' },
+              { value: 'week', label: 'آخر 7 أيام' },
+              { value: 'month', label: 'هذا الشهر' },
+              { value: 'custom', label: 'مدة مخصصة' },
+            ]}
+          />
 
           {filteredPurchases.length === 0 ? (
             <EmptyState

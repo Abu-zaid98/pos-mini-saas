@@ -6,7 +6,14 @@ import type { Purchase } from '../../db/db'
 import { useStoreInfo } from '../invoice/InvoicePrint'
 import { formatCurrency } from '../../utils/currency'
 import { formatDate } from '../../utils/datetime'
+import { rangeLabel, withinRange } from '../../utils/dateRange'
 import { downloadXlsx, type XlsxCell } from '../../utils/xlsx'
+
+/** فلتر فترة «من – إلى» اختياري لكشف المورد */
+export interface DateRangeFilter {
+  from: string
+  to: string
+}
 
 export interface SupplierStatementItem {
   key: string
@@ -79,16 +86,19 @@ export function buildSupplierStatement(purchases: Purchase[]): SupplierStatement
   })
 }
 
-export function useSupplierStatementData(purchases: Purchase[]) {
-  const items = buildSupplierStatement(purchases)
+export function useSupplierStatementData(purchases: Purchase[], range?: DateRangeFilter) {
+  const all = buildSupplierStatement(purchases)
+  const items = range && (range.from || range.to)
+    ? all.filter((i) => withinRange(i.date, range.from, range.to))
+    : all
   const totalPurchases = items.filter((i) => i.type === 'purchase').reduce((s, i) => s + i.amount, 0)
   const totalPaid = items.filter((i) => i.type === 'payment').reduce((s, i) => s + i.amount, 0)
   const balance = Math.round((totalPurchases - totalPaid) * 100) / 100
-  return { items, totalPurchases, totalPaid, balance }
+  return { items, totalPurchases, totalPaid, balance, isFiltered: items.length !== all.length }
 }
 
-export function supplierStatementToRows(supplierName: string, purchases: Purchase[]): XlsxCell[][] {
-  const { items, totalPurchases, totalPaid, balance } = useSupplierStatementData(purchases)
+export function supplierStatementToRows(supplierName: string, purchases: Purchase[], range?: DateRangeFilter): XlsxCell[][] {
+  const { items, totalPurchases, totalPaid, balance } = useSupplierStatementData(purchases, range)
   const header = ['#', 'التاريخ', 'الحركة', 'البيان', 'مدين', 'دائن', 'الرصيد', 'ملاحظات']
   const rows = items.map((i, idx) => [
     idx + 1,
@@ -102,6 +112,7 @@ export function supplierStatementToRows(supplierName: string, purchases: Purchas
   ])
   return [
     [`كشف حساب مورد: ${supplierName}`],
+    ...(range && (range.from || range.to) ? [[`الفترة: ${rangeLabel(range.from, range.to)}`]] : []),
     header,
     ...rows,
     [],
@@ -109,21 +120,23 @@ export function supplierStatementToRows(supplierName: string, purchases: Purchas
   ]
 }
 
-export function downloadSupplierStatementXlsx(supplierName: string, purchases: Purchase[]) {
-  const rows = supplierStatementToRows(supplierName, purchases)
+export function downloadSupplierStatementXlsx(supplierName: string, purchases: Purchase[], range?: DateRangeFilter) {
+  const rows = supplierStatementToRows(supplierName, purchases, range)
   downloadXlsx(`كشف-حساب-مورد-${supplierName}.xlsx`, [
     { name: 'كشف المورد', rows, columnWidths: [5, 14, 10, 22, 14, 14, 14, 30] },
   ])
 }
 
-export function SupplierStatementPrintHost({ supplierName, purchases }: {
+export function SupplierStatementPrintHost({ supplierName, purchases, range }: {
   supplierName: string | null
   purchases: Purchase[]
+  range?: DateRangeFilter
 }) {
   const store = useStoreInfo()
   if (!supplierName) return null
-  const { items, totalPurchases, totalPaid, balance } = useSupplierStatementData(purchases)
+  const { items, totalPurchases, totalPaid, balance } = useSupplierStatementData(purchases, range)
   const dateStr = formatDate(new Date())
+  const hasRange = !!(range && (range.from || range.to))
 
   return (
     <div id="supplier-statement-print-root" aria-hidden="true">
@@ -150,6 +163,7 @@ export function SupplierStatementPrintHost({ supplierName, purchases }: {
 
         <div className="invoice-strip">
           <span>🏭 {supplierName}</span>
+          {hasRange && <span>الفترة: {rangeLabel(range!.from, range!.to)}</span>}
         </div>
 
         <table className="invoice-table">

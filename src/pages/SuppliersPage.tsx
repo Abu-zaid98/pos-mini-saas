@@ -9,7 +9,8 @@ import { getPaymentMethodName, type Purchase } from '../db/db'
 import { printElementById } from '../components/print/printDocument'
 import { buildSupplierStatement, SupplierStatementPrintHost, downloadSupplierStatementXlsx } from '../components/suppliers/SupplierStatementPrint'
 import { formatDate } from '../utils/datetime'
-import { Icon, SearchBar, StatCard, EmptyState, PageHeader } from '../components/ui'
+import { rangeLabel, withinRange } from '../utils/dateRange'
+import { Icon, SearchBar, StatCard, EmptyState, PageHeader, DatePicker } from '../components/ui'
 
 export function SuppliersPage() {
   const [search, setSearch] = useState('')
@@ -29,6 +30,14 @@ export function SuppliersPage() {
   const [deleting, setDeleting] = useState(false)
   const [deleteBlocked, setDeleteBlocked] = useState('')
   const [statementOpen, setStatementOpen] = useState(false)
+  const [statementFrom, setStatementFrom] = useState('')
+  const [statementTo, setStatementTo] = useState('')
+
+  const statementRange = useMemo(
+    () => ({ from: statementFrom, to: statementTo }),
+    [statementFrom, statementTo],
+  )
+  const hasStatementRange = !!(statementFrom || statementTo)
 
   const totalDebt = useMemo(
     () => suppliers.reduce((s, c) => s + (c.totalDebt || 0), 0),
@@ -43,12 +52,27 @@ export function SuppliersPage() {
   }, [purchases, detail])
 
   // كشف حساب المورد: كل عمليات التوريد والسداد مرتبة زمنياً مع الرصيد الجاري
+  // كشف حساب المورد: كل عمليات التوريد والسداد مرتبة زمنياً مع الرصيد الجاري
+  // (مع إمكانية عرض فترة مخصصة من – إلى)
   const statement = useMemo(() => buildSupplierStatement(detailPurchases), [detailPurchases])
+  const visibleStatement = useMemo(
+    () => (hasStatementRange
+      ? statement.filter((item) => withinRange(item.date, statementFrom, statementTo))
+      : statement),
+    [statement, hasStatementRange, statementFrom, statementTo],
+  )
   const statementTotals = useMemo(() => {
-    const totalPurchases = statement.filter((i) => i.type === 'purchase').reduce((s, i) => s + i.amount, 0)
-    const totalPaid = statement.filter((i) => i.type === 'payment').reduce((s, i) => s + i.amount, 0)
-    return { totalPurchases, totalPaid, balance: Math.round((totalPurchases - totalPaid) * 100) / 100 }
-  }, [statement])
+    const totalPurchases = visibleStatement.filter((i) => i.type === 'purchase').reduce((s, i) => s + i.amount, 0)
+    const totalPaid = visibleStatement.filter((i) => i.type === 'payment').reduce((s, i) => s + i.amount, 0)
+    // الرصيد = الرصيد الجاري بعد آخر حركة ظاهرة (يبقى صحيحاً مع الفلترة)
+    const closing = visibleStatement.length ? visibleStatement[visibleStatement.length - 1].balance : 0
+    return {
+      totalPurchases,
+      totalPaid,
+      balance: Math.round((totalPurchases - totalPaid) * 100) / 100,
+      closing,
+    }
+  }, [visibleStatement])
 
   // تحديث الكارد المعروض مع البيانات الحية (بعد سداد مثلاً)
   const liveDetail = detail ? suppliers.find((s) => s.key === detail.key) ?? detail : null
@@ -410,6 +434,38 @@ export function SuppliersPage() {
       >
         {liveDetail && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {/* فلتر الفترة المخصصة */}
+            <div className="period-filter-custom">
+              <div className="period-range-fields">
+                <DatePicker
+                  label="من تاريخ"
+                  value={statementFrom}
+                  max={statementTo || undefined}
+                  onChange={setStatementFrom}
+                />
+                <DatePicker
+                  label="إلى تاريخ"
+                  value={statementTo}
+                  min={statementFrom || undefined}
+                  onChange={setStatementTo}
+                />
+              </div>
+              <div className="period-range-foot">
+                <span className="period-range-summary">
+                  {hasStatementRange ? rangeLabel(statementFrom, statementTo) : 'كل الحركات'}
+                </span>
+                {hasStatementRange && (
+                  <button
+                    type="button"
+                    className="period-range-clear"
+                    onClick={() => { setStatementFrom(''); setStatementTo('') }}
+                  >
+                    مسح التاريخ
+                  </button>
+                )}
+              </div>
+            </div>
+
             {/* Summary */}
             <div style={{
               display: 'grid',
@@ -455,7 +511,7 @@ export function SuppliersPage() {
               <button
                 type="button"
                 className="btn btn-ghost"
-                onClick={() => downloadSupplierStatementXlsx(liveDetail.name, detailPurchases)}
+                onClick={() => downloadSupplierStatementXlsx(liveDetail.name, detailPurchases, hasStatementRange ? statementRange : undefined)}
                 style={{ flex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
               >
                 <Icon name="download" size={16} />
@@ -465,15 +521,15 @@ export function SuppliersPage() {
 
             {/* Ledger */}
             <h3 style={{ fontSize: 14, fontWeight: 800, margin: '4px 0 0' }}>
-              كل عمليات التوريد والسداد ({statement.length})
+              كل عمليات التوريد والسداد ({visibleStatement.length})
             </h3>
-            {statement.length === 0 ? (
+            {visibleStatement.length === 0 ? (
               <p style={{ fontSize: 13, color: 'var(--color-text-muted)', textAlign: 'center', padding: '16px 0' }}>
-                لا توجد حركات لهذا المورد بعد
+                {hasStatementRange ? 'لا توجد حركات لهذا المورد في الفترة المحددة' : 'لا توجد حركات لهذا المورد بعد'}
               </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {statement.map((item) => (
+                {visibleStatement.map((item) => (
                   <div
                     key={item.key}
                     style={{
@@ -529,6 +585,7 @@ export function SuppliersPage() {
       <SupplierStatementPrintHost
         supplierName={statementOpen && liveDetail ? liveDetail.name : null}
         purchases={detailPurchases}
+        range={hasStatementRange ? statementRange : undefined}
       />
 
       {payingPurchase && (

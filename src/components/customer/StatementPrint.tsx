@@ -7,6 +7,7 @@ import type { CustomerLedgerItem } from '../../hooks/useCustomers'
 import { useStoreInfo } from '../invoice/InvoicePrint'
 import { formatCurrency } from '../../utils/currency'
 import { formatDate, formatDateTime } from '../../utils/datetime'
+import { rangeLabel } from '../../utils/dateRange'
 import { downloadXlsx, type XlsxCell } from '../../utils/xlsx'
 
 export function useStatementData(customer: Customer | null, items: CustomerLedgerItem[]) {
@@ -43,14 +44,16 @@ export function downloadStatementXlsx(customer: Customer, items: CustomerLedgerI
   ])
 }
 
-export function StatementPrintHost({ customer, items }: {
+export function StatementPrintHost({ customer, items, range }: {
   customer: Customer | null
   items: CustomerLedgerItem[]
+  range?: { from: string; to: string }
 }) {
   const store = useStoreInfo()
   if (!customer) return null
   const { totalInvoices, totalPayments } = useStatementData(customer, items)
   const dateStr = formatDate(new Date())
+  const hasRange = !!(range && (range.from || range.to))
   const ordered = [...items].sort((a, b) => a.date.getTime() - b.date.getTime())
 
   return (
@@ -83,6 +86,7 @@ export function StatementPrintHost({ customer, items }: {
 
         <div className="invoice-strip">
           <span>👤 {customer.name}</span>
+          {hasRange && <span>الفترة: {rangeLabel(range!.from, range!.to)}</span>}
           {customer.phone && <span dir="ltr">{customer.phone}</span>}
         </div>
 

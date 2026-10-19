@@ -9,7 +9,7 @@ import { formatLineQty, getProductType, isLowStock, isOutOfStock, lineDiscountAm
 import { invoiceNetRevenue, invoiceNetProfit, computeReturnsSummary } from '../utils/reports'
 import { formatDateTime } from '../utils/datetime'
 import { exportFullExcel, type ExportRange } from '../utils/excelExport'
-import { Modal, Tabs, StatCard, PageHeader, Icon } from '../components/ui'
+import { Modal, Tabs, StatCard, PageHeader, Icon, PeriodFilter } from '../components/ui'
 import { InvoicePrint, usePrintInvoice, useStoreInfo } from '../components/invoice/InvoicePrint'
 import { InvoiceExportActions } from '../components/invoice/InvoiceExportActions'
 import { WalletDetailModal } from '../components/wallet/WalletDetailModal'
@@ -446,47 +446,15 @@ export function ReportsPage() {
     [realInvoices, period, fromDate, toDate],
   )
 
-  // Period selector helper element
+  // Period selector helper element — PeriodFilter الموحّد (اختصارات + من/إلى مخصصة)
   const renderPeriodSelector = () => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <Tabs
-        tabs={[
-          { value: 'today', label: 'اليوم' },
-          { value: 'week', label: 'آخر 7 أيام' },
-          { value: 'month', label: 'هذا الشهر' },
-          { value: 'all', label: 'كل الفترات' },
-          { value: 'custom', label: 'مخصص' },
-        ]}
-        value={period}
-        onChange={(v) => {
-          setPeriod(v as PeriodFilter)
-          if (v !== 'custom') {
-            setFromDate('')
-            setToDate('')
-          }
-        }}
-      />
-      {period === 'custom' && (
-        <div style={{
-          background: 'var(--color-input-bg)',
-          border: '1px solid var(--color-border)',
-          borderRadius: 14,
-          padding: 12,
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 10,
-        }}>
-          <div className="input-wrap">
-            <label className="input-label">من تاريخ</label>
-            <input className="input" type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} />
-          </div>
-          <div className="input-wrap">
-            <label className="input-label">إلى تاريخ</label>
-            <input className="input" type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} />
-          </div>
-        </div>
-      )}
-    </div>
+    <PeriodFilter
+      period={period}
+      onPeriodChange={(v) => setPeriod(v as PeriodFilter)}
+      from={fromDate}
+      to={toDate}
+      onRangeChange={(f, t) => { setFromDate(f); setToDate(t) }}
+    />
   )
 
   return (

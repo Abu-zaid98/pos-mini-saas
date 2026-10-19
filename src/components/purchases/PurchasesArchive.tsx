@@ -12,31 +12,34 @@ import { InvoiceExportActions } from '../invoice/InvoiceExportActions'
 import { useStoreInfo } from '../invoice/InvoicePrint'
 import { printElementById } from '../print/printDocument'
 import { Modal } from '../ui/Modal'
-import { Icon, SearchBar, Tabs, StatCard, EmptyState } from '../ui'
+import { Icon, SearchBar, PeriodFilter, StatCard, EmptyState } from '../ui'
 import { formatCurrency } from '../../utils/currency'
 import { formatDate, formatTime } from '../../utils/datetime'
 import { GRAMS_PER_KG } from '../../utils/units'
 import { getPaymentMethodName, type Purchase } from '../../db/db'
 
-type Period = 'all' | 'today' | 'week' | 'month'
+type Period = 'all' | 'today' | 'week' | 'month' | 'custom'
 
 const periodTabs = [
   { value: 'all', label: 'الكل' },
   { value: 'today', label: 'اليوم' },
   { value: 'week', label: 'آخر 7 أيام' },
   { value: 'month', label: 'هذا الشهر' },
+  { value: 'custom', label: 'مخصص' },
 ]
 
 export function PurchasesArchive() {
   const navigate = useNavigate()
   const storeInfo = useStoreInfo()
   const [period, setPeriod] = useState<Period>('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<Purchase | null>(null)
   const [printPurchase, setPrintPurchase] = useState<Purchase | null>(null)
   const docRef = useRef<HTMLDivElement>(null)
 
-  const purchases = usePurchases(period)
+  const purchases = usePurchases(period, { fromDate, toDate })
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -85,10 +88,14 @@ export function PurchasesArchive() {
           onChange={setSearch}
           placeholder="ابحث برقم الفاتورة، المورد أو اسم الصنف..."
         />
-        <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 8 }}>الفترة الزمنية</div>
-          <Tabs tabs={periodTabs} value={period} onChange={(p) => setPeriod(p as Period)} />
-        </div>
+        <PeriodFilter
+          period={period}
+          onPeriodChange={(p) => setPeriod(p as Period)}
+          from={fromDate}
+          to={toDate}
+          onRangeChange={(f, t) => { setFromDate(f); setToDate(t) }}
+          options={periodTabs}
+        />
       </section>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>

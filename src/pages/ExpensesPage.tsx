@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Button, Modal, ConfirmModal, CustomSelect, StatCard, SearchBar, SectionHeader, EmptyState, Icon, PageHeader } from '../components/ui'
+import { Button, Modal, ConfirmModal, CustomSelect, StatCard, SearchBar, SectionHeader, EmptyState, Icon, PageHeader, PeriodFilter } from '../components/ui'
 import { ExpenseModal } from '../components/expenses/ExpenseModal'
 import { getPaymentMethodName, type Expense } from '../db/db'
 import { useWallets, activeWallets } from '../hooks/useWallets'
@@ -210,25 +210,7 @@ export function ExpensesPage() {
       </div>
 
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
-          <CustomSelect
-            label="الفترة"
-            value={period}
-            onChange={(v) => {
-              setPeriod(v as ExpensePeriod)
-              if (v !== 'custom') {
-                setFromDate('')
-                setToDate('')
-              }
-            }}
-            options={[
-              { value: 'today', label: 'اليوم' },
-              { value: 'week', label: 'آخر 7 أيام' },
-              { value: 'month', label: 'هذا الشهر' },
-              { value: 'all', label: 'كل الفترات' },
-              { value: 'custom', label: 'مدة مخصصة' },
-            ]}
-          />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, alignItems: 'start' }}>
           <CustomSelect
             label="نوع المصروف"
             value={categoryFilter}
@@ -249,26 +231,21 @@ export function ExpensesPage() {
           />
         </div>
 
-        {period === 'custom' && (
-          <div style={{
-            background: 'var(--color-input-bg)',
-            border: '1px solid var(--color-border)',
-            borderRadius: 14,
-            padding: 12,
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: 10,
-          }}>
-            <div className="input-wrap">
-              <label className="input-label">من تاريخ</label>
-              <input className="input" type="date" value={fromDate} max={toDate || undefined} onChange={(e) => setFromDate(e.target.value)} />
-            </div>
-            <div className="input-wrap">
-              <label className="input-label">إلى تاريخ</label>
-              <input className="input" type="date" value={toDate} min={fromDate || undefined} onChange={(e) => setToDate(e.target.value)} />
-            </div>
-          </div>
-        )}
+        <PeriodFilter
+          variant="select"
+          period={period}
+          onPeriodChange={(v) => setPeriod(v as ExpensePeriod)}
+          from={fromDate}
+          to={toDate}
+          onRangeChange={(f, t) => { setFromDate(f); setToDate(t) }}
+          options={[
+            { value: 'today', label: 'اليوم' },
+            { value: 'week', label: 'آخر 7 أيام' },
+            { value: 'month', label: 'هذا الشهر' },
+            { value: 'all', label: 'كل الفترات' },
+            { value: 'custom', label: 'مدة مخصصة' },
+          ]}
+        />
 
         <SearchBar
           value={search}
